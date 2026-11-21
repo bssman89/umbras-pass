@@ -1,0 +1,450 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Default-Deny Catch-All
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Require verified email AND Google Sign-In provider for both reads and writes
+    function isVerifiedGoogleUser() {
+      return isSignedIn() &&
+        request.auth.token.email_verified == true &&
+        request.auth.token.firebase.sign_in_provider == 'google.com';
+    }
+
+    function isValidStringList(arr, maxLen) {
+      return arr is list &&
+        arr.size() <= maxLen &&
+        (arr.size() == 0 || (arr[0] is string && arr[0].size() >= 1 && arr[0].size() <= 400));
+    }
+
+    // Validation Blueprint for UserAccountProfile (Synchronized with firebase-blueprint.json)
+    function isValidUserAccountProfile(data) {
+      return data.keys().hasAll([
+        'uid',
+        'displayName',
+        'defaultFormat',
+        'defaultGoal',
+        'lastActiveDeckName',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid',
+        'displayName',
+        'defaultFormat',
+        'defaultGoal',
+        'lastActiveDeckName',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.uid is string &&
+      data.uid.size() >= 1 &&
+      data.uid.size() <= 128 &&
+      data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.uid == request.auth.uid &&
+      data.displayName is string &&
+      data.displayName.size() >= 1 &&
+      data.displayName.size() <= 120 &&
+      data.defaultFormat is string &&
+      data.defaultFormat.size() >= 1 &&
+      data.defaultFormat.size() <= 32 &&
+      data.defaultFormat in ['auto', 'commander', 'standard', 'modern', 'pioneer', 'legacy', 'pauper', 'brawl', 'limited', 'casual60'] &&
+      data.defaultGoal is string &&
+      data.defaultGoal.size() >= 1 &&
+      data.defaultGoal.size() <= 32 &&
+      data.defaultGoal in ['bracket-1', 'bracket-2', 'bracket-3', 'bracket-4', 'bracket-5', 'consistency', 'speed', 'budget'] &&
+      data.lastActiveDeckName is string &&
+      data.lastActiveDeckName.size() >= 0 &&
+      data.lastActiveDeckName.size() <= 120 &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isUpdateProfileDisplayNameAction() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+        'displayName',
+        'updatedAt'
+      ]);
+    }
+
+    function isUpdateProfilePreferencesAction() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+        'displayName',
+        'defaultFormat',
+        'defaultGoal',
+        'lastActiveDeckName',
+        'updatedAt'
+      ]);
+    }
+
+    match /userProfiles/{userId} {
+      allow get: if isVerifiedGoogleUser() &&
+        isValidId(userId) &&
+        userId == request.auth.uid;
+
+      allow create: if isVerifiedGoogleUser() &&
+        isValidId(userId) &&
+        userId == request.auth.uid &&
+        isValidUserAccountProfile(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedGoogleUser() &&
+        isValidId(userId) &&
+        userId == request.auth.uid &&
+        isValidUserAccountProfile(incoming()) &&
+        existing().uid == request.auth.uid &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isUpdateProfileDisplayNameAction() ||
+          isUpdateProfilePreferencesAction()
+        );
+
+      allow delete: if isVerifiedGoogleUser() &&
+        isValidId(userId) &&
+        userId == request.auth.uid &&
+        existing().uid == request.auth.uid;
+    }
+
+    // Validation Blueprint for UserDeck (Synchronized with firebase-blueprint.json)
+    function isValidUserDeck(data) {
+      return data.keys().hasAll([
+        'ownerId',
+        'deckName',
+        'label',
+        'format',
+        'goal',
+        'originalDeckText',
+        'exportedDeckText',
+        'exportedCsvText',
+        'resultingLandCount',
+        'totalMainCount',
+        'averageCmcNonLand',
+        'tappedLandCount',
+        'activeColorSummary',
+        'activeChangeCount',
+        'verdictHeadline',
+        'verdictSummary',
+        'archetype',
+        'commanderName',
+        'isAutoSaved',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId',
+        'deckName',
+        'label',
+        'format',
+        'goal',
+        'originalDeckText',
+        'exportedDeckText',
+        'exportedCsvText',
+        'resultingLandCount',
+        'totalMainCount',
+        'averageCmcNonLand',
+        'tappedLandCount',
+        'activeColorSummary',
+        'activeChangeCount',
+        'verdictHeadline',
+        'verdictSummary',
+        'archetype',
+        'commanderName',
+        'isAutoSaved',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.ownerId is string &&
+      data.ownerId.size() >= 1 &&
+      data.ownerId.size() <= 128 &&
+      data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.ownerId == request.auth.uid &&
+      data.deckName is string &&
+      data.deckName.size() >= 1 &&
+      data.deckName.size() <= 120 &&
+      data.label is string &&
+      data.label.size() >= 1 &&
+      data.label.size() <= 160 &&
+      data.format is string &&
+      data.format.size() >= 1 &&
+      data.format.size() <= 32 &&
+      data.format in ['auto', 'commander', 'standard', 'modern', 'pioneer', 'legacy', 'pauper', 'brawl', 'limited', 'casual60'] &&
+      data.goal is string &&
+      data.goal.size() >= 1 &&
+      data.goal.size() <= 32 &&
+      data.goal in ['bracket-1', 'bracket-2', 'bracket-3', 'bracket-4', 'bracket-5', 'consistency', 'speed', 'budget'] &&
+      data.originalDeckText is string &&
+      data.originalDeckText.size() >= 1 &&
+      data.originalDeckText.size() <= 25000 &&
+      data.exportedDeckText is string &&
+      data.exportedDeckText.size() >= 1 &&
+      data.exportedDeckText.size() <= 25000 &&
+      data.exportedCsvText is string &&
+      data.exportedCsvText.size() >= 0 &&
+      data.exportedCsvText.size() <= 45000 &&
+      data.resultingLandCount is int &&
+      data.resultingLandCount >= 0 &&
+      data.resultingLandCount <= 250 &&
+      data.totalMainCount is int &&
+      data.totalMainCount >= 0 &&
+      data.totalMainCount <= 500 &&
+      data.averageCmcNonLand is number &&
+      data.averageCmcNonLand >= 0 &&
+      data.averageCmcNonLand <= 20 &&
+      data.tappedLandCount is int &&
+      data.tappedLandCount >= 0 &&
+      data.tappedLandCount <= 250 &&
+      data.activeColorSummary is string &&
+      data.activeColorSummary.size() >= 1 &&
+      data.activeColorSummary.size() <= 120 &&
+      data.activeChangeCount is int &&
+      data.activeChangeCount >= 0 &&
+      data.activeChangeCount <= 250 &&
+      data.verdictHeadline is string &&
+      data.verdictHeadline.size() >= 0 &&
+      data.verdictHeadline.size() <= 300 &&
+      data.verdictSummary is string &&
+      data.verdictSummary.size() >= 0 &&
+      data.verdictSummary.size() <= 2000 &&
+      data.archetype is string &&
+      data.archetype.size() >= 0 &&
+      data.archetype.size() <= 120 &&
+      data.commanderName is string &&
+      data.commanderName.size() >= 0 &&
+      data.commanderName.size() <= 200 &&
+      data.isAutoSaved is bool &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isRenameDeckAction() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+        'deckName',
+        'label',
+        'isAutoSaved',
+        'updatedAt'
+      ]);
+    }
+
+    function isUpdateDeckExportAction() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+        'deckName',
+        'label',
+        'format',
+        'goal',
+        'originalDeckText',
+        'exportedDeckText',
+        'exportedCsvText',
+        'resultingLandCount',
+        'totalMainCount',
+        'averageCmcNonLand',
+        'tappedLandCount',
+        'activeColorSummary',
+        'activeChangeCount',
+        'verdictHeadline',
+        'verdictSummary',
+        'archetype',
+        'commanderName',
+        'isAutoSaved',
+        'updatedAt'
+      ]);
+    }
+
+    match /userDecks/{deckId} {
+      allow get: if isVerifiedGoogleUser() &&
+        isValidId(deckId) &&
+        existing().ownerId == request.auth.uid;
+
+      allow list: if isVerifiedGoogleUser() &&
+        resource.data.ownerId == request.auth.uid;
+
+      allow create: if isVerifiedGoogleUser() &&
+        isValidId(deckId) &&
+        isValidUserDeck(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedGoogleUser() &&
+        isValidId(deckId) &&
+        isValidUserDeck(incoming()) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isRenameDeckAction() ||
+          isUpdateDeckExportAction()
+        );
+
+      allow delete: if isVerifiedGoogleUser() &&
+        isValidId(deckId) &&
+        existing().ownerId == request.auth.uid;
+    }
+
+    // Validation Blueprint for BotLearningMemory (Synchronized with firebase-blueprint.json)
+    function isValidBotLearningMemory(data) {
+      return data.keys().hasAll([
+        'ownerId',
+        'botKey',
+        'botName',
+        'archetype',
+        'matchesPlayed',
+        'wins',
+        'losses',
+        'closes',
+        'botIqScore',
+        'lastDeckFaced',
+        'lastOwnDeckSummary',
+        'learnedFromFacedDecks',
+        'learnedFromOwnDecks',
+        'userFeedbackNotes',
+        'tacticalDirectives',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'ownerId',
+        'botKey',
+        'botName',
+        'archetype',
+        'matchesPlayed',
+        'wins',
+        'losses',
+        'closes',
+        'botIqScore',
+        'lastDeckFaced',
+        'lastOwnDeckSummary',
+        'learnedFromFacedDecks',
+        'learnedFromOwnDecks',
+        'userFeedbackNotes',
+        'tacticalDirectives',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.ownerId is string &&
+      data.ownerId.size() >= 1 &&
+      data.ownerId.size() <= 128 &&
+      data.ownerId.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.ownerId == request.auth.uid &&
+      data.botKey is string &&
+      data.botKey.size() >= 1 &&
+      data.botKey.size() <= 128 &&
+      data.botKey.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.botName is string &&
+      data.botName.size() >= 1 &&
+      data.botName.size() <= 80 &&
+      data.archetype is string &&
+      data.archetype.size() >= 1 &&
+      data.archetype.size() <= 120 &&
+      data.matchesPlayed is int &&
+      data.matchesPlayed >= 0 &&
+      data.matchesPlayed <= 100000 &&
+      data.wins is int &&
+      data.wins >= 0 &&
+      data.wins <= 100000 &&
+      data.losses is int &&
+      data.losses >= 0 &&
+      data.losses <= 100000 &&
+      data.closes is int &&
+      data.closes >= 0 &&
+      data.closes <= 100000 &&
+      data.botIqScore is int &&
+      data.botIqScore >= 0 &&
+      data.botIqScore <= 2000 &&
+      data.lastDeckFaced is string &&
+      data.lastDeckFaced.size() >= 0 &&
+      data.lastDeckFaced.size() <= 160 &&
+      data.lastOwnDeckSummary is string &&
+      data.lastOwnDeckSummary.size() >= 0 &&
+      data.lastOwnDeckSummary.size() <= 300 &&
+      isValidStringList(data.learnedFromFacedDecks, 15) &&
+      isValidStringList(data.learnedFromOwnDecks, 15) &&
+      isValidStringList(data.userFeedbackNotes, 15) &&
+      isValidStringList(data.tacticalDirectives, 15) &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp;
+    }
+
+    function isUpdateBotTrainingAction() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+        'botName',
+        'archetype',
+        'matchesPlayed',
+        'wins',
+        'losses',
+        'closes',
+        'botIqScore',
+        'lastDeckFaced',
+        'lastOwnDeckSummary',
+        'learnedFromFacedDecks',
+        'learnedFromOwnDecks',
+        'userFeedbackNotes',
+        'tacticalDirectives',
+        'updatedAt'
+      ]);
+    }
+
+    function isCoachBotAction() {
+      return incoming().diff(existing()).affectedKeys().hasOnly([
+        'botIqScore',
+        'userFeedbackNotes',
+        'tacticalDirectives',
+        'updatedAt'
+      ]);
+    }
+
+    match /botMemory/{memoryId} {
+      allow get: if isVerifiedGoogleUser() &&
+        isValidId(memoryId) &&
+        existing().ownerId == request.auth.uid;
+
+      allow list: if isVerifiedGoogleUser() &&
+        resource.data.ownerId == request.auth.uid;
+
+      allow create: if isVerifiedGoogleUser() &&
+        isValidId(memoryId) &&
+        isValidBotLearningMemory(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedGoogleUser() &&
+        isValidId(memoryId) &&
+        isValidBotLearningMemory(incoming()) &&
+        existing().ownerId == request.auth.uid &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().botKey == existing().botKey &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time &&
+        (
+          isUpdateBotTrainingAction() ||
+          isCoachBotAction()
+        );
+
+      allow delete: if isVerifiedGoogleUser() &&
+        isValidId(memoryId) &&
+        existing().ownerId == request.auth.uid;
+    }
+  }
+}

@@ -1,0 +1,22 @@
+node_modules/
+build/
+dist/
+dist-server/
+dist-electron/
+coverage/
+.DS_Store
+Thumbs.db
+*.log
+.env*
+!.env.example
+.aistudio/
+.vscode/
+.idea/
+
+# Local Firebase credentials & applet config (protects API keys from GitHub commits)
+firebase-applet-config.json
+
+# Local GGUF model staging folder for bundled desktop builds
+models/
+*.gguf
+*.gguf.partial

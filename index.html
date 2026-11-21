@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090a0f" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="UmbrasPass" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" href="/icon.png" />
+    <title>Umbras Pass — Indie Magic: The Gathering Deck Analyzer &amp; Playtest Sim</title>
+    <meta
+      name="description"
+      content="Import Magic: The Gathering decks from any source to diagnose mana shortages, missing lands, cuts, additions, and card replacements."
+    />
+    <meta property="og:title" content="Umbras Pass — Indie Magic: The Gathering Deck Analyzer &amp; Playtest Sim" />
+    <meta
+      property="og:description"
+      content="Import Magic: The Gathering decks from any source to diagnose mana shortages, missing lands, cuts, additions, and card replacements."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      // Gracefully suppress harmless dev-server HMR WebSocket disconnects in iframe previews
+      (function () {
+        function isViteWsError(err) {
+          if (!err) return false;
+          var msg = (typeof err === 'string' ? err : err.message || '') + '';
+          return (
+            msg.indexOf('WebSocket closed without opened') !== -1 ||
+            msg.indexOf('failed to connect to websocket') !== -1 ||
+            msg.indexOf('vite:ws:disconnect') !== -1
+          );
+        }
+        window.addEventListener('unhandledrejection', function (e) {
+          if (isViteWsError(e.reason)) {
+            e.preventDefault();
+            e.stopImmediatePropagation && e.stopImmediatePropagation();
+          }
+        });
+        window.addEventListener('error', function (e) {
+          if (isViteWsError(e.error) || isViteWsError(e.message)) {
+            e.preventDefault();
+            e.stopImmediatePropagation && e.stopImmediatePropagation();
+          }
+        });
+      })();
+    </script>
+    <style>
+      :root {
+        --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+        --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+        --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+        --color-purple-50: #eff9fe;
+        --color-purple-100: #dff2fc;
+        --color-purple-200: #b8e6fa;
+        --color-purple-300: #7ad3f6;
+        --color-purple-400: #38bdf8;
+        --color-purple-500: #29abe2;
+        --color-purple-600: #1d92c7;
+        --color-purple-700: #1676a3;
+        --color-purple-800: #156186;
+        --color-purple-900: #16516f;
+
+        --color-brand-blue: #29abe2;
+        --color-brand-red: #e53924;
+        --color-brand-charcoal: #1e2229;
+      }
+
+      body {
+        font-family: var(--font-sans);
+        background-color: #12151b;
+        color: #e4e4e7;
+      }
+
+      h1, h2, h3, .font-display {
+        font-family: var(--font-display);
+      }
+
+      .font-mono, .tabular-nums {
+        font-variant-numeric: tabular-nums;
+      }
+
+      img[src*="Umbras_pass_v3-removebg-preview"] {
+        width: auto;
+        height: auto;
+        max-width: 125px;
+      }
+    </style>
+  </head>
+  <body class="bg-[#12151b] text-zinc-200 antialiased selection:bg-[#29ABE2]/30 selection:text-white">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

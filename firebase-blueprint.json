@@ -1,0 +1,338 @@
+{
+  "entities": {
+    "UserAccountProfile": {
+      "title": "UserAccountProfile",
+      "description": "A user account profile created via Google Sign-In storing per-user preferences and workspace metadata.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the account owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Display name for the user's account workspace.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "defaultFormat": {
+          "type": "string",
+          "description": "Preferred default MTG format for new deck imports.",
+          "enum": ["auto", "commander", "standard", "modern", "pioneer", "legacy", "pauper", "brawl", "limited", "casual60"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "defaultGoal": {
+          "type": "string",
+          "description": "Preferred default Commander Bracket or optimization goal.",
+          "enum": ["bracket-1", "bracket-2", "bracket-3", "bracket-4", "bracket-5", "consistency", "speed", "budget"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "lastActiveDeckName": {
+          "type": "string",
+          "description": "Name of the most recently analyzed deck in this user's account.",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the account profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the account profile was last updated."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "defaultFormat",
+        "defaultGoal",
+        "lastActiveDeckName",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UserDeck": {
+      "title": "UserDeck",
+      "description": "A user-owned Magic: The Gathering uploaded decklist, analysis summary, and optimized export isolated per user.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user who uploaded, analyzed, and exported this deck.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "deckName": {
+          "type": "string",
+          "description": "Display name of the analyzed deck.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "label": {
+          "type": "string",
+          "description": "Snapshot version or export label.",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "format": {
+          "type": "string",
+          "description": "Deck format setting.",
+          "enum": ["auto", "commander", "standard", "modern", "pioneer", "legacy", "pauper", "brawl", "limited", "casual60"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "goal": {
+          "type": "string",
+          "description": "Optimization goal or Commander Bracket.",
+          "enum": ["bracket-1", "bracket-2", "bracket-3", "bracket-4", "bracket-5", "consistency", "speed", "budget"],
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "originalDeckText": {
+          "type": "string",
+          "description": "Original uploaded raw decklist text.",
+          "minLength": 1,
+          "maxLength": 25000
+        },
+        "exportedDeckText": {
+          "type": "string",
+          "description": "Optimized exported decklist text (.txt format).",
+          "minLength": 1,
+          "maxLength": 25000
+        },
+        "exportedCsvText": {
+          "type": "string",
+          "description": "Optimized exported decklist spreadsheet (.csv format).",
+          "minLength": 0,
+          "maxLength": 45000
+        },
+        "resultingLandCount": {
+          "type": "integer",
+          "description": "Resulting land count in the exported list."
+        },
+        "totalMainCount": {
+          "type": "integer",
+          "description": "Resulting total maindeck + commander card count."
+        },
+        "averageCmcNonLand": {
+          "type": "number",
+          "description": "Average mana value of non-land cards."
+        },
+        "tappedLandCount": {
+          "type": "integer",
+          "description": "Number of lands that likely enter tapped."
+        },
+        "activeColorSummary": {
+          "type": "string",
+          "description": "Summary of active mana colors and sources (e.g. U:18 · B:16).",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "activeChangeCount": {
+          "type": "integer",
+          "description": "Count of active swaps, cuts, additions, and land changes applied."
+        },
+        "verdictHeadline": {
+          "type": "string",
+          "description": "Headline verdict from the deck analyzer.",
+          "minLength": 0,
+          "maxLength": 300
+        },
+        "verdictSummary": {
+          "type": "string",
+          "description": "Detailed analysis summary.",
+          "minLength": 0,
+          "maxLength": 2000
+        },
+        "archetype": {
+          "type": "string",
+          "description": "Detected deck archetype.",
+          "minLength": 0,
+          "maxLength": 120
+        },
+        "commanderName": {
+          "type": "string",
+          "description": "Recognized commander name(s), if any.",
+          "minLength": 0,
+          "maxLength": 200
+        },
+        "isAutoSaved": {
+          "type": "boolean",
+          "description": "Whether this version was auto-saved upon analysis or manually saved/exported."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the deck version was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when the deck version was last updated."
+        }
+      },
+      "required": [
+        "ownerId",
+        "deckName",
+        "label",
+        "format",
+        "goal",
+        "originalDeckText",
+        "exportedDeckText",
+        "exportedCsvText",
+        "resultingLandCount",
+        "totalMainCount",
+        "averageCmcNonLand",
+        "tappedLandCount",
+        "activeColorSummary",
+        "activeChangeCount",
+        "verdictHeadline",
+        "verdictSummary",
+        "archetype",
+        "commanderName",
+        "isAutoSaved",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "BotLearningMemory": {
+      "title": "BotLearningMemory",
+      "description": "Per-user adaptive intelligence memory for an AI Playtest Bot tracking faced decks, piloted decks, user coaching feedback, and evolved tactical directives.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the account owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "botKey": {
+          "type": "string",
+          "description": "Stable identifier slug for this bot persona/archetype.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "botName": {
+          "type": "string",
+          "description": "Display name of the AI playtest bot.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "archetype": {
+          "type": "string",
+          "description": "Archetype or custom decklabel piloted by this bot.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "matchesPlayed": {
+          "type": "integer",
+          "description": "Total simulated matches this bot has learned from."
+        },
+        "wins": {
+          "type": "integer",
+          "description": "Matches where this bot pressured or defeated the player."
+        },
+        "losses": {
+          "type": "integer",
+          "description": "Matches where the player overcame this bot."
+        },
+        "closes": {
+          "type": "integer",
+          "description": "Close contested matches."
+        },
+        "botIqScore": {
+          "type": "integer",
+          "description": "Adaptive Bot IQ rating reflecting accumulated tactical experience and coaching."
+        },
+        "lastDeckFaced": {
+          "type": "string",
+          "description": "Most recent player deck fingerprint faced by this bot.",
+          "minLength": 0,
+          "maxLength": 160
+        },
+        "lastOwnDeckSummary": {
+          "type": "string",
+          "description": "Summary of the most recent decklist or archetype piloted by this bot.",
+          "minLength": 0,
+          "maxLength": 300
+        },
+        "learnedFromFacedDecks": {
+          "type": "array",
+          "description": "Bounded list (max 15) of counterplay lessons learned from player decks faced."
+        },
+        "learnedFromOwnDecks": {
+          "type": "array",
+          "description": "Bounded list (max 15) of sequencing/mana lessons learned from decks this bot piloted."
+        },
+        "userFeedbackNotes": {
+          "type": "array",
+          "description": "Bounded list (max 15) of explicit user coaching notes and ratings."
+        },
+        "tacticalDirectives": {
+          "type": "array",
+          "description": "Bounded list (max 15) of active tactical priorities fed into future simulations."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when this bot memory profile was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when this bot memory profile was last updated."
+        }
+      },
+      "required": [
+        "ownerId",
+        "botKey",
+        "botName",
+        "archetype",
+        "matchesPlayed",
+        "wins",
+        "losses",
+        "closes",
+        "botIqScore",
+        "lastDeckFaced",
+        "lastOwnDeckSummary",
+        "learnedFromFacedDecks",
+        "learnedFromOwnDecks",
+        "userFeedbackNotes",
+        "tacticalDirectives",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/userProfiles/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserAccountProfile"
+      },
+      "description": "Per-user account profiles created when a user registers or signs in with Google."
+    },
+    "/userDecks/{deckId}": {
+      "schema": {
+        "$ref": "#/entities/UserDeck"
+      },
+      "description": "Per-user uploaded, analyzed, and exported MTG decks strictly isolated to the authenticated ownerId."
+    },
+    "/botMemory/{memoryId}": {
+      "schema": {
+        "$ref": "#/entities/BotLearningMemory"
+      },
+      "description": "Per-user adaptive AI bot learning profiles isolated to the authenticated ownerId."
+    }
+  }
+}

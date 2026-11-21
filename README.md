@@ -1,11 +1,19 @@
-<div align="center">
+# Umbras Pass — Indie Magic: The Gathering Deck Analyzer & Playtest Sim
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+Umbras Pass is an independent Magic: The Gathering deck analyzer, mana base optimizer, and tactical playtest simulator.
 
-  <h1>Built with AI Studio</h2>
+## Run Locally
 
-  <p>The fastest path from prompt to production with Gemini.</p>
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Configure `GEMINI_API_KEY` in a local `.env` file (excluded from git via `.gitignore`) or in your environment secrets.
+3. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-  <a href="https://aistudio.google.com/apps">Start building</a>
+## Security & Repository Hygiene
 
-</div>
+`models/`, `*.gguf`, `firebase-applet-config.json`, and `.env*` (except `.env.example`) are excluded via `.gitignore` so model weights and credentials are never committed to GitHub.

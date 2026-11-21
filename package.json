@@ -1,0 +1,85 @@
+{
+  "name": "react-example",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "start": "node server.ts",
+    "build": "node scripts/build.js",
+    "build:server": "node scripts/build-server.mjs",
+    "electron": "electron electron/main.cjs",
+    "download:qwen4b": "node scripts/bundle-desktop-with-model.mjs --download-only",
+    "dist:win": "node scripts/build.js --win",
+    "dist:win:bundle": "node scripts/bundle-desktop-with-model.mjs",
+    "dist:win:qwen4b": "node scripts/bundle-desktop-with-model.mjs --with-qwen4b",
+    "preview": "vite preview",
+    "clean": "node scripts/build.js --clean-only",
+    "lint": "tsc --noEmit"
+  },
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.umbraspass.app",
+    "productName": "Umbras Pass",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "asarUnpack": [
+      "dist/**/*",
+      "dist-server/**/*",
+      "node_modules/**/*"
+    ],
+    "files": [
+      "dist/**/*",
+      "dist-server/**/*",
+      "electron/**/*",
+      "public/assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "public/assets/aistudio/Umbras_pass_v3-removebg-preview_58159528.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "dependencies": {
+    "@firebase/eslint-plugin-security-rules": "^0.0.2",
+    "@google/genai": "^3.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.1",
+    "dotenv": "^17.2.3",
+    "eslint": "^10.15.0",
+    "express": "^4.21.2",
+    "firebase": "^13.4.0",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "node-llama-cpp": "^3.22.3",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "react-is": "^19.3.1",
+    "recharts": "^3.11.0",
+    "vite": "^8.3.0",
+    "vite-plugin-pwa": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.4.21",
+    "electron": "^34.2.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.28.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.21.0",
+    "typescript": "^7.0.2",
+    "@types/express": "^4.17.21"
+  }
+}

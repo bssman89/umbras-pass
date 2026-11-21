@@ -1,0 +1,6 @@
+{
+  "name": "ManaLens",
+  "description": "Magic: The Gathering deck analyzer and mana base optimizer across all decklist sources.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,443 @@
+@import "tailwindcss";
+
+@theme {
+  /* Remap Tailwind's purple & sky scales globally to the logo's Cerulean Blue (dark-friendly 50/100 tints) */
+  --color-purple-50: #132838;
+  --color-purple-100: #173347;
+  --color-purple-200: #1e4968;
+  --color-purple-300: #7ad3f6;
+  --color-purple-400: #38bdf8;
+  --color-purple-500: #29abe2;
+  --color-purple-600: #1d92c7;
+  --color-purple-700: #29abe2;
+  --color-purple-800: #38bdf8;
+  --color-purple-900: #7ad3f6;
+
+  --color-sky-50: #132838;
+  --color-sky-100: #173347;
+  --color-sky-200: #1e4968;
+  --color-sky-300: #7ad3f6;
+  --color-sky-400: #38bdf8;
+  --color-sky-500: #29abe2;
+  --color-sky-600: #1d92c7;
+  --color-sky-700: #29abe2;
+  --color-sky-800: #38bdf8;
+  --color-sky-900: #7ad3f6;
+
+  /* Custom brand colors matching the logo */
+  --color-brand-blue: #29abe2;
+  --color-brand-red: #e53924;
+  --color-brand-charcoal: #1e2229;
+}
+
+@layer base {
+  :root {
+    --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+    --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #12151b;
+    color: #f4f4f5;
+  }
+
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+  }
+
+  .font-mono, .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Custom override to scale and fit the Umbras Pass logo */
+img[src*="Umbras_pass_v3-removebg-preview"] {
+  width: auto;
+  height: auto;
+  max-width: 125px;
+}
+
+/* Umbras Pass Charcoal, Cyan-Blue (#29ABE2) & Flame-Red (#E53924) Logo Theme */
+.bg-zinc-100 {
+  background-color: #11151d !important;
+}
+
+.bg-zinc-200,
+.bg-zinc-200\/70 {
+  background-color: #11151d !important;
+  border: 1px solid #2c3546;
+}
+
+/* Segmented tab strip containers */
+.bg-zinc-100.p-1,
+.bg-zinc-200\/70.p-1 {
+  background-color: #0f131a !important;
+  border: 1px solid #2c3546;
+}
+
+.bg-white {
+  background-color: #1a1f29 !important;
+}
+
+/* Active tab pill inside segmented controls */
+.bg-white.shadow-sm {
+  background-color: #263144 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 1px rgba(41, 171, 226, 0.55) !important;
+}
+
+.bg-white\/95 {
+  background-color: rgba(26, 31, 41, 0.96) !important;
+}
+
+.bg-zinc-50,
+.bg-zinc-50\/40,
+.bg-zinc-50\/50,
+.bg-zinc-50\/60,
+.bg-zinc-50\/70,
+.bg-zinc-50\/80 {
+  background-color: #141821 !important;
+}
+
+.bg-zinc-900 {
+  background-color: #263144 !important;
+  color: #ffffff !important;
+}
+
+/* Hover Background States */
+.hover\:bg-zinc-50:hover,
+.hover\:bg-zinc-50\/70:hover,
+.hover\:bg-zinc-100:hover,
+.hover\:bg-zinc-800:hover {
+  background-color: #252f42 !important;
+}
+
+/* Inactive buttons inside segmented controls on hover */
+.bg-zinc-100.p-1 button:not(.shadow-sm):hover,
+.bg-zinc-200\/70.p-1 button:not(.shadow-sm):hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  color: #ffffff !important;
+}
+
+/* Borders & Dividers */
+.border-zinc-200,
+.border-zinc-300,
+.border-zinc-400 {
+  border-color: #2d3546 !important;
+}
+
+.border-zinc-100 {
+  border-color: #232a38 !important;
+}
+
+.hover\:border-zinc-300:hover,
+.hover\:border-zinc-400:hover {
+  border-color: #4f5b70 !important;
+}
+
+.divide-zinc-100 > :not(:last-child),
+.divide-zinc-200 > :not(:last-child) {
+  border-color: #232a38 !important;
+}
+
+/* High-Contrast Typography & SVG Fills on Dark Charcoal Surfaces */
+.text-zinc-900 {
+  color: #ffffff !important;
+}
+
+.text-zinc-800 {
+  color: #f4f4f5 !important;
+}
+
+.text-zinc-700 {
+  color: #e2e8f0 !important;
+}
+
+.text-zinc-600 {
+  color: #cbd5e1 !important;
+}
+
+.text-zinc-500 {
+  color: #94a3b8 !important;
+}
+
+.text-zinc-400,
+.text-zinc-300 {
+  color: #7c879c !important;
+}
+
+.fill-zinc-900 {
+  fill: #ffffff !important;
+}
+
+.fill-zinc-700,
+.fill-zinc-600,
+.fill-zinc-500 {
+  fill: #cbd5e1 !important;
+}
+
+.hover\:text-zinc-900:hover,
+.hover\:text-zinc-800:hover,
+.hover\:text-zinc-700:hover {
+  color: #ffffff !important;
+}
+
+/* Primary Logo Cyan-Blue (#29ABE2) & Secondary Flame-Red (#E53924) Accents */
+header.sticky,
+header.md\:sticky {
+  border-top: 3px solid transparent;
+  border-image: linear-gradient(90deg, #29abe2 0%, #29abe2 50%, #e53924 50%, #e53924 100%) 1;
+}
+
+.text-sky-700,
+.text-sky-800,
+.group:hover .group-hover\:text-sky-700 {
+  color: #38bdf8 !important;
+}
+
+.hover\:text-sky-700:hover,
+.hover\:text-sky-800:hover,
+.hover\:text-sky-900:hover {
+  color: #7ad3f6 !important;
+}
+
+.text-sky-900 {
+  color: #7ad3f6 !important;
+}
+
+.bg-sky-700 {
+  background-color: #29abe2 !important;
+  color: #0b1117 !important;
+}
+
+.bg-sky-700:hover,
+.hover\:bg-sky-800:hover {
+  background-color: #1d92c7 !important;
+  color: #ffffff !important;
+}
+
+.bg-sky-50,
+.bg-sky-50\/30,
+.bg-sky-50\/35,
+.bg-sky-50\/40,
+.bg-sky-50\/60,
+.bg-sky-100,
+.hover\:bg-sky-50\/30:hover {
+  background-color: rgba(41, 171, 226, 0.14) !important;
+}
+
+.border-sky-200,
+.border-sky-300,
+.border-sky-400,
+.border-sky-500,
+.border-sky-600,
+.border-sky-700,
+.hover\:border-sky-400:hover,
+.hover\:border-sky-500:hover,
+.hover\:border-sky-600:hover {
+  border-color: #29abe2 !important;
+}
+
+/* Status, Mana Pip & Flame-Red Accents */
+.text-red-700,
+.text-red-800,
+.text-red-900 {
+  color: #ff6b5b !important;
+}
+
+.hover\:text-red-700:hover,
+.hover\:text-red-900:hover {
+  color: #fca5a5 !important;
+}
+
+.bg-red-50,
+.bg-red-50\/40,
+.bg-red-50\/60 {
+  background-color: rgba(229, 57, 36, 0.16) !important;
+}
+
+.border-red-200,
+.border-red-300,
+.hover\:border-red-200:hover,
+.hover\:border-red-300:hover {
+  border-color: rgba(229, 57, 36, 0.55) !important;
+}
+
+.text-emerald-700,
+.text-emerald-800,
+.text-emerald-900 {
+  color: #34d399 !important;
+}
+
+.bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.16) !important;
+}
+
+.border-emerald-200,
+.border-emerald-300 {
+  border-color: rgba(16, 185, 129, 0.45) !important;
+}
+
+.text-amber-700,
+.text-amber-800,
+.text-amber-900,
+.text-amber-950 {
+  color: #fbbf24 !important;
+}
+
+.hover\:text-amber-900:hover,
+.hover\:text-amber-950:hover {
+  color: #fde68a !important;
+}
+
+.bg-amber-50,
+.bg-amber-50\/40,
+.bg-amber-50\/60,
+.bg-amber-50\/70,
+.hover\:bg-amber-50:hover,
+.hover\:bg-amber-50\/70:hover {
+  background-color: rgba(245, 158, 11, 0.18) !important;
+}
+
+.border-amber-200,
+.border-amber-300,
+.hover\:border-amber-300:hover {
+  border-color: rgba(245, 158, 11, 0.5) !important;
+}
+
+.text-blue-900 {
+  color: #93c5fd !important;
+}
+
+.bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.16) !important;
+}
+
+.border-blue-300 {
+  border-color: rgba(59, 130, 246, 0.45) !important;
+}
+
+/* Form Inputs, Selects & Textareas */
+input,
+select,
+textarea {
+  background-color: #141821 !important;
+  color: #f4f4f5 !important;
+  border-color: #2c3342 !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #6b7280 !important;
+}
+
+@keyframes cardDrawSlideIn {
+  from {
+    opacity: 0;
+    transform: translate3d(16px, -4px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes deckShuffleLeft {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  28% {
+    transform: translate3d(-18px, -6px, 0) rotate(-11deg);
+  }
+  58% {
+    transform: translate3d(-8px, -2px, 0) rotate(-4deg);
+  }
+  82% {
+    transform: translate3d(3px, 0, 0) rotate(2deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+}
+
+@keyframes deckShuffleRight {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  28% {
+    transform: translate3d(18px, -6px, 0) rotate(11deg);
+  }
+  58% {
+    transform: translate3d(8px, -2px, 0) rotate(4deg);
+  }
+  82% {
+    transform: translate3d(-3px, 0, 0) rotate(-2deg);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+}
+
+@keyframes deckShuffleCenter {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  35% {
+    transform: translate3d(0, -5px, 0) scale(1.04);
+  }
+  70% {
+    transform: translate3d(0, 2px, 0) scale(0.98);
+  }
+}
+
+@keyframes deckShuffleBotRipple {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  30% {
+    transform: translate3d(-4px, -2px, 0) rotate(-7deg);
+  }
+  65% {
+    transform: translate3d(4px, -2px, 0) rotate(7deg);
+  }
+}
+
+.animate-card-draw-slide {
+  animation: cardDrawSlideIn 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-deck-shuffle-left {
+  animation: deckShuffleLeft 680ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  will-change: transform;
+}
+
+.animate-deck-shuffle-right {
+  animation: deckShuffleRight 680ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  will-change: transform;
+}
+
+.animate-deck-shuffle-center {
+  animation: deckShuffleCenter 680ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  will-change: transform;
+}
+
+.animate-deck-shuffle-bot {
+  animation: deckShuffleBotRipple 420ms cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-card-draw-slide,
+  .animate-deck-shuffle-left,
+  .animate-deck-shuffle-right,
+  .animate-deck-shuffle-center,
+  .animate-deck-shuffle-bot {
+    animation: none;
+  }
+}
+
+
