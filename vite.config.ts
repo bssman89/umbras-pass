@@ -50,11 +50,23 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
       },
       devOptions: {
-        enabled: true,
-        type: 'module',
+        enabled: false,
       },
     }),
   ],
+  optimizeDeps: {
+    include: [
+      'react',
+      'react-dom',
+      'react-dom/client',
+      'react-is',
+      'lucide-react',
+      'recharts',
+      'firebase/app',
+      'firebase/auth',
+      'firebase/firestore',
+    ],
+  },
   resolve: {
     alias: {
       '@/firebase-applet-config.json': firebaseConfigTarget,

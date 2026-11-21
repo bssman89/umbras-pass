@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Power, X } from 'lucide-react';
 import type {
   BotLearningProfile,
@@ -21,28 +21,29 @@ import { TopBar, type ActiveSection } from './components/TopBar';
 import { DeckImporter } from './components/DeckImporter';
 import { FooterContactSection } from './components/FooterContactSection';
 import { GgufStartupModal } from './components/GgufStartupModal';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 
-const AnalysisDashboard = lazy(() =>
+const AnalysisDashboard = lazyWithRetry(() =>
   import('./components/AnalysisDashboard').then((m) => ({
     default: m.AnalysisDashboard,
   }))
 );
-const CardInspectorModal = lazy(() =>
+const CardInspectorModal = lazyWithRetry(() =>
   import('./components/CardInspectorModal').then((m) => ({
     default: m.CardInspectorModal,
   }))
 );
-const VersionHistoryDrawer = lazy(() =>
+const VersionHistoryDrawer = lazyWithRetry(() =>
   import('./components/VersionHistoryDrawer').then((m) => ({
     default: m.VersionHistoryDrawer,
   }))
 );
-const UserProfileModal = lazy(() =>
+const UserProfileModal = lazyWithRetry(() =>
   import('./components/UserProfileModal').then((m) => ({
     default: m.UserProfileModal,
   }))
 );
-const DesktopAppModal = lazy(() =>
+const DesktopAppModal = lazyWithRetry(() =>
   import('./components/DesktopAppModal').then((m) => ({
     default: m.DesktopAppModal,
   }))

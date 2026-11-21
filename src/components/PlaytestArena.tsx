@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   BookOpen,
@@ -100,7 +100,8 @@ import {
   type TutorialStepId,
 } from './PlaytestTutorialModal';
 import { TurnSummaryModal } from './TurnSummaryModal';
-const InteractiveTurnSimulator = lazy(() =>
+import { lazyWithRetry } from '../utils/lazyWithRetry';
+const InteractiveTurnSimulator = lazyWithRetry(() =>
   import('./InteractiveTurnSimulator').then((m) => ({
     default: m.InteractiveTurnSimulator,
   }))

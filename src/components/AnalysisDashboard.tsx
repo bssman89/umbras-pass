@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Check, History, Save } from 'lucide-react';
 import {
   Bar,
@@ -35,23 +35,24 @@ import { SynergyAuditPanel } from './SynergyAuditPanel';
 import { CardChangesPanel } from './CardChangesPanel';
 import { OptimizedExportPanel } from './OptimizedExportPanel';
 import { ShareExportMenu } from './ShareExportMenu';
+import { lazyWithRetry } from '../utils/lazyWithRetry';
 
-const DeckStatsCard = lazy(() =>
+const DeckStatsCard = lazyWithRetry(() =>
   import('./DeckStatsCard').then((m) => ({ default: m.DeckStatsCard }))
 );
-const DeckRadarChart = lazy(() =>
+const DeckRadarChart = lazyWithRetry(() =>
   import('./DeckRadarChart').then((m) => ({ default: m.DeckRadarChart }))
 );
-const CardGalleryPanel = lazy(() =>
+const CardGalleryPanel = lazyWithRetry(() =>
   import('./CardGalleryPanel').then((m) => ({ default: m.CardGalleryPanel }))
 );
-const PlaytestArena = lazy(() =>
+const PlaytestArena = lazyWithRetry(() =>
   import('./PlaytestArena').then((m) => ({ default: m.PlaytestArena }))
 );
-const AdvancedDeckMetrics = lazy(() =>
+const AdvancedDeckMetrics = lazyWithRetry(() =>
   import('./AdvancedDeckMetrics').then((m) => ({ default: m.AdvancedDeckMetrics }))
 );
-const DeckPdfReportModal = lazy(() =>
+const DeckPdfReportModal = lazyWithRetry(() =>
   import('./DeckPdfReportModal').then((m) => ({ default: m.DeckPdfReportModal }))
 );
 
