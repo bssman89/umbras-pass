@@ -58,7 +58,9 @@ function main() {
     return;
   }
 
-  const shouldPackageWin = args.has('--win');
+  const shouldPackageWinAll = args.has('--win');
+  const shouldPackageWinInstaller = args.has('--win-installer');
+  const shouldPackageWin = shouldPackageWinAll || shouldPackageWinInstaller;
   cleanTargets(shouldPackageWin ? CLEAN_ALL_PATHS : CLEAN_BUILD_PATHS);
 
   console.log('[Build] Bundling frontend with Vite...');
@@ -68,12 +70,29 @@ function main() {
   runNodeScript(path.join(rootDir, 'scripts', 'build-server.mjs'));
 
   if (shouldPackageWin) {
-    console.log('[Build] Packaging Windows installers with electron-builder...');
+    const targets = shouldPackageWinAll ? ['nsis', 'portable'] : ['nsis'];
+    console.log(`[Build] Packaging Windows executables (${targets.join(', ')}) with electron-builder...`);
     runLocalBin(
       path.join('node_modules', 'electron-builder', 'cli.js'),
-      ['--win', 'nsis', 'portable', '--x64'],
+      ['--win', ...targets, '--x64'],
       'electron-builder'
     );
+
+    const outDir = path.join(rootDir, 'dist-electron');
+    const exeFiles = fs.existsSync(outDir)
+      ? fs.readdirSync(outDir).filter((f) => f.toLowerCase().endsWith('.exe'))
+      : [];
+
+    if (exeFiles.length === 0) {
+      throw new Error(
+        `electron-builder finished, but no .exe files were found in ${outDir}. Check the output above for NSIS packaging errors.`
+      );
+    }
+
+    console.log('\n[Build] Windows executables ready in dist-electron/:');
+    for (const exe of exeFiles) {
+      console.log(`  -> ${path.join('dist-electron', exe)}`);
+    }
   }
 }
 

@@ -12,6 +12,7 @@
     "setup:gguf": "node scripts/setup-umbras-pass.mjs",
     "download:qwen4b": "node scripts/bundle-desktop-with-model.mjs --download-only",
     "dist:win": "node scripts/build.js --win",
+    "dist:win:installer": "node scripts/build.js --win-installer",
     "dist:win:bundle": "node scripts/bundle-desktop-with-model.mjs",
     "dist:win:qwen4b": "node scripts/bundle-desktop-with-model.mjs --with-qwen4b",
     "preview": "vite preview",
@@ -35,6 +36,7 @@
       "dist-server/**/*",
       "electron/**/*",
       "public/assets/**/*",
+      "public/icon.ico",
       "package.json"
     ],
     "win": {
@@ -42,13 +44,18 @@
         "nsis",
         "portable"
       ],
-      "icon": "public/assets/aistudio/Umbras_pass_v3-removebg-preview_58159528.png"
+      "icon": "public/icon.ico",
+      "signAndEditExecutable": false
     },
     "nsis": {
+      "artifactName": "Umbras-Pass-Setup-${version}.exe",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
+    },
+    "portable": {
+      "artifactName": "Umbras-Pass-Portable-${version}.exe"
     }
   },
   "dependencies": {
