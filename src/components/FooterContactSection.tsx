@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Bug, Check, Code2, ExternalLink, MessageSquare, Send } from 'lucide-react';
 
-const SOURCE_FILES_URL = 'https://github.com/umbras-pass/umbras-pass';
+const SOURCE_FILES_URL =
+  (import.meta.env.VITE_GITHUB_REPO_URL as string | undefined)?.trim() ||
+  'https://github.com/bssman89/umbras-pass';
 
 export const FooterContactSection: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);

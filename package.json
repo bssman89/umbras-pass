@@ -9,6 +9,7 @@
     "build": "node scripts/build.js",
     "build:server": "node scripts/build-server.mjs",
     "electron": "electron electron/main.cjs",
+    "setup:gguf": "node scripts/setup-umbras-pass.mjs",
     "download:qwen4b": "node scripts/bundle-desktop-with-model.mjs --download-only",
     "dist:win": "node scripts/build.js --win",
     "dist:win:bundle": "node scripts/bundle-desktop-with-model.mjs",

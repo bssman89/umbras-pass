@@ -22,7 +22,7 @@ export type ActiveSection = 'import' | 'mana' | 'changes' | 'export' | 'playtest
 
 const GITHUB_SOURCE_URL =
   (import.meta.env.VITE_GITHUB_REPO_URL as string | undefined)?.trim() ||
-  'https://github.com/umbras-pass/umbras-pass';
+  'https://github.com/bssman89/umbras-pass';
 const SUPPORT_EMAIL = 'umbraspass.support@gmail.com';
 
 interface TopBarProps {

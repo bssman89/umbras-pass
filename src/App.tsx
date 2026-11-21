@@ -20,6 +20,7 @@ import { FirestoreErrorBoundary } from './components/FirestoreErrorBoundary';
 import { TopBar, type ActiveSection } from './components/TopBar';
 import { DeckImporter } from './components/DeckImporter';
 import { FooterContactSection } from './components/FooterContactSection';
+import { GgufStartupModal } from './components/GgufStartupModal';
 
 const AnalysisDashboard = lazy(() =>
   import('./components/AnalysisDashboard').then((m) => ({
@@ -1088,6 +1089,10 @@ export default function App() {
             />
           </Suspense>
         )}
+
+        <GgufStartupModal
+          onOpenAiSettings={() => setIsDesktopModalOpen(true)}
+        />
 
         {isExitModalOpen && (
           <div
