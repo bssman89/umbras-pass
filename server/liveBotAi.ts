@@ -13,6 +13,7 @@ import {
   buildBotPastPlayBriefing,
   resolveBotLearningKey,
 } from '../src/utils/botLearning.ts';
+import { getFormatSimulationRules } from '../src/utils/playtestReconciler.ts';
 import {
   loadBotTrainingData,
   recordBotTrainingMatchOutcomes,
@@ -168,8 +169,10 @@ export async function planLiveBotMatch(input: LiveBotPlanRequest): Promise<LiveB
     .join('\n');
 
   const podNames = opponents.map((o) => clampStr(o.name, 60)).join(', ');
+  const formatRules = getFormatSimulationRules(format, mode);
   const prompt = `/no_think
 Configure live-game MTG opening tactical directives for ${format} ${mode} tabletop match.
+Format Rules (WotC CR): Starting Life=${formatRules.startingLife} | Command Zone=${formatRules.allowsCommandZone ? 'ACTIVE (Commander Tax +2 per previous cast)' : 'INACTIVE'} | 21-Commander Damage KO=${formatRules.usesCommanderDamage21 ? 'YES (CR 903.10a)' : 'NO (Brawl & non-Commander formats do NOT use 21 commander damage)'} | Turn 1 Draw=${formatRules.playerSkipsTurn1Draw ? '1st player skips Turn 1 draw (1v1 CR 103.8a)' : 'All seats draw Turn 1 (Multiplayer CR 103.8c)'}.
 Player Seat: "${playerDeckName}" (${playerArchetype}, Cmdr: ${playerCmds.join(', ') || 'None'}, Known Threats: ${playerThreats.join(', ') || 'Standard curve'}).
 Bot Seats: [${podNames}]
 BOT DOSSIERS:
@@ -177,6 +180,7 @@ ${oppDossiers}
 
 Rules:
 - Respect each bot's historical learning, user coaching feedback, bot_training.json posture win-rates, intelligence tier, and indignance setting.
+- winVectorFocus: Only choose "commander" if 21-Commander Damage KO is YES; otherwise use "auto", "life", "poison", or "mill".
 - priorityTarget: In 1v2/1v3 multiplayer pods, choose "table-leader", a specific rival bot name when warranted, or "You" when appropriate (never mindlessly tunnel "You" unless Vindictive or coached).
 - posture: aggressive | balanced | defensive.
 - manaPlan: hold-interaction (leave mana open for counterspells/removal) or tap-out-pressure.
@@ -469,11 +473,16 @@ export async function decideLiveBotTurn(
     ? `Directive: posture=${bot.aiDirective.posture || 'balanced'}, manaPlan=${bot.aiDirective.manaPlan || 'auto'}, target=${bot.aiDirective.priorityTarget || 'auto'}, focus=${bot.aiDirective.focusTag || ''}`
     : '';
 
+  const turnMode: PlaytestMode =
+    mode === '1v1' || mode === '1v2' || mode === '1v3' ? mode : '1v3';
+  const formatRules = getFormatSimulationRules(format, turnMode);
+
   const prompt = `/no_think
 Turn ${turnNumber} (${format} ${mode}) MTG tactical turn decision for bot "${clampStr(bot.name, 60)}".
+Format Rules (WotC CR): Starting Life=${formatRules.startingLife} | Command Zone=${formatRules.allowsCommandZone ? 'ACTIVE (Commander Tax +2 per previous cast)' : 'INACTIVE'} | 21-Commander Damage KO=${formatRules.usesCommanderDamage21 ? 'YES (CR 903.10a)' : 'NO'}.
 Bot Profile: ${clampStr(bot.archetype, 80)} | Intelligence: ${clampStr(bot.intelligence, 24)} | Indignance: ${clampStr(bot.indignance, 24)} | GrudgeVsYou: ${clampNum(bot.grudgeScore, 0, 100, 0)}
 ${directiveStr}
-Your Public+Private State: ${bot.life}HP/${bot.poison}Psn | EstAvailMana: ${bot.availableMana} (Lands ${bot.landsInPlay}) | Commander: ${bot.commanderInZone && bot.commanderName ? `${bot.commanderName} in CmdZone (Cost ${bot.commanderCost})` : 'On board/inactive'}
+Your Public+Private State: ${bot.life}HP/${bot.poison}Psn | EstAvailMana: ${bot.availableMana} (Lands ${bot.landsInPlay}) | Commander: ${formatRules.allowsCommandZone && bot.commanderInZone && bot.commanderName ? `${bot.commanderName} in CmdZone (Cost ${bot.commanderCost})` : 'On board/inactive'}
 Bot Hand (${bot.handCount} cards): ${handLines.length > 0 ? handLines.join('; ') : `Synthetic ${bot.archetype} hand`}
 Bot Board: ${botCreatures.join(', ') || 'Empty'}
 Public Threats: Player "You" -> ${input.playerBoard.life}HP/${input.playerBoard.poison}Psn, ${input.playerBoard.landsCount}L (${input.playerBoard.untappedLandsCount} untapped open mana), ${input.playerBoard.handCount}H, Creatures[${playerCreatures.join(', ') || 'None'}]
@@ -483,13 +492,13 @@ Memory Threats: ${(bot.observedUserThreats || []).slice(0, 4).join(', ') || 'Non
 Choose optimal legal MTG strategy:
 - priorityTarget: "You" OR exact rival bot name above (never target a dead seat; in 1v2/1v3 spread pressure to leading/open threats!).
 - recommendedSpellName: pick 1 highest-value affordable card name from Bot Hand or Commander above (or "" if archetype deck).
-- removalTargetSeat & removalTargetCreatureName: non-hexproof creature to answer if holding removal (or "").
+- removalTargetSeat & removalTargetCreatureName: non-hexproof creature to answer if holding removal (or ""). Note: Indestructible creatures require exile/bounce/-X-X removal.
 - holdManaForInteraction: true only if leaving 2+ mana up for instant interaction is stronger than tapping out.
-- attackPlan: "all-out" (lethal/high pressure), "safe-evasion" (only favorable/unblocked hits), or "hold-blockers" (defend crackback).
+- attackPlan: "all-out" (lethal/high pressure), "safe-evasion" (only favorable/unblocked hits — note Defender creatures cannot attack, Menace needs 2+ blockers, First/Double Strike hits in Step 1), or "hold-blockers" (defend crackback).
 - strategyThought: <= 14 word clear strategic reasoning.`;
 
   const systemInstruction =
-    'You are the tactical MTG brain piloting a live AI bot opponent. Enforce paper MTG mechanics (summoning sickness, hexproof, open mana bluffs, crackback defense, multiplayer threat politics). Output strict JSON.';
+    'You are the tactical MTG brain piloting a live AI bot opponent. Enforce paper MTG mechanics (summoning sickness, defender, hexproof, indestructible, first/double strike, menace, deathtouch + trample, open mana bluffs, crackback defense, multiplayer threat politics). Output strict JSON.';
 
   const sanitizeDecision = (
     raw: Partial<LiveBotAiTurnDecision>,

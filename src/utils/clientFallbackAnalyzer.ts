@@ -58,6 +58,7 @@ import {
   getMaxCopiesForCard,
   getTargetDeckSizeForFormat,
   isBasicLandCard,
+  isRestrictedCardInFormat,
   isSameCardName,
   mergeParsedCardEntries,
   normalizeDeckCardKey,
@@ -1997,11 +1998,22 @@ function mapScryfallToClientMetadata(
   const marketUrls = buildClientMarketplaceUrls(raw.name, raw.set_name, raw.purchase_uris);
 
   let legalInFormat = true;
+  let restrictedInFormat = false;
+  let standardBrawlLegal: boolean | undefined;
   if (format !== 'casual60' && format !== 'limited') {
     const legKey = format === 'commander' ? 'commander' : format;
     const status = raw.legalities?.[legKey];
     if (status && status !== 'legal' && status !== 'restricted') {
       legalInFormat = false;
+    }
+    if (status === 'restricted') {
+      restrictedInFormat = true;
+    }
+    if (format === 'brawl') {
+      const stdBrawlStatus = raw.legalities?.['standardbrawl'];
+      if (stdBrawlStatus) {
+        standardBrawlLegal = stdBrawlStatus === 'legal' || stdBrawlStatus === 'restricted';
+      }
     }
   }
 
@@ -2064,6 +2076,8 @@ function mapScryfallToClientMetadata(
     scryfallUri:
       raw.scryfall_uri || `https://scryfall.com/search?q=${encodeURIComponent(raw.name)}`,
     legalInFormat,
+    restrictedInFormat,
+    standardBrawlLegal,
     rarity: raw.rarity || 'common',
   };
 }
@@ -2964,8 +2978,16 @@ export async function analyzeDeckClientSideFallback(params: {
       unresolvedCards.push(item.name);
       continue;
     }
-    if (!meta.legalInFormat) {
-      formatViolations.push(`${meta.name} is not legal in ${detectedFormat}`);
+    const effectiveLegal =
+      detectedFormat === 'brawl' &&
+      targetDeckSize === 60 &&
+      typeof meta.standardBrawlLegal === 'boolean'
+        ? meta.standardBrawlLegal
+        : meta.legalInFormat;
+    if (!effectiveLegal) {
+      formatViolations.push(
+        `${meta.name} is not legal in ${detectedFormat === 'brawl' && targetDeckSize === 60 ? 'Standard Brawl (60-card)' : detectedFormat}`
+      );
     }
     if (
       (detectedFormat === 'commander' || detectedFormat === 'brawl') &&
@@ -3016,12 +3038,32 @@ export async function analyzeDeckClientSideFallback(params: {
     }
   }
 
+  const allLegalityCards =
+    detectedFormat !== 'commander' && detectedFormat !== 'brawl' && detectedFormat !== 'limited'
+      ? [...mainAndCmd, ...resolvedCards.filter((c) => c.zone === 'sideboard' || c.zone === 'companion')]
+      : mainAndCmd;
+
+  if (detectedFormat !== 'commander' && detectedFormat !== 'brawl' && detectedFormat !== 'limited') {
+    for (const sideItem of resolvedCards) {
+      if (sideItem.zone !== 'sideboard' && sideItem.zone !== 'companion') continue;
+      addMapCardCount(totalCopiesByName, sideItem.name, sideItem.quantity);
+      if (sideItem.card && !sideItem.card.legalInFormat) {
+        formatViolations.push(`${sideItem.card.name} (Sideboard) is not legal in ${detectedFormat}`);
+      }
+    }
+    if (sideboardCount > 15) {
+      formatViolations.push(`Sideboard has ${sideboardCount} cards (maximum is 15 in ${detectedFormat})`);
+    }
+  }
+
   for (const [key, qty] of totalCopiesByName.entries()) {
-    const sample = mainAndCmd.find((c) => isSameCardName(c.name, key));
+    const sample = allLegalityCards.find((c) => isSameCardName(c.name, key));
     const display = sample?.name || key;
     const maxAllowed = getMaxCopiesForCard(display, detectedFormat, sample?.card);
     if (Number.isFinite(maxAllowed) && qty > maxAllowed) {
-      if (detectedFormat === 'commander' || detectedFormat === 'brawl') {
+      if (isRestrictedCardInFormat(display, detectedFormat, sample?.card)) {
+        formatViolations.push(`${display} appears ${qty} times (Restricted in Vintage — max 1 copy)`);
+      } else if (detectedFormat === 'commander' || detectedFormat === 'brawl') {
         singletonViolations.push(`${display} appears ${qty} times (singleton limit is 1)`);
       } else {
         formatViolations.push(`${display} appears ${qty} times (${maxAllowed}-copy limit)`);
@@ -3865,8 +3907,13 @@ function getFormatSafeSamplePlays(
         'Wrath of God',
         'Elder Gargaroth',
       ];
-    // Exclude non-Standard/non-Historic-Brawl legacy fast mana like Sol Ring in standard Brawl when possible
-    return raw.filter((c) => !/^(Sol Ring|Price of Progress|Chain Lightning)$/i.test(c));
+    // Exclude Commander-only/Legacy fast mana banned in Brawl
+    return raw.filter(
+      (c) =>
+        !/^(Sol Ring|Mana Crypt|Jeweled Lotus|Chrome Mox|Mox Diamond|Mana Vault|Demonic Tutor|Vampiric Tutor|Rhystic Study|Force of Will|Cyclonic Rift|Price of Progress|Chain Lightning)$/i.test(
+          c
+        )
+    );
   }
   return (
     NON_COMMANDER_ARCHETYPE_PLAYS[archetype] || [
@@ -4065,6 +4112,8 @@ interface SimCreaturePermanent {
   hasLifelink: boolean;
   hasDeathtouch: boolean;
   hasTrample: boolean;
+  hasDefender: boolean;
+  hasIndestructible: boolean;
   isTokenMaker: boolean;
   isAristocratsPayoff: boolean;
   isSacOutlet: boolean;
@@ -4182,6 +4231,8 @@ function buildPermanentFromCard(
     hasLifelink: mech.hasLifelink,
     hasDeathtouch: mech.hasDeathtouch,
     hasTrample: mech.hasTrample,
+    hasDefender: mech.hasDefender,
+    hasIndestructible: mech.hasIndestructible,
     isTokenMaker: mech.isTokenMaker,
     isAristocratsPayoff: mech.isAristocratsPayoff,
     isSacOutlet: mech.isSacOutlet,
@@ -4222,6 +4273,8 @@ function createTokenPermanent(name: string, power = 1, toughness = 1): SimCreatu
     hasLifelink: false,
     hasDeathtouch: false,
     hasTrample: false,
+    hasDefender: false,
+    hasIndestructible: false,
     isTokenMaker: false,
     isAristocratsPayoff: false,
     isSacOutlet: false,
@@ -4234,12 +4287,14 @@ function createTokenPermanent(name: string, power = 1, toughness = 1): SimCreatu
 
 function recordCreatureDeparture(
   perm: SimCreaturePermanent,
-  cmdTaxMap: Map<string, number>,
+  _cmdTaxMap: Map<string, number>,
   graveyard: SimDeckSlot[]
 ) {
+  // CR 903.8: Commander returns to the Command Zone as SBA without adding tax here — tax increases on each cast from Command Zone.
   if (perm.isCommander) {
-    cmdTaxMap.set(perm.commanderName, (cmdTaxMap.get(perm.commanderName) || 0) + 2);
-  } else if (!perm.isToken) {
+    return;
+  }
+  if (!perm.isToken) {
     graveyard.push(
       makeSimDeckSlot({
         name: perm.name,
@@ -4365,18 +4420,20 @@ function evaluateEndgameAttackLine(params: {
     if (validBlockers.length >= req) {
       const assigned = validBlockers.slice(0, req);
       let absorbed = 0;
-      let fsBlkKillsAtk = false;
-      if (!atk.hasFirstStrike && !atk.hasDoubleStrike) {
-        const fsPow = assigned.reduce(
-          (s, b) => s + (b.hasFirstStrike || b.hasDoubleStrike ? b.power : 0),
-          0
-        );
-        const fsDeath = assigned.some(
-          (b) => (b.hasFirstStrike || b.hasDoubleStrike) && b.hasDeathtouch && b.power > 0
-        );
-        if (fsPow >= atk.toughness || fsDeath) fsBlkKillsAtk = true;
+      let atkDiedInStep1 = false;
+      const fsBlkPow = assigned.reduce(
+        (s, b) => s + (b.hasFirstStrike || b.hasDoubleStrike ? b.power : 0),
+        0
+      );
+      const fsBlkDeath = assigned.some(
+        (b) => (b.hasFirstStrike || b.hasDoubleStrike) && b.hasDeathtouch && b.power > 0
+      );
+      if (!atk.hasIndestructible && (fsBlkPow >= atk.toughness || fsBlkDeath)) {
+        atkDiedInStep1 = true;
       }
-      if (fsBlkKillsAtk) {
+
+      if (atkDiedInStep1 && !atk.hasFirstStrike && !atk.hasDoubleStrike) {
+        // Regular-speed attacker died in Step 1 before ever dealing combat damage
         for (const blk of assigned) usedBlockers.add(blk);
         throughDmg = 0;
       } else {
@@ -4384,8 +4441,10 @@ function evaluateEndgameAttackLine(params: {
           usedBlockers.add(blk);
           absorbed += atk.hasDeathtouch ? 1 : blk.toughness;
         }
-        if (atk.hasTrample && hitPower > absorbed) {
-          throughDmg = hitPower - absorbed;
+        // If Double Strike attacker died to a First-Strike / Double-Strike blocker in Step 1, its Step 2 damage is lost
+        const effectiveAtkDmg = atkDiedInStep1 && atk.hasDoubleStrike ? atk.power : hitPower;
+        if (atk.hasTrample && effectiveAtkDmg > absorbed) {
+          throughDmg = effectiveAtkDmg - absorbed;
         } else {
           throughDmg = 0;
         }
@@ -4634,19 +4693,23 @@ function resolveCombatPhaseBetweenBoards(params: {
         (b) => !b.hasFirstStrike || b.hasDoubleStrike
       );
 
-      // Step 1: First-Strike combat damage step
+      // Step 1: First-Strike combat damage step (CR 510 / 702.7 / 702.4)
       const fsAtkDmg = atkStrikesFirst ? atk.power : 0;
       let remainingFsAtk = fsAtkDmg;
       const killedInFirstStrike = new Set<SimCreaturePermanent>();
+      const dmgMarkedOnBlk = new Map<SimCreaturePermanent, number>();
 
       if (fsAtkDmg > 0) {
         for (const blk of assignedBlockers) {
+          if (remainingFsAtk <= 0) break;
           const lethalNeeded = atk.hasDeathtouch ? 1 : blk.toughness;
-          if (remainingFsAtk >= lethalNeeded) {
+          const assignedDmg = Math.min(remainingFsAtk, lethalNeeded);
+          dmgMarkedOnBlk.set(blk, assignedDmg);
+          remainingFsAtk -= assignedDmg;
+          if (assignedDmg >= lethalNeeded && !blk.hasIndestructible) {
             killedInFirstStrike.add(blk);
             deadBlockers.add(blk);
             defenderDeaths += 1;
-            remainingFsAtk -= lethalNeeded;
           }
         }
         if (atk.hasLifelink) {
@@ -4661,28 +4724,28 @@ function resolveCombatPhaseBetweenBoards(params: {
         if (blk.hasDeathtouch && blk.power > 0) fsBlkDeath = true;
         if (blk.hasLifelink && blk.power > 0) defenderLifegain += blk.power;
       }
-      const atkDiedInFirstStrike = fsBlkDeath || fsBlkPow >= atk.toughness;
+      const atkDiedInFirstStrike =
+        !atk.hasIndestructible && (fsBlkDeath || fsBlkPow >= atk.toughness);
       if (atkDiedInFirstStrike) {
         deadAttackers.add(atk);
         attackerDeaths += 1;
       }
 
-      // Step 2: Regular combat damage step (only creatures still alive strike)
+      // Step 2: Regular combat damage step (CR 510; only creatures still alive strike)
       const atkSurvivesToRegular = !atkDiedInFirstStrike;
       const regAtkDmg =
-        atkSurvivesToRegular && !atk.hasFirstStrike ? atk.power : 0;
+        atkSurvivesToRegular && (!atk.hasFirstStrike || atk.hasDoubleStrike) ? atk.power : 0;
 
       if (atkSurvivesToRegular) {
         let regBlkPow = fsBlkPow;
         let regBlkDeath = fsBlkDeath;
         for (const blk of regularBlockers) {
           if (killedInFirstStrike.has(blk)) continue;
-          // Note: Double Strike blockers already added first-strike power above; regular step adds their regular hit
           regBlkPow += blk.power;
           if (blk.hasDeathtouch && blk.power > 0) regBlkDeath = true;
           if (blk.hasLifelink && blk.power > 0) defenderLifegain += blk.power;
         }
-        if (regBlkDeath || regBlkPow >= atk.toughness) {
+        if (!atk.hasIndestructible && (regBlkDeath || regBlkPow >= atk.toughness)) {
           deadAttackers.add(atk);
           attackerDeaths += 1;
         }
@@ -4691,12 +4754,19 @@ function resolveCombatPhaseBetweenBoards(params: {
       if (regAtkDmg > 0) {
         let remReg = regAtkDmg;
         for (const blk of assignedBlockers) {
-          if (killedInFirstStrike.has(blk)) continue;
-          const lethalNeeded = atk.hasDeathtouch ? 1 : blk.toughness;
-          if (remReg >= lethalNeeded) {
+          if (killedInFirstStrike.has(blk) || remReg <= 0) continue;
+          const prior = dmgMarkedOnBlk.get(blk) || 0;
+          const lethalNeeded = atk.hasDeathtouch
+            ? prior >= 1
+              ? 0
+              : 1
+            : Math.max(0, blk.toughness - prior);
+          const assignedDmg = Math.min(remReg, lethalNeeded);
+          dmgMarkedOnBlk.set(blk, prior + assignedDmg);
+          remReg -= assignedDmg;
+          if (assignedDmg >= lethalNeeded && !blk.hasIndestructible) {
             deadBlockers.add(blk);
             defenderDeaths += 1;
-            remReg -= lethalNeeded;
           }
         }
         if (atk.hasLifelink) {
@@ -4704,7 +4774,7 @@ function resolveCombatPhaseBetweenBoards(params: {
         }
       }
 
-      // Trample overflow damage (respecting First Strike blocker kills of regular-speed trampler)
+      // Trample overflow damage (respecting First Strike blocker kills of regular attackers & Indestructible SBAs)
       if (!atk.hasTrample) {
         unblockedDamage = 0;
       } else if (atkDiedInFirstStrike && !atkStrikesFirst) {
@@ -5374,7 +5444,7 @@ function runClientSimulationCore(params: {
         R: 0,
         G: 0,
       };
-  const playerBattlefield: SimCreaturePermanent[] = seededYouState
+  let playerBattlefield: SimCreaturePermanent[] = seededYouState
     ? seededYouState.battlefield
     : [];
   const playerEngines: SimEnginePermanent[] = [];
@@ -5705,6 +5775,7 @@ function runClientSimulationCore(params: {
     let playerEachOppPoison = 0;
     let playerEachOppMill = 0;
     let playerClearedBoard = false;
+    let playerWipeExilesOrShrinks = false;
     let playerSingleRemovalUsed = false;
     let spellCounteredByBot: string | null = null;
     let manaAvailable = Math.max(0, landsInPlay + rampBonus);
@@ -5853,6 +5924,11 @@ function runClientSimulationCore(params: {
           castSpellMeta = castableCommander.card || null;
           castSpellCmc = cost;
           castIsCommander = true;
+          // CR 903.8: Increment commander tax upon casting from the Command Zone (regardless of counter)
+          playerCmdTaxMap.set(
+            castableCommander.name,
+            (playerCmdTaxMap.get(castableCommander.name) || 0) + 2
+          );
 
           const counteredBy =
             r >= 2
@@ -5867,10 +5943,6 @@ function runClientSimulationCore(params: {
 
           if (counteredBy) {
             spellCounteredByBot = counteredBy;
-            playerCmdTaxMap.set(
-              castableCommander.name,
-              (playerCmdTaxMap.get(castableCommander.name) || 0) + 2
-            );
           } else {
             const cmdMech = detectCardMechanics(
               castableCommander.name,
@@ -6055,6 +6127,9 @@ function runClientSimulationCore(params: {
           }
           if (spellMech.isBoardWipe) {
             playerClearedBoard = true;
+            playerWipeExilesOrShrinks = /\b(exile all|return all|all creatures get -|each creature gets -|farewell|sunfall|toxic deluge|cyclonic rift)\b/i.test(
+              `${spell.name} ${spell.meta?.oracleText || ''}`
+            );
             playerGraveyard.push(spell);
           } else if (spellMech.isCounterOrRemoval) {
             playerSingleRemovalUsed = true;
@@ -6179,22 +6254,31 @@ function runClientSimulationCore(params: {
         const liveBotsForRemoval = oppContexts.filter((c) => !c.eliminatedBy);
         if (!youEliminatedBy && playerClearedBoard) {
           for (const ctx of liveBotsForRemoval) {
-            const deaths = ctx.battlefield.length;
-            if (deaths > 0) {
-              triggerAristocratsOnDeath('bot', ctx, deaths);
+            const removedBotPerms = ctx.battlefield.filter(
+              (perm) => playerWipeExilesOrShrinks || !perm.hasIndestructible
+            );
+            if (removedBotPerms.length > 0) {
+              triggerAristocratsOnDeath('bot', ctx, removedBotPerms.length);
             }
-            for (const perm of ctx.battlefield) {
+            for (const perm of removedBotPerms) {
               recordCreatureDeparture(perm, ctx.cmdTaxMap, ctx.graveyard);
             }
-            ctx.battlefield.length = 0;
+            ctx.battlefield = ctx.battlefield.filter(
+              (perm) => !playerWipeExilesOrShrinks && perm.hasIndestructible
+            );
           }
-          if (playerBattlefield.length > 0) {
-            triggerAristocratsOnDeath('you', null, playerBattlefield.length);
+          const removedPlayerPerms = playerBattlefield.filter(
+            (perm) => playerWipeExilesOrShrinks || !perm.hasIndestructible
+          );
+          if (removedPlayerPerms.length > 0) {
+            triggerAristocratsOnDeath('you', null, removedPlayerPerms.length);
           }
-          for (const perm of playerBattlefield) {
+          for (const perm of removedPlayerPerms) {
             recordCreatureDeparture(perm, playerCmdTaxMap, playerGraveyard);
           }
-          playerBattlefield.length = 0;
+          playerBattlefield = playerBattlefield.filter(
+            (perm) => !playerWipeExilesOrShrinks && perm.hasIndestructible
+          );
           // Sweep eliminations triggered by wipe Aristocrats drains
           for (const bCtx of oppContexts) {
             if (bCtx.eliminatedBy) continue;
@@ -6247,11 +6331,11 @@ function runClientSimulationCore(params: {
           }
         }
 
-        // Ready Player attackers (non-summoning-sick or Haste)
+        // Ready Player attackers (non-summoning-sick or Haste, and without Defender)
         const readyAttackers = youEliminatedBy
           ? []
           : playerBattlefield.filter(
-              (p) => !p.tapped && (!p.summoningSick || p.hasHaste) && p.power > 0
+              (p) => !p.tapped && !p.hasDefender && (!p.summoningSick || p.hasHaste) && p.power > 0
             );
         const totalReadyPower = readyAttackers.reduce(
           (s, a) => s + a.power * (a.hasDoubleStrike ? 2 : 1),
@@ -6727,6 +6811,7 @@ function runClientSimulationCore(params: {
         myBoardPower <= maxOppBoard.power * 0.65;
 
       let boardWipeCast = false;
+      let botWipeExilesOrShrinks = false;
       const botPlayedThisTurn: string[] = [];
       const creativeNotes: string[] = [];
       let castRemovalCard: SimDeckSlot | null = null;
@@ -6753,6 +6838,9 @@ function runClientSimulationCore(params: {
           creativeNotes.push(`${wipeCard.name} countered by ${counteredBy}`);
         } else {
           boardWipeCast = true;
+          botWipeExilesOrShrinks = /\b(exile all|return all|all creatures get -|each creature gets -|farewell|sunfall|toxic deluge|cyclonic rift)\b/i.test(
+            `${wipeCard.name} ${wipeCard.meta?.oracleText || ''}`
+          );
           ctx.hadWipeThisGame = true;
         }
       } else if (
@@ -6769,16 +6857,24 @@ function runClientSimulationCore(params: {
       }
 
       if (boardWipeCast) {
-        if (playerBattlefield.length > 0) {
-          triggerAristocratsOnDeath('you', null, playerBattlefield.length);
+        const removedPlayerPerms = playerBattlefield.filter(
+          (perm) => botWipeExilesOrShrinks || !perm.hasIndestructible
+        );
+        if (removedPlayerPerms.length > 0) {
+          triggerAristocratsOnDeath('you', null, removedPlayerPerms.length);
         }
-        for (const perm of playerBattlefield) {
+        for (const perm of removedPlayerPerms) {
           recordCreatureDeparture(perm, playerCmdTaxMap, playerGraveyard);
         }
-        playerBattlefield.length = 0;
+        playerBattlefield = playerBattlefield.filter(
+          (perm) => !botWipeExilesOrShrinks && perm.hasIndestructible
+        );
 
         for (const o of oppContexts) {
-          const wipedCount = o.battlefield.length;
+          const removedBotPerms = o.battlefield.filter(
+            (perm) => botWipeExilesOrShrinks || !perm.hasIndestructible
+          );
+          const wipedCount = removedBotPerms.length;
           if (wipedCount > 0) {
             triggerAristocratsOnDeath('bot', o, wipedCount);
             if (o !== ctx) {
@@ -6788,10 +6884,12 @@ function runClientSimulationCore(params: {
               );
             }
           }
-          for (const perm of o.battlefield) {
+          for (const perm of removedBotPerms) {
             recordCreatureDeparture(perm, o.cmdTaxMap, o.graveyard);
           }
-          o.battlefield.length = 0;
+          o.battlefield = o.battlefield.filter(
+            (perm) => !botWipeExilesOrShrinks && perm.hasIndestructible
+          );
         }
       } else {
         // Endgame State Metrics: evaluate opponent vulnerability & remaining threats before reserving mana
@@ -6845,7 +6943,7 @@ function runClientSimulationCore(params: {
           ctx.life <= startingLife * 0.45;
 
         const readyAttackersNow = ctx.battlefield.filter(
-          (p) => !p.tapped && (!p.summoningSick || p.hasHaste) && p.power > 0
+          (p) => !p.tapped && !p.hasDefender && (!p.summoningSick || p.hasHaste) && p.power > 0
         );
 
         // Lethal-First Mana Override: if spending full mana unlocks a lethal spell/combat swing, don't hold counter mana!
@@ -7006,6 +7104,11 @@ function runClientSimulationCore(params: {
           const cost = castableCmd.cmc + (ctx.cmdTaxMap.get(castableCmd.name) || 0);
           botRemainingMana = Math.max(0, botRemainingMana - cost);
           botPlayedThisTurn.push(castableCmd.name);
+          // CR 903.8: Commander tax (+2) increases each time a commander is cast from the Command Zone
+          ctx.cmdTaxMap.set(
+            castableCmd.name,
+            (ctx.cmdTaxMap.get(castableCmd.name) || 0) + 2
+          );
           const counteredBy = tryBotCounterSpell(
             castableCmd.name,
             cost,
@@ -7015,10 +7118,6 @@ function runClientSimulationCore(params: {
             idx
           );
           if (counteredBy) {
-            ctx.cmdTaxMap.set(
-              castableCmd.name,
-              (ctx.cmdTaxMap.get(castableCmd.name) || 0) + 2
-            );
             creativeNotes.push(`${castableCmd.name} countered by ${counteredBy}`);
           } else {
             const cmdPerm = buildPermanentFromCard(
@@ -7626,7 +7725,7 @@ function runClientSimulationCore(params: {
 
       // Ready attackers + Blocker-Aware Endgame Lethal & Crackback Defense Evaluation
       const readyBotAttackersAll = ctx.battlefield.filter(
-        (p) => !p.tapped && (!p.summoningSick || p.hasHaste) && p.power > 0
+        (p) => !p.tapped && !p.hasDefender && (!p.summoningSick || p.hasHaste) && p.power > 0
       );
 
       const getCandBoard = (cand: PodTargetCandidate): SimCreaturePermanent[] =>

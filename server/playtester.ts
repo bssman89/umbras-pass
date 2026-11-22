@@ -1201,6 +1201,7 @@ CRITICAL MTG RULES, CREATIVE PILOTING & TELEMETRY INSTRUCTIONS:
       const podRivalNames = activeOpponents.map((o) => o.name).join(', ');
       const planPrompt = `/no_think
 Use each bot's historical memory, bot_training.json move outcomes, loss lessons, learned rival-bot threats, and user coaching to set adaptive tactical directives for this ${format} ${mode} playtest.
+Format Rules (${format.toUpperCase()}): Starting Life ${startingLife} | Command Zone ${formatRules.allowsCommandZone ? 'ACTIVE (+2 mana tax per cast from command zone)' : 'INACTIVE'} | 21-Cmdr KO ${formatRules.usesCommanderDamage21 ? 'YES' : 'NO'} | Turn 1 Draw ${formatRules.playerSkipsTurn1Draw ? '1v1 starting seat skips Turn 1 draw' : 'All seats draw Turn 1'}.
 Table seats: Player "${deckName}" (Cmdr: ${commanderNames.join(', ') || 'None'}, Plan: ${playerBlueprint.primaryPlan}, KeyCards: ${playerThreatPreview.join(', ') || 'Standard'}) AND Bots [${podRivalNames}].
 BOT DOSSIERS:
 ${oppBriefs}
@@ -1340,7 +1341,7 @@ Return JSON object matching botDirectives schema.`;
         .join('\n');
 
       const synthesisPrompt = `/no_think
-Review this completed ${format} ${mode} match for "${deckName}" (Cmdr: ${commanderNames.join(', ') || 'None'}, Plan: ${playerBlueprint.primaryPlan}) and synthesize evolutionary bot learning insights.
+Review this completed ${format} ${mode} match for "${deckName}" (Starting Life: ${startingLife}, Command Zone: ${formatRules.allowsCommandZone ? 'ACTIVE' : 'INACTIVE'}, 21-Cmdr KO: ${formatRules.usesCommanderDamage21 ? 'YES' : 'NO'}, Cmdr: ${commanderNames.join(', ') || 'None'}, Plan: ${playerBlueprint.primaryPlan}) and synthesize evolutionary bot learning insights.
 Opening 7 (${baseResult.mulliganVerdict}): [${baseResult.openingHand.join(', ')}]
 Match Rounds:
 ${roundDigest}

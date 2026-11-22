@@ -348,6 +348,7 @@ interface InteractiveTurnSimulatorProps {
   botMemory?: Record<string, BotLearningProfile>;
   onSaveBotMemoryProfiles?: (profiles: BotLearningProfile[]) => void;
   autoLearnEnabled?: boolean;
+  resolvingCustomMeta?: boolean;
 }
 
 export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> = ({
@@ -374,6 +375,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
   botMemory,
   onSaveBotMemoryProfiles,
   autoLearnEnabled = true,
+  resolvingCustomMeta = false,
 }) => {
   const [internalPlayAreaMode, setInternalPlayAreaMode] = useState<'live' | 'replay'>('live');
   const activePlayAreaMode = controlledPlayAreaMode ?? internalPlayAreaMode;
@@ -539,7 +541,9 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
       return {
         id: opp.id,
         name: opp.name,
-        archetype: opp.customDeckText?.trim() ? 'Custom Decklist' : opp.archetype,
+        archetype: opp.customDeckText?.trim()
+          ? opp.customDeckName?.trim() || 'Custom Decklist'
+          : opp.archetype,
         commanderName: bias.defaultCommanderName,
         life: startingLife,
         poison: 0,
@@ -621,8 +625,15 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
   const [hasStartedLiveGameOnce, setHasStartedLiveGameOnce] = useState<boolean>(false);
   const [firstPlayerChoice, setFirstPlayerChoice] = useState<FirstPlayerSelection>('player');
   const [resolvedFirstSeatIndex, setResolvedFirstSeatIndex] = useState<number>(0);
-  const [freeFirstMulligan, setFreeFirstMulligan] = useState<boolean>(true);
+  const [freeFirstMulligan, setFreeFirstMulligan] = useState<boolean>(
+    formatRules.freeFirstMulligan
+  );
+  useEffect(() => {
+    setFreeFirstMulligan(formatRules.freeFirstMulligan);
+  }, [formatRules.freeFirstMulligan]);
   const [mulliganCount, setMulliganCount] = useState<number>(0);
+  const [pendingMulliganBottomCount, setPendingMulliganBottomCount] = useState<number>(0);
+  const [playerDeckedOut, setPlayerDeckedOut] = useState<boolean>(false);
   const openingBotLeadPendingRef = React.useRef<boolean>(false);
   const [guiView, setGuiView] = useState<'tabletop' | 'list'>('tabletop');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(false);
@@ -818,6 +829,8 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     openingBotLeadPendingRef.current = false;
     setTurn(1);
     setMulliganCount(0);
+    setPendingMulliganBottomCount(0);
+    setPlayerDeckedOut(false);
     setCardsDrawnCount(0);
     setTurnsPassedCount(0);
     currentTurnElapsedRef.current = 0;
@@ -1009,22 +1022,66 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     }
     const nextCount = mulliganCount + 1;
     const penalty = freeFirstMulligan ? Math.max(0, nextCount - 1) : nextCount;
-    const targetHandSize = Math.max(3, 7 - penalty);
     const combined = shuffleInstances([...hand, ...library]);
-    const nextHand = combined.splice(0, Math.min(targetHandSize, combined.length));
+    const drawCount = Math.min(7, combined.length);
+    const nextHand = combined.splice(0, drawCount);
+    const bottomNeeded = Math.max(0, Math.min(penalty, Math.max(0, nextHand.length - 1)));
     setHand(nextHand);
     setLibrary(combined);
     setLastDrawnUids(nextHand.map((c) => c.uid));
     setMulliganCount(nextCount);
+    setPendingMulliganBottomCount(bottomNeeded);
     const isFree = freeFirstMulligan && nextCount === 1;
     appendLog(
       isFree
-        ? `Took Free First Mulligan — reshuffled and drew fresh ${nextHand.length}-card hand.`
+        ? `Took Free First Mulligan (CR 103.5c) — reshuffled and drew a fresh ${nextHand.length}-card hand.`
+        : bottomNeeded > 0
+        ? `London Mulligan #${nextCount} (CR 103.5) — drew ${nextHand.length} cards. Select ${bottomNeeded} card${bottomNeeded === 1 ? '' : 's'} to put on the bottom of your library.`
         : `Mulligan #${nextCount} — reshuffled and drew ${nextHand.length} cards.`,
       1,
       'Untap'
     );
     triggerDeckShuffleAnimation(true);
+  };
+
+  const handlePutCardOnBottomForMulligan = (cardUid: string) => {
+    if (pendingMulliganBottomCount <= 0) return;
+    const targetCard = hand.find((c) => c.uid === cardUid);
+    if (!targetCard) return;
+    const nextRemaining = Math.max(0, pendingMulliganBottomCount - 1);
+    setHand((prev) => prev.filter((c) => c.uid !== cardUid));
+    setLibrary((prev) => [...prev, targetCard]);
+    setPendingMulliganBottomCount(nextRemaining);
+    appendLog(
+      nextRemaining > 0
+        ? `London Mulligan: put ${targetCard.name} on the bottom of your library (${nextRemaining} more to bottom).`
+        : `London Mulligan complete: put ${targetCard.name} on the bottom of your library (kept ${hand.length - 1} cards).`,
+      1,
+      'Untap'
+    );
+  };
+
+  const handleAutoBottomMulligan = () => {
+    if (pendingMulliganBottomCount <= 0 || hand.length === 0) return;
+    const countToBottom = Math.min(pendingMulliganBottomCount, Math.max(0, hand.length - 1));
+    if (countToBottom <= 0) {
+      setPendingMulliganBottomCount(0);
+      return;
+    }
+    const sorted = [...hand].sort((a, b) => {
+      if (a.isLand !== b.isLand) return a.isLand ? -1 : 1;
+      return a.cmc - b.cmc;
+    });
+    const toBottom = sorted.slice(-countToBottom);
+    const bottomUidSet = new Set(toBottom.map((c) => c.uid));
+    setHand((prev) => prev.filter((c) => !bottomUidSet.has(c.uid)));
+    setLibrary((prev) => [...prev, ...toBottom]);
+    setPendingMulliganBottomCount(0);
+    appendLog(
+      `London Mulligan complete: put ${toBottom.map((c) => c.name).join(', ')} on the bottom of your library.`,
+      1,
+      'Untap'
+    );
   };
 
   // Switch into Live Play vs Bots when triggered from the top PlaytestArena bar
@@ -1053,6 +1110,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           name: o.name,
           archetype: o.archetype,
           customDeckText: o.customDeckText || '',
+          customDeckName: o.customDeckName || '',
           indignance: o.indignance || '',
           intelligence: o.intelligence || '',
         })),
@@ -1092,13 +1150,17 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           ? {
               ...existing,
               name: opp.name,
-              archetype: opp.customDeckText?.trim() ? 'Custom Decklist' : opp.archetype,
+              archetype: opp.customDeckText?.trim()
+                ? opp.customDeckName?.trim() || 'Custom Decklist'
+                : opp.archetype,
               commanderName: bias.defaultCommanderName,
             }
           : {
               id: opp.id,
               name: opp.name,
-              archetype: opp.customDeckText?.trim() ? 'Custom Decklist' : opp.archetype,
+              archetype: opp.customDeckText?.trim()
+                ? opp.customDeckName?.trim() || 'Custom Decklist'
+                : opp.archetype,
               commanderName: bias.defaultCommanderName,
               life: startingLife,
               poison: 0,
@@ -1224,12 +1286,17 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     } else if (targetPhase === 'Draw' && !drawnInDrawStep) {
       if (nextTurnNum === 1 && formatRules.playerSkipsTurn1Draw && resolvedFirstSeatIndex === 0) {
         setDrawnInDrawStep(true);
-        appendLog('Draw step skipped (1v1 Play/Draw rule — you went first).', nextTurnNum, 'Draw');
+        appendLog('Draw step skipped (1v1 Play/Draw rule, CR 103.8a — you went first).', nextTurnNum, 'Draw');
       } else {
         setDrawnInDrawStep(true);
         setLibrary((prevLib) => {
           if (prevLib.length === 0) {
-            appendLog('Attempted to draw from an empty library!', nextTurnNum, 'Draw');
+            setPlayerDeckedOut(true);
+            appendLog(
+              'Attempted to draw from an empty library — lost the game by State-Based Action (CR 704.5b)!',
+              nextTurnNum,
+              'Draw'
+            );
             return prevLib;
           }
           const [drawn, ...rest] = prevLib;
@@ -1546,6 +1613,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     if (
       yourLife <= 0 ||
       yourPoison >= 10 ||
+      playerDeckedOut ||
       (formatRules.usesCommanderDamage21 && maxCmdrFromBots >= 21)
     ) {
       return 'defeat';
@@ -1554,7 +1622,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
       return 'victory';
     }
     return null;
-  }, [liveBotMode, yourLife, yourPoison, maxCmdrFromBots, liveBots, formatRules.usesCommanderDamage21]);
+  }, [liveBotMode, yourLife, yourPoison, playerDeckedOut, maxCmdrFromBots, liveBots, formatRules.usesCommanderDamage21]);
 
   const isSimulationFinished = Boolean(liveMatchOutcome) || simulationEndedManually;
   const isTurnTimerRunning =
@@ -1897,6 +1965,12 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           hasCommanderInPlay: freshSnap.battlefield.some((p) => p.isCommander),
         };
 
+        const shouldSkipBotTurn1Draw =
+          freshSnap.turn === 1 &&
+          openingBotLeadPendingRef.current &&
+          formatRules.playerSkipsTurn1Draw &&
+          resolvedFirstSeatIndex === nextBotIndex + 1;
+
         const res = executeBotTurn(
           nextBotIndex,
           freshSnap.liveBots,
@@ -1904,7 +1978,8 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           freshSnap.turn,
           findMeta,
           targetsHitThisBotRoundRef.current,
-          aiTurnDecision
+          aiTurnDecision,
+          { skipTurn1Draw: shouldSkipBotTurn1Draw }
         );
 
         const actedBotAfter = res.updatedBots[nextBotIndex];
@@ -2127,7 +2202,6 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
         life: nextBot.life + combatResult.botLifeGain,
         creatures: surviving,
         commanderInZone: nextBot.commanderInZone || cmdReturned,
-        commanderTax: cmdReturned ? nextBot.commanderTax + 2 : nextBot.commanderTax,
         commanderDamageDealtToYou: nextBot.commanderDamageDealtToYou + combatResult.cmdrDmgToPlayer,
       };
     });
@@ -2295,7 +2369,6 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                 ...nextBot,
                 creatures: remaining,
                 commanderInZone: nextBot.commanderInZone || cmdReturned,
-                commanderTax: cmdReturned ? nextBot.commanderTax + 2 : nextBot.commanderTax,
                 handCount: profile.bouncesTarget ? nextBot.handCount + 1 : nextBot.handCount,
               };
             })
@@ -2740,7 +2813,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           if (bp.category === 'commander') {
             workingBots = workingBots.map((b) =>
               b.id === bp.botId
-                ? { ...b, commanderInZone: true, commanderTax: b.commanderTax + 2 }
+                ? { ...b, commanderInZone: true }
                 : b
             );
           } else if (bp.category === 'creature') {
@@ -2812,9 +2885,12 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                           vigilance: false,
                           haste: false,
                           firstStrike: false,
+                          doubleStrike: false,
                           menace: false,
                           hexproof: false,
                           indestructible: false,
+                          defender: false,
+                          unblockable: false,
                           uid: `bot-bird-${b.id}-${Date.now()}`,
                           name: 'Bird Token',
                           power: 2,
@@ -2935,7 +3011,6 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                 ...b,
                 creatures: b.creatures.filter((c) => c.uid !== targetCr.uid),
                 commanderInZone: b.commanderInZone || cmdRet,
-                commanderTax: cmdRet ? b.commanderTax + 2 : b.commanderTax,
                 handCount: item.bouncesTarget ? b.handCount + 1 : b.handCount,
               };
               if (!item.bouncesTarget && !cmdRet) {
@@ -2970,7 +3045,6 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                     ...b,
                     creatures: b.creatures.filter((c) => c.uid !== targetCr.uid),
                     commanderInZone: b.commanderInZone || cmdRet,
-                    commanderTax: cmdRet ? b.commanderTax + 2 : b.commanderTax,
                   };
                   if (!cmdRet) {
                     nextBot = pushLiveBotZoneCard(
@@ -3014,6 +3088,32 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           if (isPermanent) {
             if (p.fromCommandZone) removeFromCmdZoneUids.add(p.uid);
             const kw = extractCreatureKeywords(p.meta);
+            // Enforce Legend Rule SBA (CR 704.5j) if another legendary permanent with same name is on board
+            const isLegendaryPerm = /\blegendary\b/i.test(p.typeLine || p.meta?.typeLine || '');
+            const hasMirrorRule = workingBf.some((b) =>
+              /\b(mirror box|mirror gallery|sakashima of a thousand faces)\b/i.test(b.name)
+            );
+            if (isLegendaryPerm && !hasMirrorRule) {
+              const dupIdx = workingBf.findIndex(
+                (b) =>
+                  /\blegendary\b/i.test(b.typeLine || b.meta?.typeLine || '') &&
+                  b.name.trim().toLowerCase() === p.name.trim().toLowerCase()
+              );
+              if (dupIdx >= 0) {
+                const [dup] = workingBf.splice(dupIdx, 1);
+                if (!dup.isToken) {
+                  if (dup.isCommander) returnedToCmdZone.push(dup);
+                  else addedToGy.push(dup);
+                }
+                appendLog(
+                  `[Legend Rule · CR 704.5j] Duplicate legendary ${dup.name} was put into ${
+                    dup.isCommander ? 'Command Zone' : 'Graveyard'
+                  }.`,
+                  turn,
+                  activePhase
+                );
+              }
+            }
             workingBf.push({
               ...p,
               tapped: false,
@@ -3101,7 +3201,6 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                     ...b,
                     creatures: b.creatures.filter((c) => c.uid !== targetCr.uid),
                     commanderInZone: b.commanderInZone || cmdRet,
-                    commanderTax: cmdRet ? b.commanderTax + 2 : b.commanderTax,
                   };
                   if (!cmdRet) {
                     nextBot = pushLiveBotZoneCard(
@@ -3203,7 +3302,6 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
             return {
               ...nextBot,
               commanderInZone: nextBot.commanderInZone || cmdRet,
-              commanderTax: cmdRet ? nextBot.commanderTax + 2 : nextBot.commanderTax,
             };
           });
           const stayingBf: BattlefieldPermanent[] = [];
@@ -3520,16 +3618,32 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
   };
 
   const handleDrawManual = (count = 1, incrementTurnOnDraw = true) => {
+    if (pendingMulliganBottomCount > 0) {
+      handleAutoBottomMulligan();
+    }
     if (library.length === 0) {
-      appendLog('Library is empty — no cards left to draw.');
+      if (!incrementTurnOnDraw) {
+        setPlayerDeckedOut(true);
+        appendLog(
+          'Attempted to draw from an empty library — lost the game by State-Based Action (CR 704.5b)!',
+          turn,
+          activePhase
+        );
+      } else {
+        appendLog('Library is empty — no cards left to draw.');
+      }
       return;
     }
     const drawn = library.slice(0, count);
     const rest = library.slice(count);
+    const deckedOnOverflow = !incrementTurnOnDraw && count > library.length;
     setLibrary(rest);
     setHand((prevHand) => [...prevHand, ...drawn]);
     setLastDrawnUids(drawn.map((d) => d.uid));
     setCardsDrawnCount((c) => c + drawn.length);
+    if (deckedOnOverflow) {
+      setPlayerDeckedOut(true);
+    }
     playTabletopSound(soundEnabled, 'draw');
     if (incrementTurnOnDraw) {
       commitCurrentTurnDuration(turn);
@@ -3544,7 +3658,11 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
         'Draw'
       );
     } else {
-      appendLog(`Drew ${drawn.map((d) => d.name).join(', ')}.`);
+      appendLog(
+        deckedOnOverflow
+          ? `Drew ${drawn.map((d) => d.name).join(', ')} and attempted to draw from an empty library — lost by SBA (CR 704.5b)!`
+          : `Drew ${drawn.map((d) => d.name).join(', ')}.`
+      );
     }
   };
 
@@ -3689,8 +3807,34 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
 
     const cardKw = extractCreatureKeywords(card.meta);
     if (isPermanent) {
+      const isLegendaryPerm = /\blegendary\b/i.test(card.typeLine || card.meta?.typeLine || '');
+      const hasMirrorRule = battlefield.some((b) =>
+        /\b(mirror box|mirror gallery|sakashima of a thousand faces)\b/i.test(b.name)
+      );
+      const existingLegendDup =
+        isLegendaryPerm && !hasMirrorRule
+          ? battlefield.find(
+              (b) =>
+                /\blegendary\b/i.test(b.typeLine || b.meta?.typeLine || '') &&
+                b.name.trim().toLowerCase() === card.name.trim().toLowerCase()
+            )
+          : undefined;
+      if (existingLegendDup) {
+        if (!existingLegendDup.isToken) {
+          if (existingLegendDup.isCommander) {
+            setCommandZone((cz) => [...cz, existingLegendDup]);
+          } else {
+            setGraveyard((gy) => [existingLegendDup, ...gy]);
+          }
+        }
+        appendLog(
+          `[Legend Rule · CR 704.5j] Put duplicate legendary ${existingLegendDup.name} into ${
+            existingLegendDup.isCommander ? 'Command Zone' : 'Graveyard'
+          }.`
+        );
+      }
       setBattlefield((prev) => [
-        ...prev,
+        ...prev.filter((b) => b.uid !== existingLegendDup?.uid),
         { ...card, tapped: false, attacking: false, summoningSick: card.isCreature && !cardKw.haste },
       ]);
     } else {
@@ -3847,6 +3991,27 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
   };
 
   const handleToggleAttacker = (uid: string) => {
+    const target = battlefield.find((p) => p.uid === uid);
+    if (!target || !target.isCreature) return;
+    if (!target.attacking) {
+      if (target.tapped) {
+        appendLog(`${target.name} is tapped and cannot be declared as an attacker (CR 508.1a).`, turn, 'Combat');
+        return;
+      }
+      const kw = extractCreatureKeywords(target.meta);
+      if (kw.defender) {
+        appendLog(`${target.name} has Defender and cannot attack (CR 702.3b).`, turn, 'Combat');
+        return;
+      }
+      if (target.summoningSick && !kw.haste) {
+        appendLog(
+          `${target.name} has summoning sickness and cannot attack this turn unless it has Haste (CR 302.6).`,
+          turn,
+          'Combat'
+        );
+        return;
+      }
+    }
     setBattlefield((prev) =>
       prev.map((p) => (p.uid === uid ? { ...p, attacking: !p.attacking } : p))
     );
@@ -4168,6 +4333,19 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
   const handleDragAttackOpponent = (permUid: string, opponentId: string) => {
     const attacker = battlefield.find((p) => p.uid === permUid);
     if (!attacker || !attacker.isCreature || attacker.tapped) return;
+    const kw = extractCreatureKeywords(attacker.meta);
+    if (kw.defender) {
+      appendLog(`${attacker.name} has Defender and cannot attack (CR 702.3b).`, turn, 'Combat');
+      return;
+    }
+    if (attacker.summoningSick && !kw.haste) {
+      appendLog(
+        `${attacker.name} has summoning sickness and cannot attack this turn unless it has Haste (CR 302.6).`,
+        turn,
+        'Combat'
+      );
+      return;
+    }
     setSelectedCombatTargetId(opponentId);
     if (phaseIdx < 4) {
       setPhaseIdx(4); // Jump cleanly into Combat phase when dragging a creature onto an opponent seat
@@ -4291,7 +4469,6 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           eliminatedReason,
           creatures: survivingCreatures,
           commanderInZone: nextBot.commanderInZone || cmdBack,
-          commanderTax: cmdBack ? nextBot.commanderTax + 2 : nextBot.commanderTax,
         };
       });
 
@@ -4336,7 +4513,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
         lifeDmg += eff.power;
         if (atk.toxicValue > 0) poisonDmg += atk.toxicValue;
       }
-      if (atk.isCommander) {
+      if (atk.isCommander && formatRules.usesCommanderDamage21) {
         cmdrDmg += eff.power;
       }
     }
@@ -4901,16 +5078,16 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                       onClick={handleMulligan}
                       title={
                         freeFirstMulligan && mulliganCount === 0
-                          ? 'Free First Mulligan: reshuffle and draw a fresh 7-card hand'
-                          : 'Reshuffle hand into library and draw a smaller opening hand'
+                          ? 'Free First Mulligan (CR 103.5c): reshuffle and draw a fresh 7-card hand'
+                          : 'London Mulligan (CR 103.5): reshuffle, draw 7 cards, then choose N cards to put on the bottom of your library'
                       }
                       className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 cursor-pointer whitespace-nowrap shrink-0"
                     >
                       <Shuffle className="h-3.5 w-3.5 text-amber-700" />
                       {freeFirstMulligan && mulliganCount === 0
                         ? 'Free Mulligan (7)'
-                        : `Mulligan (${Math.max(
-                            3,
+                        : `London Mulligan (Keep ${Math.max(
+                            1,
                             7 - (freeFirstMulligan ? mulliganCount : mulliganCount + 1)
                           )})`}
                     </button>
@@ -5073,6 +5250,8 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           effectiveAiEngine={liveAiStatus.effectiveEngine}
           liveAiTurnReasoning={liveAiTurnReasoning}
           onChangeLiveAiTurnReasoning={setLiveAiTurnReasoning}
+          findMeta={findMeta}
+          resolvingCustomMeta={resolvingCustomMeta}
         />
       ) : (
         <>
@@ -5237,7 +5416,9 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                     ? `Victory! You defeated all ${liveBots.length} bot opponent${liveBots.length === 1 ? '' : 's'} by Turn ${turn}.`
                     : liveMatchOutcome === 'defeat'
                     ? `Defeat on Turn ${turn} (${
-                        yourPoison >= 10
+                        playerDeckedOut
+                          ? 'Empty Library — Decked Out (CR 704.5b)'
+                          : yourPoison >= 10
                           ? '10+ Poison Counters'
                           : formatRules.usesCommanderDamage21 && maxCmdrFromBots >= 21
                           ? '21+ Commander Damage'
@@ -5501,6 +5682,46 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
             : PHASE_HINTS[activePhase]}
         </p>
       </div>
+
+      {/* London Mulligan Bottom-of-Library Card Picker Banner (CR 103.5) */}
+      {pendingMulliganBottomCount > 0 && hand.length > 0 && (
+        <div
+          role="region"
+          aria-label="London Mulligan Card Selection"
+          className="rounded-xl border border-amber-300 bg-amber-50/90 px-4 py-3 space-y-2.5"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs font-bold text-amber-950">
+              London Mulligan (CR 103.5): Choose {pendingMulliganBottomCount} card
+              {pendingMulliganBottomCount === 1 ? '' : 's'} from your hand to put on the bottom of your library
+            </div>
+            <button
+              type="button"
+              onClick={handleAutoBottomMulligan}
+              className="rounded-lg border border-amber-400 bg-white px-2.5 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100 cursor-pointer whitespace-nowrap shrink-0"
+            >
+              Auto-Bottom {pendingMulliganBottomCount}
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {hand.map((c) => (
+              <button
+                key={c.uid}
+                type="button"
+                onClick={() => handlePutCardOnBottomForMulligan(c.uid)}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-800 hover:border-amber-500 hover:bg-amber-100 cursor-pointer"
+                title={`Put ${c.name} on the bottom of your library`}
+              >
+                <span>{c.name}</span>
+                <span className="font-mono text-[10px] text-zinc-500">
+                  {c.isLand ? 'Land' : `MV ${c.cmc}`}
+                </span>
+                <span className="text-[10px] font-bold text-amber-800">→ Bottom</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {guiView === 'tabletop' ? (
         <div className="space-y-4">

@@ -458,7 +458,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
     }
     const presetArchetypes: string[] = [];
     for (const opp of visibleOpponents) {
-      if (opp.archetype === 'Custom Decklist' && opp.customDeckText) {
+      if (opp.customDeckText && opp.customDeckText.trim()) {
         collectFromText(opp.customDeckText);
       } else {
         presetArchetypes.push(opp.archetype);
@@ -1813,7 +1813,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                       value={opp.name}
                       onChange={(e) => updateOpponent(idx, { name: e.target.value })}
                       aria-label={`Opponent ${idx + 1} name`}
-                      className="w-36 rounded border border-zinc-200 bg-white px-2 py-1 text-xs font-medium text-zinc-800 focus:border-sky-600 focus:outline-none"
+                      className="w-36 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-900 focus:border-sky-600 focus:outline-none"
                     />
                   </div>
 
@@ -1956,7 +1956,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                             }))
                           }
                           placeholder="Teach rule (e.g. Counter my commander)..."
-                          className="flex-1 rounded border border-zinc-300 bg-zinc-50 px-2 py-1 text-[11px] text-zinc-900 focus:border-sky-600 focus:bg-white focus:outline-none"
+                          className="flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] text-zinc-900 focus:border-sky-600 focus:outline-none"
                         />
                         <button
                           type="button"
@@ -2174,7 +2174,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                             updateOpponent(idx, { customDeckText: e.target.value })
                           }
                           placeholder="Paste Commander or 60-card decklist, or click 'Use Your Upload' above..."
-                          className="w-full rounded-md border border-zinc-300 bg-zinc-50/50 p-2 font-mono text-[11px] text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:bg-white focus:outline-none"
+                          className="w-full rounded-md border border-zinc-300 bg-white p-2.5 font-mono text-[11px] leading-relaxed text-zinc-900 placeholder:text-zinc-500 focus:border-sky-600 focus:outline-none"
                         />
 
                         {parsedCustom && parsedCustom.cards.length > 0 && (
@@ -2222,7 +2222,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                                       ),
                                     });
                                   }}
-                                  className="w-full rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] text-zinc-800 focus:border-sky-600 focus:outline-none"
+                                  className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
                                 >
                                   <option value="">
                                     {botCmds.length > 0
@@ -2329,6 +2329,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
           botMemory={botMemory}
           onSaveBotMemoryProfiles={onSaveBotMemoryProfiles}
           autoLearnEnabled={autoLearnEnabled}
+          resolvingCustomMeta={resolvingCustomMeta}
         />
       </Suspense>
 

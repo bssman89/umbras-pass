@@ -64,6 +64,7 @@ img[src*="Umbras_pass_v3-removebg-preview"] {
 }
 
 .bg-zinc-200,
+.bg-zinc-200\/60,
 .bg-zinc-200\/70 {
   background-color: #11151d !important;
   border: 1px solid #2c3546;
@@ -71,6 +72,7 @@ img[src*="Umbras_pass_v3-removebg-preview"] {
 
 /* Segmented tab strip containers */
 .bg-zinc-100.p-1,
+.bg-zinc-200\/60.p-1,
 .bg-zinc-200\/70.p-1 {
   background-color: #0f131a !important;
   border: 1px solid #2c3546;
@@ -115,6 +117,7 @@ img[src*="Umbras_pass_v3-removebg-preview"] {
 
 /* Inactive buttons inside segmented controls on hover */
 .bg-zinc-100.p-1 button:not(.shadow-sm):hover,
+.bg-zinc-200\/60.p-1 button:not(.shadow-sm):hover,
 .bg-zinc-200\/70.p-1 button:not(.shadow-sm):hover {
   background-color: rgba(255, 255, 255, 0.08) !important;
   color: #ffffff !important;
@@ -142,6 +145,7 @@ img[src*="Umbras_pass_v3-removebg-preview"] {
 }
 
 /* High-Contrast Typography & SVG Fills on Dark Charcoal Surfaces */
+.text-zinc-950,
 .text-zinc-900 {
   color: #ffffff !important;
 }
@@ -319,17 +323,65 @@ header.md\:sticky {
 }
 
 /* Form Inputs, Selects & Textareas */
-input,
+input:not([type="checkbox"]):not([type="radio"]),
 select,
 textarea {
-  background-color: #141821 !important;
-  color: #f4f4f5 !important;
-  border-color: #2c3342 !important;
+  background-color: #222b3d !important;
+  color: #ffffff !important;
+  border-color: #4c5e7a !important;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):hover:not(:disabled),
+select:hover:not(:disabled),
+textarea:hover:not(:disabled) {
+  background-color: #273247 !important;
+  border-color: #667da1 !important;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  background-color: #2b3850 !important;
+  color: #ffffff !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.32) !important;
+}
+
+select option {
+  background-color: #1c2433;
+  color: #f8fafc;
 }
 
 input::placeholder,
 textarea::placeholder {
-  color: #6b7280 !important;
+  color: #a3b3ca !important;
+}
+
+/* Live Game AI Bot Opponent Configuration Inputs */
+[data-live-bot-setup="true"] input:not([type="checkbox"]):not([type="radio"]),
+[data-live-bot-setup="true"] select,
+[data-live-bot-setup="true"] textarea {
+  background-color: #242f42 !important;
+  color: #ffffff !important;
+  border-color: #556987 !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+[data-live-bot-setup="true"] input:not([type="checkbox"]):not([type="radio"]):hover:not(:disabled),
+[data-live-bot-setup="true"] select:hover:not(:disabled),
+[data-live-bot-setup="true"] textarea:hover:not(:disabled) {
+  background-color: #2a374e !important;
+  border-color: #7089ad !important;
+}
+
+[data-live-bot-setup="true"] input:not([type="checkbox"]):not([type="radio"]):focus,
+[data-live-bot-setup="true"] select:focus,
+[data-live-bot-setup="true"] textarea:focus {
+  background-color: #2e3d57 !important;
+  color: #ffffff !important;
+  border-color: #38bdf8 !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.38) !important;
 }
 
 @keyframes cardDrawSlideIn {

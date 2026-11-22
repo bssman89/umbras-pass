@@ -12,8 +12,23 @@ function cleanTargets(paths) {
   for (const relPath of paths) {
     const absPath = path.join(rootDir, relPath);
     if (fs.existsSync(absPath)) {
-      fs.rmSync(absPath, { recursive: true, force: true });
-      console.log(`[Build] Cleaned ${relPath}`);
+      try {
+        fs.rmSync(absPath, {
+          recursive: true,
+          force: true,
+          maxRetries: 5,
+          retryDelay: 250,
+        });
+        console.log(`[Build] Cleaned ${relPath}`);
+      } catch (err) {
+        const code = err && typeof err === 'object' ? err.code : '';
+        if (code === 'EPERM' || code === 'EBUSY' || code === 'EACCES') {
+          throw new Error(
+            `Cannot remove "${relPath}" (${code} - in use or blocked by Windows). Close any running "Umbras Pass.exe" / installer or File Explorer window inside "${relPath}", check Windows Controlled Folder Access / antivirus exclusions, and retry.`
+          );
+        }
+        throw err;
+      }
     }
   }
 }

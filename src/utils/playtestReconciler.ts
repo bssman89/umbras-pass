@@ -28,10 +28,23 @@ export interface FormatSimulationRules {
 }
 
 export function getFormatSimulationRules(
-  format: Exclude<DeckFormat, 'auto'> = 'commander',
+  rawFormat: DeckFormat | string = 'commander',
   mode: PlaytestMode = '1v3',
   totalDeckCards?: number
 ): FormatSimulationRules {
+  const normalized = (rawFormat || 'commander').toString().trim().toLowerCase();
+  const format: Exclude<DeckFormat, 'auto'> =
+    normalized === 'brawl' ||
+    normalized === 'standard' ||
+    normalized === 'modern' ||
+    normalized === 'pioneer' ||
+    normalized === 'pauper' ||
+    normalized === 'legacy' ||
+    normalized === 'vintage' ||
+    normalized === 'limited' ||
+    normalized === 'casual60'
+      ? normalized
+      : 'commander';
   const isMultiplayer = mode !== '1v1';
   const allowsCommandZone = format === 'commander' || format === 'brawl';
   const usesCommanderDamage21 = format === 'commander';
@@ -138,6 +151,8 @@ export interface CardMechanicFlags {
   hasLifelink: boolean;
   hasDeathtouch: boolean;
   hasTrample: boolean;
+  hasDefender: boolean;
+  hasIndestructible: boolean;
   hitsEachOpponent: boolean;
   colorPips: ColorPipRequirements;
 }
@@ -456,6 +471,9 @@ export function detectCardMechanics(
   const hasLifelink = /\blifelink\b/i.test(oracle);
   const hasDeathtouch = /\bdeathtouch\b/i.test(oracle);
   const hasTrample = /\btrample\b/i.test(oracle);
+  const hasDefender =
+    /\bdefender\b/i.test(oracle) && !/can attack as though it didn't have defender/i.test(oracle);
+  const hasIndestructible = /\bindestructible\b/i.test(oracle);
   // IMPORTANT: Trample is NOT evasion; Trample creatures can still be blocked by ground creatures!
   const hasEvasion =
     hasFlying ||
@@ -652,6 +670,8 @@ export function detectCardMechanics(
     hasLifelink,
     hasDeathtouch,
     hasTrample,
+    hasDefender,
+    hasIndestructible,
     hitsEachOpponent,
     colorPips,
   };

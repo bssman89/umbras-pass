@@ -14,6 +14,7 @@ import {
   detectFormatFromParsedCards,
   getMaxCopiesForCard,
   getTargetDeckSizeForFormat,
+  isRestrictedCardInFormat,
   isSameCardName,
 } from '../src/utils/deckRules.ts';
 import {
@@ -391,11 +392,22 @@ function mapScryfallToMetadata(raw: ScryfallCard, format: Exclude<DeckFormat, 'a
   const marketUrls = buildMarketplaceUrls(raw.name, raw.set_name, raw.purchase_uris);
 
   let legalInFormat = true;
+  let restrictedInFormat = false;
+  let standardBrawlLegal: boolean | undefined;
   if (format !== 'casual60' && format !== 'limited') {
     const legKey = format === 'commander' ? 'commander' : format;
     const status = raw.legalities?.[legKey];
     if (status && status !== 'legal' && status !== 'restricted') {
       legalInFormat = false;
+    }
+    if (status === 'restricted') {
+      restrictedInFormat = true;
+    }
+    if (format === 'brawl') {
+      const stdBrawlStatus = raw.legalities?.['standardbrawl'];
+      if (stdBrawlStatus) {
+        standardBrawlLegal = stdBrawlStatus === 'legal' || stdBrawlStatus === 'restricted';
+      }
     }
   }
 
@@ -464,6 +476,8 @@ function mapScryfallToMetadata(raw: ScryfallCard, format: Exclude<DeckFormat, 'a
     collectorNumber: raw.collector_number,
     scryfallUri: raw.scryfall_uri || `https://scryfall.com/search?q=${encodeURIComponent(raw.name)}`,
     legalInFormat,
+    restrictedInFormat,
+    standardBrawlLegal,
     rarity: raw.rarity || 'common',
   };
 }
@@ -914,8 +928,15 @@ export function computeDeckMetrics(
       continue;
     }
 
-    if (!meta.legalInFormat) {
-      formatViolations.push(`${meta.name} is not legal in ${format}`);
+    const effectiveLegalInFormat =
+      format === 'brawl' && targetDeckSize === 60 && typeof meta.standardBrawlLegal === 'boolean'
+        ? meta.standardBrawlLegal
+        : meta.legalInFormat;
+
+    if (!effectiveLegalInFormat) {
+      formatViolations.push(
+        `${meta.name} is not legal in ${format === 'brawl' && targetDeckSize === 60 ? 'Standard Brawl (60-card)' : format}`
+      );
     }
 
     if (
@@ -1035,13 +1056,34 @@ export function computeDeckMetrics(
     }
   }
 
-  // Format copy-limit validation across singleton and constructed formats
+  // Constructed formats (CR 100.4a) count Main + Sideboard combined for copy limits & sideboard legality
+  const allLegalityCards =
+    format !== 'commander' && format !== 'brawl' && format !== 'limited'
+      ? [...mainAndCmd, ...resolvedCards.filter((c) => c.zone === 'sideboard' || c.zone === 'companion')]
+      : mainAndCmd;
+
+  if (format !== 'commander' && format !== 'brawl' && format !== 'limited') {
+    for (const sideItem of resolvedCards) {
+      if (sideItem.zone !== 'sideboard' && sideItem.zone !== 'companion') continue;
+      addMapCardCount(totalCopiesByName, sideItem.name, sideItem.quantity);
+      if (sideItem.card && !sideItem.card.legalInFormat) {
+        formatViolations.push(`${sideItem.card.name} (Sideboard) is not legal in ${format}`);
+      }
+    }
+    if (sideboardCount > 15) {
+      formatViolations.push(`Sideboard has ${sideboardCount} cards (maximum is 15 in ${format})`);
+    }
+  }
+
+  // Format copy-limit validation across singleton, Vintage restricted, and constructed formats
   for (const [key, qty] of totalCopiesByName.entries()) {
-    const sample = mainAndCmd.find((c) => isSameCardName(c.name, key));
+    const sample = allLegalityCards.find((c) => isSameCardName(c.name, key));
     const display = sample?.name || key;
     const maxAllowed = getMaxCopiesForCard(display, format, sample?.card);
     if (Number.isFinite(maxAllowed) && qty > maxAllowed) {
-      if (format === 'commander' || format === 'brawl') {
+      if (isRestrictedCardInFormat(display, format, sample?.card)) {
+        formatViolations.push(`${display} appears ${qty} times (Restricted in Vintage — max 1 copy)`);
+      } else if (format === 'commander' || format === 'brawl') {
         singletonViolations.push(`${display} appears ${qty} times (singleton limit is 1)`);
       } else {
         formatViolations.push(`${display} appears ${qty} times (${maxAllowed}-copy limit)`);

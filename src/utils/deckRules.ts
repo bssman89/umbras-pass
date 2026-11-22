@@ -41,6 +41,59 @@ const SPECIAL_CAP_BY_KEY: Record<string, number> = {
   nazgul: 9,
 };
 
+export const VINTAGE_RESTRICTED_KEYS = new Set<string>([
+  'ancestral recall',
+  'balance',
+  'black lotus',
+  'brainstorm',
+  'chalice of the void',
+  'channel',
+  'demonic consultation',
+  'demonic tutor',
+  'dig through time',
+  'flash',
+  'gitaxian probe',
+  'golgari grave-troll',
+  'imperial seal',
+  'karn, the great creator',
+  'library of alexandria',
+  'lion\'s eye diamond',
+  'lodestone golem',
+  'lotus petal',
+  'mana crypt',
+  'mana vault',
+  'memory jar',
+  'mental misstep',
+  'mind\'s desire',
+  'monastery mentor',
+  'mox emerald',
+  'mox jet',
+  'mox pearl',
+  'mox ruby',
+  'mox sapphire',
+  'mystic forge',
+  'mystical tutor',
+  'narset, parter of veils',
+  'necropotence',
+  'ponder',
+  'sol ring',
+  'strip mine',
+  'thorn of amethyst',
+  'time vault',
+  'time walk',
+  'timetwister',
+  'tinker',
+  'tolarian academy',
+  'treasure cruise',
+  'trinisphere',
+  'urza\'s saga',
+  'vampiric tutor',
+  'vexing bauble',
+  'wheel of fortune',
+  'windfall',
+  'yawgmoth\'s will',
+]);
+
 /**
  * Normalizes a Magic card name into a canonical lookup key:
  * - strips NFD diacritics (e.g. Lórien -> lorien, Lim-Dûl -> lim-dul)
@@ -140,6 +193,18 @@ export function isSingletonFormat(format: DeckFormat | undefined): boolean {
   return format === 'commander' || format === 'brawl';
 }
 
+export function isRestrictedCardInFormat(
+  cardName: string | undefined | null,
+  format: DeckFormat | undefined,
+  meta?: CardMetadata | null
+): boolean {
+  if (format !== 'vintage') return false;
+  if (meta?.restrictedInFormat) return true;
+  const key = normalizeDeckCardKey(cardName);
+  const front = getCardFrontFaceKey(key);
+  return VINTAGE_RESTRICTED_KEYS.has(key) || VINTAGE_RESTRICTED_KEYS.has(front);
+}
+
 /**
  * Returns the maximum legal copies of a card allowed in a deck for the given format.
  */
@@ -157,6 +222,10 @@ export function getMaxCopiesForCard(
   }
   if (meta?.oracleText && /a deck can have any number of cards named/i.test(meta.oracleText)) {
     return Number.POSITIVE_INFINITY;
+  }
+
+  if (isRestrictedCardInFormat(cardName, format, meta)) {
+    return 1;
   }
 
   const special = SPECIAL_CAP_BY_KEY[key] ?? SPECIAL_CAP_BY_KEY[front];

@@ -2893,9 +2893,10 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     {creaturesAndOther.map((perm) => {
                       const stats = getEffectivePermanentStats(perm);
                       const counterChips = formatPermanentCounterChips(perm);
+                      const permKw = extractCreatureKeywords(perm.meta);
                       const kwTags = perm.isCreature
                         ? formatCreatureKeywordTags({
-                            ...extractCreatureKeywords(perm.meta),
+                            ...permKw,
                             hasInfect: perm.hasInfect,
                             toxicValue: perm.toxicValue,
                           })
@@ -2990,7 +2991,11 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                           primaryAction={
                             tokenPrimary
                               ? tokenPrimary
-                              : activePhase === 'Combat' && perm.isCreature && !perm.tapped
+                              : activePhase === 'Combat' &&
+                                perm.isCreature &&
+                                !perm.tapped &&
+                                (perm.attacking ||
+                                  (!permKw.defender && (!perm.summoningSick || permKw.haste)))
                               ? {
                                   label: perm.attacking ? 'Attacking' : 'Attack',
                                   onClick: () => onToggleAttacker(perm.uid),

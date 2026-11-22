@@ -24,6 +24,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Upload,
+  X,
 } from 'lucide-react';
 import {
   isStartupWelcomeDisabled,
@@ -152,8 +153,15 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [bugEmail, setBugEmail] = useState('');
   const [bugSubmitted, setBugSubmitted] = useState(false);
   const [bugError, setBugError] = useState<string | null>(null);
+  const [blockedTipSection, setBlockedTipSection] = useState<string | null>(null);
 
   const settingsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (hasAnalysis) {
+      setBlockedTipSection(null);
+    }
+  }, [hasAnalysis]);
 
   useEffect(() => {
     const syncWelcomePref = () => {
@@ -330,13 +338,23 @@ export const TopBar: React.FC<TopBarProps> = ({
               <button
                 key={item.id}
                 type="button"
-                disabled={item.disabled}
-                onClick={() => onNavigate(item.id)}
-                title={item.disabled ? 'Analyze a deck first to open this workspace' : item.label}
-                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none ${
-                  isActive
-                    ? 'bg-white text-zinc-900 shadow-sm'
-                    : 'text-zinc-600 hover:text-zinc-900'
+                aria-disabled={item.disabled || undefined}
+                onClick={() => {
+                  if (item.disabled) {
+                    setBlockedTipSection(item.label);
+                    onNavigate('import');
+                    return;
+                  }
+                  setBlockedTipSection(null);
+                  onNavigate(item.id);
+                }}
+                title={item.disabled ? 'Import and analyze a deck first to open this section' : item.label}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                  item.disabled
+                    ? 'opacity-45 cursor-not-allowed text-zinc-500 hover:text-zinc-700'
+                    : isActive
+                    ? 'bg-white text-zinc-900 shadow-sm cursor-pointer'
+                    : 'text-zinc-600 hover:text-zinc-900 cursor-pointer'
                 }`}
               >
                 <Icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-sky-700' : 'text-zinc-500'}`} />
@@ -1093,12 +1111,22 @@ export const TopBar: React.FC<TopBarProps> = ({
               <button
                 key={item.id}
                 type="button"
-                disabled={item.disabled}
-                onClick={() => onNavigate(item.id)}
-                className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:pointer-events-none ${
-                  isActive
-                    ? 'bg-white text-zinc-900 shadow-sm'
-                    : 'text-zinc-600 hover:text-zinc-900'
+                aria-disabled={item.disabled || undefined}
+                onClick={() => {
+                  if (item.disabled) {
+                    setBlockedTipSection(item.label);
+                    onNavigate('import');
+                    return;
+                  }
+                  setBlockedTipSection(null);
+                  onNavigate(item.id);
+                }}
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                  item.disabled
+                    ? 'opacity-45 cursor-not-allowed text-zinc-500 hover:text-zinc-700'
+                    : isActive
+                    ? 'bg-white text-zinc-900 shadow-sm cursor-pointer'
+                    : 'text-zinc-600 hover:text-zinc-900 cursor-pointer'
                 }`}
               >
                 <Icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-sky-700' : 'text-zinc-500'}`} />
@@ -1108,6 +1136,35 @@ export const TopBar: React.FC<TopBarProps> = ({
           })}
         </div>
       </nav>
+
+      {/* First-Time Navigation Tip Banner */}
+      {!hasAnalysis && blockedTipSection && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="border-t border-sky-300 bg-sky-50 px-4 sm:px-6 py-2"
+        >
+          <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-sky-900 min-w-0">
+              <Info className="h-4 w-4 text-sky-700 shrink-0" />
+              <p className="leading-snug">
+                <span className="font-bold">Tip:</span> To open{' '}
+                <span className="font-semibold">{blockedTipSection}</span>, you must first import a
+                decklist below (paste, upload a file, paste a deck URL, or pick a sample deck) and click{' '}
+                <span className="font-semibold">Analyze Deck</span>.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setBlockedTipSection(null)}
+              aria-label="Dismiss navigation tip"
+              className="rounded-md p-1 text-sky-700 hover:bg-sky-100 cursor-pointer shrink-0"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

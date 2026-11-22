@@ -74,6 +74,8 @@ export interface CardMetadata {
   collectorNumber?: string;
   scryfallUri: string;
   legalInFormat: boolean;
+  restrictedInFormat?: boolean;
+  standardBrawlLegal?: boolean;
   rarity: string;
 }
 
@@ -261,6 +263,16 @@ export interface BotOpponentConfig {
   indignance?: BotIndignanceLevel;
   intelligence?: BotIntelligenceLevel;
   customDeckText?: string;
+  customDeckName?: string;
+}
+
+export interface SavedCustomBotDeck {
+  id: string;
+  name: string;
+  commanderName?: string;
+  cardCount: number;
+  deckText: string;
+  updatedAt: string;
 }
 
 export interface RoundDeckChange {

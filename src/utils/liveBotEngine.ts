@@ -34,9 +34,12 @@ export interface CreatureKeywords {
   vigilance: boolean;
   haste: boolean;
   firstStrike: boolean;
+  doubleStrike: boolean;
   menace: boolean;
   hexproof: boolean;
   indestructible: boolean;
+  defender: boolean;
+  unblockable: boolean;
 }
 
 export const EMPTY_KEYWORDS: CreatureKeywords = {
@@ -48,9 +51,12 @@ export const EMPTY_KEYWORDS: CreatureKeywords = {
   vigilance: false,
   haste: false,
   firstStrike: false,
+  doubleStrike: false,
   menace: false,
   hexproof: false,
   indestructible: false,
+  defender: false,
+  unblockable: false,
 };
 
 export function extractCreatureKeywords(
@@ -58,6 +64,14 @@ export function extractCreatureKeywords(
   overrides?: Partial<CreatureKeywords>
 ): CreatureKeywords {
   const oracle = (meta?.oracleText || '').toLowerCase();
+  const hasDoubleStrike = overrides?.doubleStrike ?? /\bdouble strike\b/.test(oracle);
+  const hasFirstStrike = overrides?.firstStrike ?? /\bfirst strike\b/.test(oracle);
+  const hasDefender =
+    overrides?.defender ??
+    (/\bdefender\b/.test(oracle) && !/can attack as though it didn't have defender/.test(oracle));
+  const isUnblockable =
+    overrides?.unblockable ??
+    /\b(can't be blocked|cannot be blocked|unblockable|horsemanship|shadow)\b/.test(oracle);
   return {
     flying: overrides?.flying ?? /\bflying\b/.test(oracle),
     reach: overrides?.reach ?? /\breach\b/.test(oracle),
@@ -66,10 +80,13 @@ export function extractCreatureKeywords(
     lifelink: overrides?.lifelink ?? /\blifelink\b/.test(oracle),
     vigilance: overrides?.vigilance ?? /\bvigilance\b/.test(oracle),
     haste: overrides?.haste ?? /\bhaste\b/.test(oracle),
-    firstStrike: overrides?.firstStrike ?? /\b(first strike|double strike)\b/.test(oracle),
+    firstStrike: hasFirstStrike,
+    doubleStrike: hasDoubleStrike,
     menace: overrides?.menace ?? /\bmenace\b/.test(oracle),
     hexproof: overrides?.hexproof ?? /\b(hexproof|shroud)\b/.test(oracle),
     indestructible: overrides?.indestructible ?? /\bindestructible\b/.test(oracle),
+    defender: hasDefender,
+    unblockable: isUnblockable,
   };
 }
 
@@ -78,9 +95,12 @@ export function formatCreatureKeywordTags(kw: Partial<CreatureKeywords> & {
   toxicValue?: number;
 }): string[] {
   const tags: string[] = [];
+  if (kw.defender) tags.push('Defender');
+  if (kw.unblockable) tags.push('Unblockable');
   if (kw.flying) tags.push('Fly');
   if (kw.reach) tags.push('Reach');
-  if (kw.firstStrike) tags.push('1st Strike');
+  if (kw.doubleStrike) tags.push('Dbl Strike');
+  else if (kw.firstStrike) tags.push('1st Strike');
   if (kw.deathtouch) tags.push('Deathtouch');
   if (kw.trample) tags.push('Trample');
   if (kw.lifelink) tags.push('Lifelink');
@@ -788,10 +808,11 @@ export function createInitialLiveBots(
       ...(playerDeckContext?.keyThreats || []).slice(0, 4),
     ].reduce<string[]>((acc, name) => pushUniqueBounded(acc, name, 10), []);
 
+    const customLabel = opp.customDeckName?.trim() || 'Custom Deck';
     const deckIdentitySummary = opp.customDeckText?.trim()
       ? cmdName
-        ? `Custom Deck (${cmdName} · ${customDeckPool.length + (cmdName ? 1 : 0)} cards)`
-        : `Custom Deck (${customDeckPool.length} cards)`
+        ? `${customLabel} (${cmdName} · ${customDeckPool.length + (cmdName ? 1 : 0)} cards)`
+        : `${customLabel} (${customDeckPool.length} cards)`
       : cmdName
       ? `${opp.archetype} (${cmdName})`
       : opp.archetype;
@@ -810,7 +831,9 @@ export function createInitialLiveBots(
     return {
       id: opp.id || `bot-${idx + 1}`,
       name: opp.name,
-      archetype: opp.customDeckText?.trim() ? 'Custom Decklist' : opp.archetype,
+      archetype: opp.customDeckText?.trim()
+        ? opp.customDeckName?.trim() || 'Custom Decklist'
+        : opp.archetype,
       indignance: opp.indignance || 'measured',
       intelligence: intelMeta.id,
       commanderName: cmdName,
@@ -1635,9 +1658,219 @@ function rankBotTargets(
 }
 
 /**
+ * Authentic WotC CR 510 two-step combat damage resolution between a single attacker and 0..N assigned blockers.
+ * - Step 1 (First Strike combat damage step, CR 702.7 / 702.4): Creatures with First Strike or Double Strike deal damage.
+ *   Non-indestructible creatures with lethal damage (or >= 1 damage from a Deathtouch source) are destroyed before Step 2.
+ * - Step 2 (Regular combat damage step): Surviving creatures without First Strike, plus surviving creatures with Double Strike,
+ *   deal combat damage.
+ * - Trample (CR 702.19b): Once all assigned blockers have been assigned lethal damage (accounting for damage already marked in Step 1,
+ *   or 1 damage if attacker has Deathtouch), excess damage rolls over to the defending player/bot.
+ */
+function resolveTwoStepAttackerCombat(
+  atk: {
+    uid: string;
+    power: number;
+    toughness: number;
+    isCommander: boolean;
+    hasInfect: boolean;
+    toxicValue: number;
+    firstStrike: boolean;
+    doubleStrike: boolean;
+    trample: boolean;
+    deathtouch: boolean;
+    lifelink: boolean;
+    indestructible: boolean;
+  },
+  blockers: Array<{
+    uid: string;
+    power: number;
+    toughness: number;
+    firstStrike: boolean;
+    doubleStrike: boolean;
+    deathtouch: boolean;
+    lifelink: boolean;
+    indestructible: boolean;
+  }>,
+  usesCommanderDamage21: boolean
+): {
+  lifeDmgToDefender: number;
+  poisonDmgToDefender: number;
+  cmdrDmgToDefender: number;
+  attackerLifeGain: number;
+  defenderLifeGain: number;
+  attackerDied: boolean;
+  deadBlockerUids: string[];
+  trampleDmgDealt: number;
+} {
+  let lifeDmgToDefender = 0;
+  let poisonDmgToDefender = 0;
+  let cmdrDmgToDefender = 0;
+  let attackerLifeGain = 0;
+  let defenderLifeGain = 0;
+  let trampleDmgDealt = 0;
+  const deadBlockerSet = new Set<string>();
+  let attackerDied = false;
+  let dmgMarkedOnAttacker = 0;
+  let deathtouchHitAttacker = false;
+  const dmgMarkedOnBlocker = new Map<string, number>();
+
+  const applyUnblockedOrTrampleHit = (dmg: number) => {
+    if (dmg <= 0) return;
+    if (atk.hasInfect) {
+      poisonDmgToDefender += dmg;
+    } else {
+      lifeDmgToDefender += dmg;
+      if (atk.toxicValue > 0) poisonDmgToDefender += atk.toxicValue;
+    }
+    if (atk.isCommander && usesCommanderDamage21) {
+      cmdrDmgToDefender += dmg;
+    }
+  };
+
+  if (blockers.length === 0) {
+    const strikes = atk.doubleStrike ? 2 : 1;
+    for (let s = 0; s < strikes; s++) {
+      if (atk.power > 0) {
+        if (atk.lifelink) attackerLifeGain += atk.power;
+        applyUnblockedOrTrampleHit(atk.power);
+      }
+    }
+    return {
+      lifeDmgToDefender,
+      poisonDmgToDefender,
+      cmdrDmgToDefender,
+      attackerLifeGain,
+      defenderLifeGain,
+      attackerDied: false,
+      deadBlockerUids: [],
+      trampleDmgDealt: 0,
+    };
+  }
+
+  const runAttackerStrike = () => {
+    let rem = Math.max(0, atk.power);
+    if (rem <= 0) return;
+    if (atk.lifelink) attackerLifeGain += rem;
+
+    const livingBlockers = blockers.filter((b) => !deadBlockerSet.has(b.uid));
+    for (let idx = 0; idx < livingBlockers.length; idx++) {
+      if (rem <= 0) break;
+      const blk = livingBlockers[idx];
+      const priorDmg = dmgMarkedOnBlocker.get(blk.uid) || 0;
+      const lethalNeeded = atk.deathtouch
+        ? priorDmg > 0
+          ? 0
+          : 1
+        : Math.max(0, blk.toughness - priorDmg);
+      const isLastBlocker = idx === livingBlockers.length - 1;
+      const assign =
+        atk.trample || !isLastBlocker ? Math.min(rem, lethalNeeded) : rem;
+      if (assign > 0) {
+        const nextDmg = priorDmg + assign;
+        dmgMarkedOnBlocker.set(blk.uid, nextDmg);
+        rem -= assign;
+      }
+    }
+
+    if (atk.trample && rem > 0) {
+      trampleDmgDealt += rem;
+      applyUnblockedOrTrampleHit(rem);
+    }
+  };
+
+  const atkStrikesInStep1 = atk.firstStrike || atk.doubleStrike;
+  const anyBlkStrikesInStep1 = blockers.some((b) => b.firstStrike || b.doubleStrike);
+
+  // Step 1: First Strike combat damage step
+  if (atkStrikesInStep1 || anyBlkStrikesInStep1) {
+    if (atkStrikesInStep1) {
+      runAttackerStrike();
+    }
+    for (const blk of blockers) {
+      if (blk.firstStrike || blk.doubleStrike) {
+        const p = Math.max(0, blk.power);
+        if (p > 0) {
+          dmgMarkedOnAttacker += p;
+          if (blk.deathtouch) deathtouchHitAttacker = true;
+          if (blk.lifelink) defenderLifeGain += p;
+        }
+      }
+    }
+
+    // SBA check after Step 1
+    for (const blk of blockers) {
+      const marked = dmgMarkedOnBlocker.get(blk.uid) || 0;
+      if (
+        !blk.indestructible &&
+        marked > 0 &&
+        (atk.deathtouch || marked >= blk.toughness)
+      ) {
+        deadBlockerSet.add(blk.uid);
+      }
+    }
+    if (
+      !atk.indestructible &&
+      dmgMarkedOnAttacker > 0 &&
+      (deathtouchHitAttacker || dmgMarkedOnAttacker >= atk.toughness)
+    ) {
+      attackerDied = true;
+    }
+  }
+
+  // Step 2: Regular combat damage step
+  const atkStrikesInStep2 = !attackerDied && (!atk.firstStrike || atk.doubleStrike);
+  if (atkStrikesInStep2) {
+    runAttackerStrike();
+  }
+  for (const blk of blockers) {
+    if (deadBlockerSet.has(blk.uid)) continue;
+    if (!blk.firstStrike || blk.doubleStrike) {
+      const p = Math.max(0, blk.power);
+      if (p > 0) {
+        dmgMarkedOnAttacker += p;
+        if (blk.deathtouch) deathtouchHitAttacker = true;
+        if (blk.lifelink) defenderLifeGain += p;
+      }
+    }
+  }
+
+  // SBA check after Step 2
+  for (const blk of blockers) {
+    if (deadBlockerSet.has(blk.uid)) continue;
+    const marked = dmgMarkedOnBlocker.get(blk.uid) || 0;
+    if (
+      !blk.indestructible &&
+      marked > 0 &&
+      (atk.deathtouch || marked >= blk.toughness)
+    ) {
+      deadBlockerSet.add(blk.uid);
+    }
+  }
+  if (
+    !attackerDied &&
+    !atk.indestructible &&
+    dmgMarkedOnAttacker > 0 &&
+    (deathtouchHitAttacker || dmgMarkedOnAttacker >= atk.toughness)
+  ) {
+    attackerDied = true;
+  }
+
+  return {
+    lifeDmgToDefender,
+    poisonDmgToDefender,
+    cmdrDmgToDefender,
+    attackerLifeGain,
+    defenderLifeGain,
+    attackerDied,
+    deadBlockerUids: Array.from(deadBlockerSet),
+    trampleDmgDealt,
+  };
+}
+
+/**
  * Evaluates which creatures a bot should profitably attack with instead of blindly
- * suiciding into larger blockers. Accounts for Flying/Reach, Menace, Deathtouch,
- * Vigilance, First Strike, Trample, Infect, Commander damage, and crackback risk.
+ * suiciding into larger blockers. Accounts for Defender, Unblockable, Flying/Reach, Menace,
+ * Deathtouch, Vigilance, First Strike, Double Strike, Trample, Infect, Commander damage, and crackback risk.
  */
 function selectSmartBotAttackers(
   bot: LiveBotState,
@@ -1650,6 +1883,7 @@ function selectSmartBotAttackers(
     reach?: boolean;
     deathtouch?: boolean;
     firstStrike?: boolean;
+    doubleStrike?: boolean;
   }>,
   defenderLife: number,
   defenderPoison: number,
@@ -1657,20 +1891,24 @@ function selectSmartBotAttackers(
   incomingCrackbackPower: number,
   aiAttackPlan?: 'all-out' | 'safe-evasion' | 'hold-blockers'
 ): { attackers: LiveBotCreature[]; heldBackCount: number; reasoning: string } {
-  if (eligible.length === 0) {
+  const canAttackList = eligible.filter((c) => !c.defender);
+  if (canAttackList.length === 0) {
     return { attackers: [], heldBackCount: 0, reasoning: '' };
   }
 
   const untappedBlockers = defenderCreatures.filter((c) => !c.tapped && c.toughness > 0);
   const flyingBlockers = untappedBlockers.filter((b) => b.flying || b.reach);
-  const totalReadyPower = eligible.reduce((s, c) => s + c.power, 0);
+  const atkStrikeOutput = (c: LiveBotCreature) => (c.doubleStrike ? c.power * 2 : c.power);
+  const totalReadyPower = canAttackList.reduce((s, c) => s + atkStrikeOutput(c), 0);
 
   // Check if an all-out swing is likely lethal (overwhelms available blockers)
   const blockerCount = untappedBlockers.length;
-  const sortedByPowerDesc = [...eligible].sort((a, b) => b.power - a.power);
+  const sortedByPowerDesc = [...canAttackList].sort(
+    (a, b) => atkStrikeOutput(b) - atkStrikeOutput(a)
+  );
   const unblockedPowerEstimate = sortedByPowerDesc
     .slice(blockerCount)
-    .reduce((s, c) => s + c.power, 0);
+    .reduce((s, c) => s + atkStrikeOutput(c), 0);
 
   const isLethalAlpha =
     unblockedPowerEstimate >= defenderLife ||
@@ -1678,7 +1916,7 @@ function selectSmartBotAttackers(
 
   if (isLethalAlpha) {
     return {
-      attackers: eligible,
+      attackers: canAttackList,
       heldBackCount: 0,
       reasoning: 'Calculated lethal alpha strike past blockers.',
     };
@@ -1694,11 +1932,16 @@ function selectSmartBotAttackers(
   const chosen: LiveBotCreature[] = [];
   const heldBack: LiveBotCreature[] = [];
 
-  for (const atk of eligible) {
-    // Vigilance attackers NEVER sacrifice defense to attack, so only check if attack is suicidal
-    const legalBlockers = atk.flying ? flyingBlockers : untappedBlockers;
+  for (const atk of canAttackList) {
+    const legalBlockers = atk.unblockable
+      ? []
+      : atk.flying
+      ? flyingBlockers
+      : untappedBlockers;
     const isUnblockable =
-      legalBlockers.length === 0 || (atk.menace && legalBlockers.length < 2);
+      atk.unblockable ||
+      legalBlockers.length === 0 ||
+      (atk.menace && legalBlockers.length < 2);
 
     if (isUnblockable) {
       chosen.push(atk);
@@ -1710,20 +1953,28 @@ function selectSmartBotAttackers(
       (a, b) => b.toughness + b.power - (a.toughness + a.power)
     )[0];
 
+    const atkHasStep1 = atk.firstStrike || atk.doubleStrike;
+    const blkHasStep1 = Boolean(strongestBlocker.firstStrike || strongestBlocker.doubleStrike);
+    const atkKillsBlockerInStep1 =
+      atkHasStep1 && (atk.deathtouch || atk.power >= strongestBlocker.toughness);
+    const atkTotalDmg = atkStrikeOutput(atk);
     const atkKillsBlocker =
-      atk.deathtouch || atk.power >= strongestBlocker.toughness;
+      atk.deathtouch || atkTotalDmg >= strongestBlocker.toughness;
+    const blkTotalDmg = strongestBlocker.doubleStrike
+      ? strongestBlocker.power * 2
+      : strongestBlocker.power;
     const blockerKillsAtk =
       !atk.indestructible &&
-      (strongestBlocker.deathtouch || strongestBlocker.power >= atk.toughness) &&
-      !(atk.firstStrike && atkKillsBlocker && !strongestBlocker.firstStrike);
+      (strongestBlocker.deathtouch || blkTotalDmg >= atk.toughness) &&
+      !(atkKillsBlockerInStep1 && !blkHasStep1);
 
     const isFavorableOrEvenTrade = !blockerKillsAtk || atkKillsBlocker;
     const pushesCommanderLethal =
       atk.isCommander &&
       bot.usesCommanderDamage21 &&
-      commanderDmgAlreadyDealt + atk.power >= 21;
+      commanderDmgAlreadyDealt + atkTotalDmg >= 21;
 
-    const isGoingWide = eligible.length >= untappedBlockers.length + 2;
+    const isGoingWide = canAttackList.length >= untappedBlockers.length + 2;
     const aggressiveMood =
       bot.indignance === 'vindictive' ||
       (bot.indignance === 'ruthless' && bot.liveMemory.grudgeScore >= 30);
@@ -1734,7 +1985,7 @@ function selectSmartBotAttackers(
       aiAttackPlan === 'all-out' ||
       (atk.vigilance && isFavorableOrEvenTrade) ||
       (isGoingWide && isFavorableOrEvenTrade) ||
-      (atk.trample && atk.power >= strongestBlocker.toughness + 2) ||
+      (atk.trample && atkTotalDmg >= strongestBlocker.toughness + 2) ||
       (isFavorableOrEvenTrade && (aggressiveMood || bot.liveMemory.userTookUnblockedCount >= 2))
     ) {
       if (aiAttackPlan === 'hold-blockers' && !atk.vigilance && !atk.flying && !pushesCommanderLethal && blockerKillsAtk) {
@@ -1762,7 +2013,7 @@ function selectSmartBotAttackers(
       : heldBack.length > 0
       ? `Attacked with ${chosen.length} profitable/evasive threat${chosen.length === 1 ? '' : 's'} and held ${heldBack.length} blocker${heldBack.length === 1 ? '' : 's'}.`
       : totalReadyPower > 0
-      ? `Committed ${chosen.length} attacker${chosen.length === 1 ? '' : 's'} (${chosen.reduce((s, c) => s + c.power, 0)} power).`
+      ? `Committed ${chosen.length} attacker${chosen.length === 1 ? '' : 's'} (${chosen.reduce((s, c) => s + atkStrikeOutput(c), 0)} power).`
       : '';
 
   return { attackers: chosen, heldBackCount: heldBack.length, reasoning };
@@ -1775,7 +2026,8 @@ export function executeBotTurn(
   turnNumber: number,
   findMeta: (name: string) => CardMetadata | null,
   targetsHitThisRound: Record<string, number> = {},
-  aiTurnDecision?: LiveBotAiTurnDecision
+  aiTurnDecision?: LiveBotAiTurnDecision,
+  options?: { skipTurn1Draw?: boolean }
 ): BotTurnResolution {
   const nextBots = bots.map((b) => ({
     ...b,
@@ -1830,38 +2082,43 @@ export function executeBotTurn(
     summoningSick: false,
   }));
 
-  // 2. Draw step
-  if (bot.libraryCount <= 0) {
-    bot.eliminated = true;
-    bot.eliminatedReason = 'mill';
-    bot.lastActionSummary = 'Attempted to draw from an empty library and lost!';
-    phaseSteps.push({ phase: 'Untap & Draw', summary: 'Empty library — decked out!' });
-    bot.lastTurnSteps = phaseSteps;
-    logs.push(`${bot.name} decked out on draw step and was eliminated.`);
-    return {
-      updatedBots: nextBots,
-      playerLifeDelta,
-      playerPoisonDelta,
-      playerMillCount,
-      removedPlayerCreatureUids,
-      boardWipeCast,
-      logs,
-      phaseSteps,
-      adaptationNote: bot.liveMemory.lastAdaptationNote,
-      pendingAttackOnPlayer: null,
-    };
-  }
-
-  bot.libraryCount -= 1;
+  // 2. Draw step (respecting 1v1 starting player Turn 1 draw skip, CR 103.8a)
   let drawnCardName = '1 card';
-  if (bot.customLibrary.length > 0) {
-    const drawn = bot.customLibrary.shift();
-    if (drawn) {
-      bot.customHand.push(drawn);
-      drawnCardName = drawn.name;
+  if (options?.skipTurn1Draw) {
+    drawnCardName = 'Skipped Turn 1 draw (1v1 starting player)';
+    logs.push(`${bot.name} skipped Turn 1 draw step (1v1 Play/Draw rule, CR 103.8a).`);
+  } else {
+    if (bot.libraryCount <= 0) {
+      bot.eliminated = true;
+      bot.eliminatedReason = 'mill';
+      bot.lastActionSummary = 'Attempted to draw from an empty library and lost!';
+      phaseSteps.push({ phase: 'Untap & Draw', summary: 'Empty library — decked out!' });
+      bot.lastTurnSteps = phaseSteps;
+      logs.push(`${bot.name} decked out on draw step and was eliminated.`);
+      return {
+        updatedBots: nextBots,
+        playerLifeDelta,
+        playerPoisonDelta,
+        playerMillCount,
+        removedPlayerCreatureUids,
+        boardWipeCast,
+        logs,
+        phaseSteps,
+        adaptationNote: bot.liveMemory.lastAdaptationNote,
+        pendingAttackOnPlayer: null,
+      };
     }
+
+    bot.libraryCount -= 1;
+    if (bot.customLibrary.length > 0) {
+      const drawn = bot.customLibrary.shift();
+      if (drawn) {
+        bot.customHand.push(drawn);
+        drawnCardName = drawn.name;
+      }
+    }
+    bot.handCount += 1;
   }
-  bot.handCount += 1;
 
   // 3. Land drop (respecting tapped lands!)
   const playedSummaries: string[] = [];
@@ -1894,7 +2151,9 @@ export function executeBotTurn(
 
   phaseSteps.push({
     phase: 'Untap & Draw',
-    summary: `Untapped all · Drew ${bot.customHand.length > 0 ? 'card' : drawnCardName} · ${landNote}`,
+    summary: options?.skipTurn1Draw
+      ? `Untapped all · ${drawnCardName} · ${landNote}`
+      : `Untapped all · Drew ${bot.customHand.length > 0 ? 'card' : drawnCardName} · ${landNote}`,
   });
 
   if (aiTurnDecision && !aiTurnDecision.fallback) {
@@ -2168,6 +2427,7 @@ export function executeBotTurn(
       availableMana -= cmdTotalCost;
       bot.tappedLands = Math.min(bot.landsInPlay, bot.tappedLands + cmdTotalCost);
       bot.commanderInZone = false;
+      bot.commanderTax += 2;
       bot.liveMemory.spellsCastCount += 1;
       const cmdCreature: LiveBotCreature = {
         ...cmdKw,
@@ -2329,7 +2589,6 @@ export function executeBotTurn(
         for (const d of ownDead) {
           if (d.isCommander && bot.allowsCommandZone) {
             bot.commanderInZone = true;
-            bot.commanderTax += 2;
           } else {
             addBotZoneCardInPlace(bot, 'graveyard', createLiveBotZoneCardFromCreature(d, `Wiped by ${card.name}`));
           }
@@ -2341,7 +2600,6 @@ export function executeBotTurn(
             for (const d of destroyed) {
               if (d.isCommander && other.allowsCommandZone) {
                 other.commanderInZone = true;
-                other.commanderTax += 2;
               } else {
                 addBotZoneCardInPlace(other, 'graveyard', createLiveBotZoneCardFromCreature(d, `Wiped by ${card.name}`));
               }
@@ -2404,7 +2662,6 @@ export function executeBotTurn(
           rival.creatures = rival.creatures.filter((c) => c.uid !== victim.uid);
           if (victim.isCommander && rival.allowsCommandZone) {
             rival.commanderInZone = true;
-            rival.commanderTax += 2;
           } else {
             addBotZoneCardInPlace(
               rival,
@@ -2435,9 +2692,12 @@ export function executeBotTurn(
           vigilance: card.vigilance,
           haste: card.haste,
           firstStrike: card.firstStrike,
+          doubleStrike: card.doubleStrike,
           menace: card.menace,
           hexproof: card.hexproof,
           indestructible: card.indestructible,
+          defender: card.defender,
+          unblockable: card.unblockable,
           uid: `bot-c-${bot.id}-${turnNumber}-${Math.random().toString(36).slice(2, 6)}`,
           name: card.name,
           power: Math.max(1, card.power),
@@ -2647,6 +2907,7 @@ export function executeBotTurn(
       availableMana -= cmdTotalCost;
       bot.tappedLands = Math.min(bot.landsInPlay, bot.tappedLands + cmdTotalCost);
       bot.commanderInZone = false;
+      bot.commanderTax += 2;
       bot.liveMemory.spellsCastCount += 1;
       const cmdCreature: LiveBotCreature = {
         ...cmdKw,
@@ -2755,7 +3016,6 @@ export function executeBotTurn(
       for (const d of ownDeadWipe) {
         if (d.isCommander && bot.allowsCommandZone) {
           bot.commanderInZone = true;
-          bot.commanderTax += 2;
         } else {
           addBotZoneCardInPlace(bot, 'graveyard', createLiveBotZoneCardFromCreature(d, `Wiped by ${wipeCardName}`));
         }
@@ -2767,7 +3027,6 @@ export function executeBotTurn(
           for (const d of destroyed) {
             if (d.isCommander && other.allowsCommandZone) {
               other.commanderInZone = true;
-              other.commanderTax += 2;
             } else {
               addBotZoneCardInPlace(other, 'graveyard', createLiveBotZoneCardFromCreature(d, `Wiped by ${wipeCardName}`));
             }
@@ -2856,7 +3115,6 @@ export function executeBotTurn(
             rival.creatures = rival.creatures.filter((c) => c.uid !== topRivalThreat.uid);
             if (topRivalThreat.isCommander && rival.allowsCommandZone) {
               rival.commanderInZone = true;
-              rival.commanderTax += 2;
             } else {
               addBotZoneCardInPlace(
                 rival,
@@ -3191,7 +3449,7 @@ export function executeBotTurn(
 
   // 5. Accurate Combat Phase (with Smart Blocker-Aware Target Pivoting across ALL opponents!)
   const eligibleAttackers = bot.creatures.filter(
-    (c) => !c.tapped && (!c.summoningSick || c.haste) && c.power > 0
+    (c) => !c.tapped && (!c.summoningSick || c.haste) && !c.defender && c.power > 0
   );
 
   const playerUntappedCreatures = player.creatures.filter(
@@ -3294,64 +3552,62 @@ export function executeBotTurn(
           let botLifeGained = 0;
 
           for (const atk of attackers) {
-            const legalIdx = availableRivalBlockers.findIndex(
-              (b) => (!atk.flying || b.flying || b.reach) && !atk.menace
-            );
-            const blocker =
-              legalIdx >= 0 ? availableRivalBlockers.splice(legalIdx, 1)[0] : undefined;
-
-            if (blocker) {
-              const atkKillsBlocker =
-                !blocker.indestructible && (atk.deathtouch || atk.power >= blocker.toughness);
-              const blockerKillsAtk =
-                !atk.indestructible &&
-                (blocker.deathtouch || blocker.power >= atk.toughness) &&
-                !(atk.firstStrike && atkKillsBlocker && !blocker.firstStrike);
-
-              if (atk.lifelink) botLifeGained += atk.power;
-              if (blocker.lifelink) rival.life += blocker.power;
-
-              // Trample excess damage
-              if (atk.trample) {
-                const lethalNeeded = atk.deathtouch ? 1 : blocker.toughness;
-                const excess = Math.max(0, atk.power - lethalNeeded);
-                if (excess > 0) {
-                  if (atk.hasInfect) totalPoison += excess;
-                  else totalDmg += excess;
-                  if (atk.isCommander && bot.usesCommanderDamage21) {
-                    totalCmdrDmg += excess;
+            const assignedRivalBlockers: LiveBotCreature[] = [];
+            if (!atk.unblockable) {
+              const legalPool = availableRivalBlockers.filter(
+                (b) => !atk.flying || b.flying || b.reach
+              );
+              const minNeeded = atk.menace ? 2 : 1;
+              if (legalPool.length >= minNeeded) {
+                for (let bi = 0; bi < minNeeded; bi++) {
+                  const chosenBlk = legalPool[bi];
+                  const rmIdx = availableRivalBlockers.findIndex((x) => x.uid === chosenBlk.uid);
+                  if (rmIdx >= 0) {
+                    assignedRivalBlockers.push(availableRivalBlockers.splice(rmIdx, 1)[0]);
                   }
                 }
               }
+            }
 
-              if (atkKillsBlocker) {
-                rival.creatures = rival.creatures.filter((c) => c.uid !== blocker.uid);
-                if (blocker.isCommander && rival.allowsCommandZone) {
+            const stepRes = resolveTwoStepAttackerCombat(
+              atk,
+              assignedRivalBlockers,
+              bot.usesCommanderDamage21
+            );
+            totalDmg += stepRes.lifeDmgToDefender;
+            totalPoison += stepRes.poisonDmgToDefender;
+            totalCmdrDmg += stepRes.cmdrDmgToDefender;
+            botLifeGained += stepRes.attackerLifeGain;
+            rival.life += stepRes.defenderLifeGain;
+
+            for (const deadBlkUid of stepRes.deadBlockerUids) {
+              const deadBlk = assignedRivalBlockers.find((b) => b.uid === deadBlkUid);
+              rival.creatures = rival.creatures.filter((c) => c.uid !== deadBlkUid);
+              if (deadBlk) {
+                if (deadBlk.isCommander && rival.allowsCommandZone) {
                   rival.commanderInZone = true;
-                  rival.commanderTax += 2;
                 } else {
-                  addBotZoneCardInPlace(rival, 'graveyard', createLiveBotZoneCardFromCreature(blocker, `Killed blocking ${atk.name}`));
+                  addBotZoneCardInPlace(
+                    rival,
+                    'graveyard',
+                    createLiveBotZoneCardFromCreature(deadBlk, `Killed blocking ${atk.name}`)
+                  );
                 }
               }
-              if (blockerKillsAtk) {
-                bot.creatures = bot.creatures.filter((c) => c.uid !== atk.uid);
-                if (atk.isCommander && bot.allowsCommandZone) {
-                  bot.commanderInZone = true;
-                  bot.commanderTax += 2;
-                } else {
-                  addBotZoneCardInPlace(bot, 'graveyard', createLiveBotZoneCardFromCreature(atk, `Killed in combat vs ${blocker.name}`));
-                }
-              }
-            } else {
-              if (atk.lifelink) botLifeGained += atk.power;
-              if (atk.hasInfect) {
-                totalPoison += atk.power;
+            }
+            if (stepRes.attackerDied) {
+              bot.creatures = bot.creatures.filter((c) => c.uid !== atk.uid);
+              if (atk.isCommander && bot.allowsCommandZone) {
+                bot.commanderInZone = true;
               } else {
-                totalDmg += atk.power;
-                if (atk.toxicValue > 0) totalPoison += atk.toxicValue;
-              }
-              if (atk.isCommander && bot.usesCommanderDamage21) {
-                totalCmdrDmg += atk.power;
+                addBotZoneCardInPlace(
+                  bot,
+                  'graveyard',
+                  createLiveBotZoneCardFromCreature(
+                    atk,
+                    `Killed in combat vs ${assignedRivalBlockers.map((b) => b.name).join(' + ')}`
+                  )
+                );
               }
             }
           }
@@ -3419,6 +3675,7 @@ export function executeBotTurn(
 
         // Check if player has ANY legal blocker for at least one attacker
         const playerHasLegalBlocker = attackers.some((atk) => {
+          if (atk.unblockable) return false;
           const legal = playerUntappedCreatures.filter(
             (blk) => !atk.flying || blk.flying || blk.reach
           );
@@ -3452,16 +3709,11 @@ export function executeBotTurn(
           let cmdrDmg = 0;
           let lifeGained = 0;
           for (const atk of attackers) {
-            if (atk.lifelink) lifeGained += atk.power;
-            if (atk.hasInfect) {
-              poison += atk.power;
-            } else {
-              dmg += atk.power;
-              if (atk.toxicValue > 0) poison += atk.toxicValue;
-            }
-            if (atk.isCommander && bot.usesCommanderDamage21) {
-              cmdrDmg += atk.power;
-            }
+            const stepRes = resolveTwoStepAttackerCombat(atk, [], bot.usesCommanderDamage21);
+            dmg += stepRes.lifeDmgToDefender;
+            poison += stepRes.poisonDmgToDefender;
+            cmdrDmg += stepRes.cmdrDmgToDefender;
+            lifeGained += stepRes.attackerLifeGain;
           }
           if (lifeGained > 0) bot.life += lifeGained;
           playerLifeDelta -= dmg;
@@ -3618,7 +3870,7 @@ export function executeBotPostStackCombat(
   const targetLabel = target.kind === 'player' ? 'You' : target.targetBotName;
 
   const eligibleAttackers = bot.creatures.filter(
-    (c) => !c.tapped && (!c.summoningSick || c.haste) && c.power > 0
+    (c) => !c.tapped && (!c.summoningSick || c.haste) && !c.defender && c.power > 0
   );
   const playerUntappedCreatures = player.creatures.filter((pc) => !pc.tapped);
   const incomingPlayerCrackback = player.creatures.reduce((s, c) => s + c.power, 0);
@@ -3693,54 +3945,63 @@ export function executeBotPostStackCombat(
         let botLifeGained = 0;
 
         for (const atk of attackers) {
-          const legalIdx = availableRivalBlockers.findIndex(
-            (b) => (!atk.flying || b.flying || b.reach) && !atk.menace
+          const assignedRivalBlockers: LiveBotCreature[] = [];
+          if (!atk.unblockable) {
+            const legalPool = availableRivalBlockers.filter(
+              (b) => !atk.flying || b.flying || b.reach
+            );
+            const minNeeded = atk.menace ? 2 : 1;
+            if (legalPool.length >= minNeeded) {
+              for (let bi = 0; bi < minNeeded; bi++) {
+                const chosenBlk = legalPool[bi];
+                const rmIdx = availableRivalBlockers.findIndex((x) => x.uid === chosenBlk.uid);
+                if (rmIdx >= 0) {
+                  assignedRivalBlockers.push(availableRivalBlockers.splice(rmIdx, 1)[0]);
+                }
+              }
+            }
+          }
+
+          const stepRes = resolveTwoStepAttackerCombat(
+            atk,
+            assignedRivalBlockers,
+            bot.usesCommanderDamage21
           );
-          const blocker = legalIdx >= 0 ? availableRivalBlockers.splice(legalIdx, 1)[0] : undefined;
-          if (blocker) {
-            const atkKillsBlocker =
-              !blocker.indestructible && (atk.deathtouch || atk.power >= blocker.toughness);
-            const blockerKillsAtk =
-              !atk.indestructible &&
-              (blocker.deathtouch || blocker.power >= atk.toughness) &&
-              !(atk.firstStrike && atkKillsBlocker && !blocker.firstStrike);
-            if (atk.lifelink) botLifeGained += atk.power;
-            if (blocker.lifelink) rival.life += blocker.power;
-            if (atk.trample) {
-              const lethalNeeded = atk.deathtouch ? 1 : blocker.toughness;
-              const excess = Math.max(0, atk.power - lethalNeeded);
-              if (excess > 0) {
-                if (atk.hasInfect) totalPoison += excess;
-                else totalDmg += excess;
-                if (atk.isCommander && bot.usesCommanderDamage21) totalCmdrDmg += excess;
-              }
-            }
-            if (atkKillsBlocker) {
-              rival.creatures = rival.creatures.filter((c) => c.uid !== blocker.uid);
-              if (blocker.isCommander && rival.allowsCommandZone) {
+          totalDmg += stepRes.lifeDmgToDefender;
+          totalPoison += stepRes.poisonDmgToDefender;
+          totalCmdrDmg += stepRes.cmdrDmgToDefender;
+          botLifeGained += stepRes.attackerLifeGain;
+          rival.life += stepRes.defenderLifeGain;
+
+          for (const deadBlkUid of stepRes.deadBlockerUids) {
+            const deadBlk = assignedRivalBlockers.find((b) => b.uid === deadBlkUid);
+            rival.creatures = rival.creatures.filter((c) => c.uid !== deadBlkUid);
+            if (deadBlk) {
+              if (deadBlk.isCommander && rival.allowsCommandZone) {
                 rival.commanderInZone = true;
-                rival.commanderTax += 2;
               } else {
-                addBotZoneCardInPlace(rival, 'graveyard', createLiveBotZoneCardFromCreature(blocker, `Killed blocking ${atk.name}`));
+                addBotZoneCardInPlace(
+                  rival,
+                  'graveyard',
+                  createLiveBotZoneCardFromCreature(deadBlk, `Killed blocking ${atk.name}`)
+                );
               }
             }
-            if (blockerKillsAtk) {
-              bot.creatures = bot.creatures.filter((c) => c.uid !== atk.uid);
-              if (atk.isCommander && bot.allowsCommandZone) {
-                bot.commanderInZone = true;
-                bot.commanderTax += 2;
-              } else {
-                addBotZoneCardInPlace(bot, 'graveyard', createLiveBotZoneCardFromCreature(atk, `Killed in combat vs ${blocker.name}`));
-              }
+          }
+          if (stepRes.attackerDied) {
+            bot.creatures = bot.creatures.filter((c) => c.uid !== atk.uid);
+            if (atk.isCommander && bot.allowsCommandZone) {
+              bot.commanderInZone = true;
+            } else {
+              addBotZoneCardInPlace(
+                bot,
+                'graveyard',
+                createLiveBotZoneCardFromCreature(
+                  atk,
+                  `Killed in combat vs ${assignedRivalBlockers.map((b) => b.name).join(' + ')}`
+                )
+              );
             }
-          } else {
-            if (atk.lifelink) botLifeGained += atk.power;
-            if (atk.hasInfect) totalPoison += atk.power;
-            else {
-              totalDmg += atk.power;
-              if (atk.toxicValue > 0) totalPoison += atk.toxicValue;
-            }
-            if (atk.isCommander && bot.usesCommanderDamage21) totalCmdrDmg += atk.power;
           }
         }
         if (botLifeGained > 0) bot.life += botLifeGained;
@@ -3766,6 +4027,7 @@ export function executeBotPostStackCombat(
       );
 
       const playerHasLegalBlocker = attackers.some((atk) => {
+        if (atk.unblockable) return false;
         const legal = playerUntappedCreatures.filter(
           (blk) => !atk.flying || blk.flying || blk.reach
         );
@@ -3795,13 +4057,11 @@ export function executeBotPostStackCombat(
         let cmdrDmg = 0;
         let lifeGained = 0;
         for (const atk of attackers) {
-          if (atk.lifelink) lifeGained += atk.power;
-          if (atk.hasInfect) poison += atk.power;
-          else {
-            dmg += atk.power;
-            if (atk.toxicValue > 0) poison += atk.toxicValue;
-          }
-          if (atk.isCommander && bot.usesCommanderDamage21) cmdrDmg += atk.power;
+          const stepRes = resolveTwoStepAttackerCombat(atk, [], bot.usesCommanderDamage21);
+          dmg += stepRes.lifeDmgToDefender;
+          poison += stepRes.poisonDmgToDefender;
+          cmdrDmg += stepRes.cmdrDmgToDefender;
+          lifeGained += stepRes.attackerLifeGain;
         }
         if (lifeGained > 0) bot.life += lifeGained;
         playerLifeDelta -= dmg;
@@ -3925,34 +4185,54 @@ export function resolveBotBlocksForPlayerAttack(
   const botIntel = getBotIntelligenceMeta(targetBot.intelligence);
 
   for (const atk of sortedAttackers) {
-    const legalBlockers = availableBlockers.filter(
-      (b) => !atk.keywords.flying || b.flying || b.reach
-    );
+    const legalBlockers = atk.keywords.unblockable
+      ? []
+      : availableBlockers.filter(
+          (b) => !atk.keywords.flying || b.flying || b.reach
+        );
     const minNeeded = atk.keywords.menace ? 2 : 1;
 
     let assignedBlockers: LiveBotCreature[] = [];
 
-    if (legalBlockers.length >= minNeeded && Math.random() <= botIntel.blockingAccuracy) {
+    if (
+      legalBlockers.length >= minNeeded &&
+      (totalIncomingPower >= targetBot.life || Math.random() <= botIntel.blockingAccuracy)
+    ) {
+      const atkTotalPower = atk.keywords.doubleStrike ? atk.power * 2 : atk.power;
+      const atkHasStep1 = atk.keywords.firstStrike || atk.keywords.doubleStrike;
+
       if (minNeeded === 1) {
         // 1. Prefer a blocker that kills the attacker AND survives
         const winningBlocker = legalBlockers.find((b) => {
+          const bTotalPower = b.doubleStrike ? b.power * 2 : b.power;
+          const bHasStep1 = b.firstStrike || b.doubleStrike;
+          const bKillsAtkInStep1 =
+            bHasStep1 && !atk.keywords.indestructible && (b.deathtouch || b.power >= atk.toughness);
           const bKillsAtk =
-            !atk.keywords.indestructible && (b.deathtouch || b.power >= atk.toughness);
+            !atk.keywords.indestructible && (b.deathtouch || bTotalPower >= atk.toughness);
+          const atkKillsBInStep1 =
+            atkHasStep1 && !b.indestructible && (atk.keywords.deathtouch || atk.power >= b.toughness);
           const atkKillsB =
             !b.indestructible &&
-            (atk.keywords.deathtouch || atk.power >= b.toughness) &&
-            !(b.firstStrike && bKillsAtk && !atk.keywords.firstStrike);
-          return bKillsAtk && !atkKillsB;
+            (atk.keywords.deathtouch || atkTotalPower >= b.toughness) &&
+            !(bKillsAtkInStep1 && !atkHasStep1);
+          return bKillsAtk && !atkKillsB && !(atkKillsBInStep1 && !bHasStep1);
         });
 
         // 2. Otherwise prefer a favorable trade (deathtouch or lower-value blocker killing big threat)
         const tradeBlocker = legalBlockers
-          .filter(
-            (b) =>
+          .filter((b) => {
+            const bTotalPower = b.doubleStrike ? b.power * 2 : b.power;
+            const bHasStep1 = b.firstStrike || b.doubleStrike;
+            const atkKillsBInStep1 =
+              atkHasStep1 && !b.indestructible && (atk.keywords.deathtouch || atk.power >= b.toughness);
+            if (atkKillsBInStep1 && !bHasStep1) return false;
+            return (
               !atk.keywords.indestructible &&
-              (b.deathtouch || b.power >= atk.toughness) &&
+              (b.deathtouch || bTotalPower >= atk.toughness) &&
               (!b.isCommander || facingDanger)
-          )
+            );
+          })
           .sort((a, b) => a.power + a.toughness - (b.power + b.toughness))[0];
 
         // 3. Otherwise chump-block only if facing lethal / high danger / big commander
@@ -3966,12 +4246,15 @@ export function resolveBotBlocksForPlayerAttack(
         if (chosen) {
           assignedBlockers = [chosen];
         }
-      } else if (facingDanger || atk.isCommander || atk.power >= 5) {
+      } else if (facingDanger || atk.isCommander || atkTotalPower >= 5) {
         // Menace requires 2 blockers — assign 2 smallest that can kill or stop lethal
         const pair = [...legalBlockers]
           .sort((a, b) => a.power + a.toughness - (b.power + b.toughness))
           .slice(0, 2);
-        const combinedPower = pair.reduce((s, b) => s + b.power, 0);
+        const combinedPower = pair.reduce(
+          (s, b) => s + (b.doubleStrike ? b.power * 2 : b.power),
+          0
+        );
         if (pair.length === 2 && (combinedPower >= atk.toughness || facingDanger)) {
           assignedBlockers = pair;
         }
@@ -3979,85 +4262,47 @@ export function resolveBotBlocksForPlayerAttack(
     }
 
     if (assignedBlockers.length > 0) {
-      // Remove assigned blockers from available pool
       for (const blk of assignedBlockers) {
         const idx = availableBlockers.findIndex((x) => x.uid === blk.uid);
         if (idx >= 0) availableBlockers.splice(idx, 1);
       }
+    }
 
-      if (atk.keywords.lifelink) playerLifeGain += atk.power;
+    const stepRes = resolveTwoStepAttackerCombat(
+      {
+        uid: atk.uid,
+        power: atk.power,
+        toughness: atk.toughness,
+        isCommander: atk.isCommander,
+        hasInfect: atk.hasInfect,
+        toxicValue: atk.toxicValue,
+        firstStrike: atk.keywords.firstStrike,
+        doubleStrike: atk.keywords.doubleStrike,
+        trample: atk.keywords.trample,
+        deathtouch: atk.keywords.deathtouch,
+        lifelink: atk.keywords.lifelink,
+        indestructible: atk.keywords.indestructible,
+      },
+      assignedBlockers,
+      usesCommanderDamage21
+    );
 
-      // Resolve combat damage with First Strike, Deathtouch, Trample, Indestructible, Lifelink
-      let remainingAtkPower = atk.power;
-      const killedFirstStrikeBlockers = new Set<string>();
+    lifeDmgToBot += stepRes.lifeDmgToDefender;
+    poisonDmgToBot += stepRes.poisonDmgToDefender;
+    cmdrDmgToBot += stepRes.cmdrDmgToDefender;
+    playerLifeGain += stepRes.attackerLifeGain;
+    botLifeGain += stepRes.defenderLifeGain;
+    if (stepRes.attackerDied) deadPlayerAtkUids.push(atk.uid);
+    deadBotBlockerUids.push(...stepRes.deadBlockerUids);
 
-      if (atk.keywords.firstStrike) {
-        for (const blk of assignedBlockers) {
-          if (remainingAtkPower <= 0) break;
-          const needed = atk.keywords.deathtouch ? 1 : blk.toughness;
-          if (remainingAtkPower >= needed) {
-            if (!blk.indestructible) {
-              deadBotBlockerUids.push(blk.uid);
-              killedFirstStrikeBlockers.add(blk.uid);
-            }
-            remainingAtkPower -= needed;
-          }
-        }
-      } else {
-        for (const blk of assignedBlockers) {
-          if (remainingAtkPower <= 0) break;
-          const needed = atk.keywords.deathtouch ? 1 : blk.toughness;
-          if (remainingAtkPower >= needed) {
-            if (!blk.indestructible) deadBotBlockerUids.push(blk.uid);
-            remainingAtkPower -= needed;
-          } else {
-            remainingAtkPower = 0;
-          }
-        }
-      }
-
-      // Surviving blockers (or non-first-strike simultaneous blockers) deal damage back
-      const hittingBlockers = assignedBlockers.filter(
-        (b) => !killedFirstStrikeBlockers.has(b.uid) || b.firstStrike
-      );
-      const totalBlkPower = hittingBlockers.reduce((s, b) => s + b.power, 0);
-      const anyBlkDeathtouch = hittingBlockers.some((b) => b.deathtouch && b.power > 0);
-      for (const b of hittingBlockers) {
-        if (b.lifelink) botLifeGain += b.power;
-      }
-      if (!atk.keywords.indestructible && (anyBlkDeathtouch || totalBlkPower >= atk.toughness)) {
-        deadPlayerAtkUids.push(atk.uid);
-      }
-
-      // Trample rolls excess damage over to bot!
-      if (atk.keywords.trample && remainingAtkPower > 0) {
-        if (atk.hasInfect) {
-          poisonDmgToBot += remainingAtkPower;
-        } else {
-          lifeDmgToBot += remainingAtkPower;
-          if (atk.toxicValue > 0) poisonDmgToBot += atk.toxicValue;
-        }
-        if (atk.isCommander && usesCommanderDamage21) {
-          cmdrDmgToBot += remainingAtkPower;
-        }
-      }
-
+    if (assignedBlockers.length > 0) {
       blockMessages.push(
         `${targetBot.name} blocked ${atk.name} with ${assignedBlockers.map((b) => b.name).join(' + ')}${
-          atk.keywords.trample && remainingAtkPower > 0 ? ` (${remainingAtkPower} trample dmg)` : ''
+          atk.keywords.trample && stepRes.trampleDmgDealt > 0
+            ? ` (${stepRes.trampleDmgDealt} trample dmg)`
+            : ''
         }`
       );
-    } else {
-      if (atk.keywords.lifelink) playerLifeGain += atk.power;
-      if (atk.hasInfect) {
-        poisonDmgToBot += atk.power;
-      } else {
-        lifeDmgToBot += atk.power;
-        if (atk.toxicValue > 0) poisonDmgToBot += atk.toxicValue;
-      }
-      if (atk.isCommander && usesCommanderDamage21) {
-        cmdrDmgToBot += atk.power;
-      }
     }
   }
 
@@ -4113,81 +4358,59 @@ export function resolveIncomingAttackCombat(
       .filter(([, targetAtkUid]) => targetAtkUid === atk.uid)
       .map(([blkUid]) => blkUid);
 
-    const legalAssigned = playerBlockers.filter(
-      (b) =>
-        assignedUids.includes(b.uid) &&
-        (!atk.flying || b.keywords.flying || b.keywords.reach)
-    );
+    const legalAssigned = atk.unblockable
+      ? []
+      : playerBlockers.filter(
+          (b) =>
+            assignedUids.includes(b.uid) &&
+            (!atk.flying || b.keywords.flying || b.keywords.reach)
+        );
 
-    const isLegallyBlocked = atk.menace ? legalAssigned.length >= 2 : legalAssigned.length >= 1;
+    const isLegallyBlocked =
+      !atk.unblockable &&
+      (atk.menace ? legalAssigned.length >= 2 : legalAssigned.length >= 1);
+
+    const effectiveBlockers = isLegallyBlocked
+      ? legalAssigned.map((b) => ({
+          uid: b.uid,
+          power: b.power,
+          toughness: b.toughness,
+          firstStrike: b.keywords.firstStrike,
+          doubleStrike: b.keywords.doubleStrike,
+          deathtouch: b.keywords.deathtouch,
+          lifelink: b.keywords.lifelink,
+          indestructible: b.keywords.indestructible,
+        }))
+      : [];
 
     if (isLegallyBlocked) {
       totalBlockersUsed += legalAssigned.length;
-      if (atk.lifelink) botLifeGain += atk.power;
+    }
 
-      let remainingAtkPower = atk.power;
-      const killedInFirstStrike = new Set<string>();
+    const stepRes = resolveTwoStepAttackerCombat(
+      atk,
+      effectiveBlockers,
+      usesCommanderDamage21
+    );
 
-      for (const blk of legalAssigned) {
-        if (remainingAtkPower <= 0) break;
-        const needed = atk.deathtouch ? 1 : blk.toughness;
-        if (remainingAtkPower >= needed) {
-          if (!blk.keywords.indestructible) {
-            deadPlayerUids.push(blk.uid);
-            if (atk.firstStrike) killedInFirstStrike.add(blk.uid);
-          }
-          remainingAtkPower -= needed;
-        } else {
-          remainingAtkPower = 0;
-        }
-      }
+    lifeDmgToPlayer += stepRes.lifeDmgToDefender;
+    poisonDmgToPlayer += stepRes.poisonDmgToDefender;
+    cmdrDmgToPlayer += stepRes.cmdrDmgToDefender;
+    botLifeGain += stepRes.attackerLifeGain;
+    playerLifeGain += stepRes.defenderLifeGain;
+    if (stepRes.attackerDied) deadBotAttackerUids.push(atk.uid);
+    deadPlayerUids.push(...stepRes.deadBlockerUids);
 
-      const hittingBlockers = legalAssigned.filter(
-        (b) => !killedInFirstStrike.has(b.uid) || b.keywords.firstStrike
-      );
-      const totalBlkPower = hittingBlockers.reduce((s, b) => s + b.power, 0);
-      const anyBlkDeathtouch = hittingBlockers.some(
-        (b) => b.keywords.deathtouch && b.power > 0
-      );
-      for (const b of hittingBlockers) {
-        if (b.keywords.lifelink) playerLifeGain += b.power;
-      }
-
-      if (!atk.indestructible && (anyBlkDeathtouch || totalBlkPower >= atk.toughness)) {
-        deadBotAttackerUids.push(atk.uid);
-      }
-
-      // Trample rolls excess damage over to player
-      if (atk.trample && remainingAtkPower > 0) {
-        if (atk.hasInfect) {
-          poisonDmgToPlayer += remainingAtkPower;
-        } else {
-          lifeDmgToPlayer += remainingAtkPower;
-          if (atk.toxicValue > 0) poisonDmgToPlayer += atk.toxicValue;
-        }
-        if (atk.isCommander && usesCommanderDamage21) {
-          cmdrDmgToPlayer += remainingAtkPower;
-        }
-      }
-
+    if (isLegallyBlocked) {
       blockLogParts.push(
         `Blocked ${atk.name} (${atk.power}/${atk.toughness}) with ${legalAssigned
           .map((b) => b.name)
           .join(' + ')}${
-          atk.trample && remainingAtkPower > 0 ? ` (${remainingAtkPower} trample dmg)` : ''
+          atk.trample && stepRes.trampleDmgDealt > 0
+            ? ` (${stepRes.trampleDmgDealt} trample dmg)`
+            : ''
         }`
       );
-    } else {
-      if (atk.lifelink) botLifeGain += atk.power;
-      if (atk.hasInfect) {
-        poisonDmgToPlayer += atk.power;
-      } else {
-        lifeDmgToPlayer += atk.power;
-        if (atk.toxicValue > 0) poisonDmgToPlayer += atk.toxicValue;
-      }
-      if (atk.isCommander && usesCommanderDamage21) {
-        cmdrDmgToPlayer += atk.power;
-      }
     }
   }
 
