@@ -1,0 +1,1 @@
+**Umbras Pass** — Open-source indie *Magic: The Gathering* deck analyzer & playtest simulator by **BizRoomba (`bssman89`)** · [Repository](https://github.com/bssman89/umbras-pass) · Support: `umbraspass.support@gmail.com` · Unofficial fan project, not affiliated with Wizards of the Coast.
