@@ -4,7 +4,7 @@ Umbras Pass is an independent Magic: The Gathering deck analyzer, mana base opti
 
 ---
 
-## Screenshots & App Preview
+## Program Preview
 
 ### Deck Importer & Sample Decks
 Import decklists from Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox CSV, MTGO, or Cockatrice, or test instantly with built-in sample decks.
