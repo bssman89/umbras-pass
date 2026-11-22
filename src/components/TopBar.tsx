@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  ArrowLeft,
   BarChart3,
   BookOpen,
   Bot,
@@ -12,6 +11,7 @@ import {
   Copy,
   Cpu,
   ExternalLink,
+  Globe,
   History,
   Info,
   LifeBuoy,
@@ -134,7 +134,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [logoError, setLogoError] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settingsArea, setSettingsArea] = useState<
-    'general' | 'about' | 'source' | 'support' | 'disclaimers'
+    'general' | 'about' | 'source' | 'resources' | 'support' | 'disclaimers'
   >('general');
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedRepo, setCopiedRepo] = useState(false);
@@ -393,15 +393,15 @@ export const TopBar: React.FC<TopBarProps> = ({
               <div
                 role="menu"
                 aria-label="Settings menu"
-                className="absolute right-0 mt-2 w-[350px] sm:w-[520px] max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-5rem)] overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-2xl z-50"
+                className="absolute right-0 mt-2 w-[350px] sm:w-[560px] max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-5rem)] overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-2xl z-50"
               >
                 {/* Sticky Settings Menu Area Tabs */}
                 <div className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 px-2.5 py-2">
-                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-1 rounded-lg bg-zinc-100 p-1">
+                  <div className="grid grid-cols-3 sm:flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
                     <button
                       type="button"
                       onClick={() => setSettingsArea('general')}
-                      className={`flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+                      className={`sm:flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                         settingsArea === 'general'
                           ? 'bg-white text-zinc-900 shadow-sm'
                           : 'text-zinc-600 hover:text-zinc-900'
@@ -413,7 +413,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     <button
                       type="button"
                       onClick={() => setSettingsArea('about')}
-                      className={`flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+                      className={`sm:flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                         settingsArea === 'about'
                           ? 'bg-white text-zinc-900 shadow-sm'
                           : 'text-zinc-600 hover:text-zinc-900'
@@ -425,7 +425,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     <button
                       type="button"
                       onClick={() => setSettingsArea('source')}
-                      className={`flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+                      className={`sm:flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                         settingsArea === 'source'
                           ? 'bg-white text-zinc-900 shadow-sm'
                           : 'text-zinc-600 hover:text-zinc-900'
@@ -436,8 +436,20 @@ export const TopBar: React.FC<TopBarProps> = ({
                     </button>
                     <button
                       type="button"
+                      onClick={() => setSettingsArea('resources')}
+                      className={`sm:flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+                        settingsArea === 'resources'
+                          ? 'bg-white text-zinc-900 shadow-sm'
+                          : 'text-zinc-600 hover:text-zinc-900'
+                      }`}
+                    >
+                      <Globe className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                      <span>Resources</span>
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setSettingsArea('support')}
-                      className={`flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+                      className={`sm:flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                         settingsArea === 'support'
                           ? 'bg-white text-zinc-900 shadow-sm'
                           : 'text-zinc-600 hover:text-zinc-900'
@@ -449,7 +461,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                     <button
                       type="button"
                       onClick={() => setSettingsArea('disclaimers')}
-                      className={`flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] sm:text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+                      className={`sm:flex-1 inline-flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors whitespace-nowrap cursor-pointer ${
                         settingsArea === 'disclaimers'
                           ? 'bg-white text-zinc-900 shadow-sm'
                           : 'text-zinc-600 hover:text-zinc-900'
@@ -462,11 +474,10 @@ export const TopBar: React.FC<TopBarProps> = ({
                 </div>
 
                 {settingsArea === 'general' ? (
-                  <>
-                    {/* AI Engine Sub-Menu Action */}
-                    <div className="p-3 border-b border-zinc-100 space-y-2">
-                      <div className="px-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                        Engine &amp; Runtime
+                  <div className="p-3 space-y-2.5">
+                    <div className="space-y-2">
+                      <div className="px-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                        AI Engine &amp; Startup
                       </div>
                       <button
                         type="button"
@@ -475,16 +486,16 @@ export const TopBar: React.FC<TopBarProps> = ({
                           setIsSettingsOpen(false);
                           onOpenDesktopModal();
                         }}
-                        className="w-full flex items-center justify-between gap-3 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2.5 text-left hover:bg-sky-500/20 cursor-pointer transition-colors"
+                        className="w-full flex items-center justify-between gap-3 rounded-lg border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-left hover:bg-sky-500/20 cursor-pointer transition-colors"
                       >
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          <Cpu className="h-4 w-4 text-sky-700 mt-0.5 shrink-0" />
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <Cpu className="h-4 w-4 text-sky-700 shrink-0" />
                           <div className="min-w-0">
                             <div className="text-xs font-semibold text-zinc-900">
                               AI Engine &amp; Local Models
                             </div>
-                            <div className="text-[11px] text-zinc-600 leading-snug">
-                              Local Qwen GGUF models and compute settings
+                            <div className="text-[11px] text-zinc-600 truncate">
+                              Configure Qwen .gguf models &amp; compute
                             </div>
                           </div>
                         </div>
@@ -500,14 +511,14 @@ export const TopBar: React.FC<TopBarProps> = ({
                         }}
                         className="w-full flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-left hover:border-sky-500/50 hover:bg-zinc-100 cursor-pointer transition-colors"
                       >
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          <BookOpen className="h-4 w-4 text-sky-700 mt-0.5 shrink-0" />
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <BookOpen className="h-4 w-4 text-sky-700 shrink-0" />
                           <div className="min-w-0">
                             <div className="text-xs font-semibold text-zinc-900">
-                              Welcome &amp; Hugging Face Setup Guide
+                              Welcome &amp; .gguf Setup Guide
                             </div>
-                            <div className="text-[11px] text-zinc-600 leading-snug">
-                              How to download &amp; install .gguf models locally
+                            <div className="text-[11px] text-zinc-600 truncate">
+                              Download &amp; install local Hugging Face models
                             </div>
                           </div>
                         </div>
@@ -520,7 +531,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                             Show welcome screen at startup
                           </div>
                           <div className="text-[11px] text-zinc-500">
-                            {showWelcomeOnStartup ? 'Enabled on launch' : 'Disabled (open anytime above)'}
+                            {showWelcomeOnStartup ? 'Enabled on launch' : 'Hidden on launch'}
                           </div>
                         </div>
                         <button
@@ -544,7 +555,12 @@ export const TopBar: React.FC<TopBarProps> = ({
                           />
                         </button>
                       </div>
+                    </div>
 
+                    <div className="border-t border-zinc-100 pt-2.5 space-y-2">
+                      <div className="px-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                        Updates &amp; Version
+                      </div>
                       <button
                         type="button"
                         role="menuitem"
@@ -554,8 +570,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                         }}
                         className="w-full flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-left hover:border-sky-500/50 hover:bg-zinc-100 cursor-pointer transition-colors"
                       >
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          <History className="h-4 w-4 text-sky-700 mt-0.5 shrink-0" />
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <History className="h-4 w-4 text-sky-700 shrink-0" />
                           <div className="min-w-0">
                             <div className="flex items-center gap-2 text-xs font-semibold text-zinc-900">
                               <span>Updates &amp; Version Rollback</span>
@@ -565,8 +581,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-zinc-600 leading-snug">
-                              Download GitHub updates or restore any previous version
+                            <div className="text-[11px] text-zinc-600 truncate">
+                              Check GitHub releases or restore an earlier build
                             </div>
                           </div>
                         </div>
@@ -580,8 +596,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                           </div>
                           <div className="text-[11px] text-zinc-500">
                             {githubUpdateNotify
-                              ? 'Alerts when a newer GitHub release is posted'
-                              : 'Notifications off (check manually anytime)'}
+                              ? 'Alerts when a newer release is posted'
+                              : 'Manual checks only'}
                           </div>
                         </div>
                         <button
@@ -610,94 +626,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                       </div>
                     </div>
 
-                    {/* Information & Support Area Entries */}
-                    <div className="p-3 border-b border-zinc-100 space-y-2">
-                      <div className="px-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
-                        Program Info &amp; Support
-                      </div>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => setSettingsArea('about')}
-                        className="w-full flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-left hover:border-sky-500/50 hover:bg-zinc-100 cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          <Info className="h-4 w-4 text-sky-700 mt-0.5 shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-xs font-semibold text-zinc-900">
-                              About &amp; Dev Credits
-                            </div>
-                            <div className="text-[11px] text-zinc-600 leading-snug">
-                              Story, open-source mission &amp; developer credits
-                            </div>
-                          </div>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-zinc-500 shrink-0" />
-                      </button>
-
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => setSettingsArea('source')}
-                        className="w-full flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-left hover:border-sky-500/50 hover:bg-zinc-100 cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          <Code2 className="h-4 w-4 text-sky-700 mt-0.5 shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-xs font-semibold text-zinc-900">
-                              Open Source &amp; GitHub Files
-                            </div>
-                            <div className="text-[11px] text-zinc-600 leading-snug">
-                              Source code repository link &amp; why Umbras Pass is open-source
-                            </div>
-                          </div>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-zinc-500 shrink-0" />
-                      </button>
-
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => setSettingsArea('support')}
-                        className="w-full flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-left hover:border-sky-500/50 hover:bg-zinc-100 cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          <LifeBuoy className="h-4 w-4 text-sky-700 mt-0.5 shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-xs font-semibold text-zinc-900">
-                              Support, Resources &amp; Bug Report
-                            </div>
-                            <div className="text-[11px] text-zinc-600 leading-snug">
-                              Feedback form, marketplaces, deck sites &amp; source files
-                            </div>
-                          </div>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-zinc-500 shrink-0" />
-                      </button>
-
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => setSettingsArea('disclaimers')}
-                        className="w-full flex items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-left hover:border-sky-500/50 hover:bg-zinc-100 cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          <Scale className="h-4 w-4 text-sky-700 mt-0.5 shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-xs font-semibold text-zinc-900">
-                              Disclaimers &amp; Legal
-                            </div>
-                            <div className="text-[11px] text-zinc-600 leading-snug">
-                              Program affiliation, source files &amp; third-party notices
-                            </div>
-                          </div>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-zinc-500 shrink-0" />
-                      </button>
-                    </div>
-
-                    {/* Exit Program Action inside Settings Menu */}
-                    <div className="p-3 bg-white">
+                    <div className="border-t border-zinc-100 pt-2.5">
                       <button
                         type="button"
                         role="menuitem"
@@ -714,32 +643,17 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <ChevronRight className="h-3.5 w-3.5 shrink-0" />
                       </button>
                     </div>
-                  </>
+                  </div>
                 ) : settingsArea === 'about' ? (
                   /* About & Dev Credits Section */
-                  <div className="p-4 bg-zinc-50 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900">
-                        <Info className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-                        <span>About &amp; Dev Credits</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSettingsArea('general')}
-                        className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer"
-                      >
-                        <ArrowLeft className="h-3 w-3" />
-                        <span>Back</span>
-                      </button>
-                    </div>
-
+                  <div className="p-3.5 bg-zinc-50 space-y-2.5">
                     <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-xs font-semibold text-zinc-900">
-                          Umbras Pass — Why It Exists
+                          About Umbras Pass
                         </div>
                         <span className="text-[10px] font-medium text-sky-700">
-                          Open-Source · Free Forever
+                          Indie · Free Forever
                         </span>
                       </div>
                       <p className="text-[11px] leading-relaxed text-zinc-600">
@@ -750,18 +664,14 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <strong className="font-semibold text-zinc-800">Why I Built It:</strong>{' '}
                         As a hobbyist developer (<strong className="font-semibold text-zinc-800">BizRoomba</strong>), I wanted to take the guesswork out of deckbuilding and make solid analytics accessible to everyone.
                       </p>
-                      <p className="text-[11px] leading-relaxed text-zinc-600">
-                        <strong className="font-semibold text-zinc-800">100% Open-Source:</strong>{' '}
-                        Built by a player for the MTG community. The code is completely public and free for anyone to explore, fork, and help improve.
-                      </p>
                     </div>
 
                     <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2">
-                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-700">
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-zinc-800">
                         <Sparkles className="h-3.5 w-3.5 text-sky-700 shrink-0" />
                         <span>Developer Credits</span>
                       </div>
-                      <div className="grid grid-cols-1 gap-1.5 text-[11px]">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
                         {DEVELOPER_CREDITS.map((credit) => (
                           <a
                             key={credit.name}
@@ -770,9 +680,9 @@ export const TopBar: React.FC<TopBarProps> = ({
                             rel="noopener noreferrer"
                             className="flex items-center justify-between gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 hover:border-sky-600 transition-colors"
                           >
-                            <div>
-                              <div className="font-semibold text-zinc-900">{credit.name}</div>
-                              <div className="text-[10px] text-zinc-500">{credit.role}</div>
+                            <div className="min-w-0">
+                              <div className="font-semibold text-zinc-900 truncate">{credit.name}</div>
+                              <div className="text-[10px] text-zinc-500 truncate">{credit.role}</div>
                             </div>
                             <ExternalLink className="h-3 w-3 text-sky-700 shrink-0" />
                           </a>
@@ -780,8 +690,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                       </div>
                     </div>
 
-                    <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2 text-[11px] text-zinc-600">
-                      <div className="font-semibold text-zinc-700">
+                    <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-1 text-[11px] text-zinc-600">
+                      <div className="font-semibold text-zinc-800 mb-1">
                         Data &amp; Format Coverage
                       </div>
                       <div>
@@ -792,62 +702,22 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <span className="font-semibold text-zinc-800">Formats Supported:</span>{' '}
                         Commander, Standard, Modern, Pioneer, Pauper, Legacy, Vintage, Brawl
                       </div>
-                      <div>
-                        <span className="font-semibold text-zinc-800">Support Email:</span>{' '}
-                        <a href={`mailto:${SUPPORT_EMAIL}`} className="text-sky-700 hover:underline font-medium">
-                          {SUPPORT_EMAIL}
-                        </a>
-                      </div>
-                      <div className="flex flex-wrap gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => setSettingsArea('support')}
-                          className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:border-sky-600 hover:bg-zinc-100 cursor-pointer"
-                        >
-                          <LifeBuoy className="h-3 w-3 shrink-0" />
-                          <span>Support, Marketplaces &amp; Feedback</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSettingsArea('disclaimers')}
-                          className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-[11px] font-semibold text-zinc-700 hover:border-sky-600 hover:bg-zinc-100 cursor-pointer"
-                        >
-                          <Scale className="h-3 w-3 shrink-0" />
-                          <span>Disclaimers</span>
-                        </button>
-                      </div>
                     </div>
                   </div>
                 ) : settingsArea === 'source' ? (
                   /* Open Source & GitHub Source Files Section */
-                  <div className="p-4 bg-zinc-50 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900">
-                        <Code2 className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-                        <span>Open Source &amp; GitHub Files</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSettingsArea('general')}
-                        className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer"
-                      >
-                        <ArrowLeft className="h-3 w-3" />
-                        <span>Back</span>
-                      </button>
-                    </div>
-
-                    {/* GitHub Source Repository Card */}
+                  <div className="p-3.5 bg-zinc-50 space-y-2.5">
                     <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2.5">
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-xs font-semibold text-zinc-900">
-                          GitHub Source Repository
+                          GitHub Source Files
                         </div>
                         <span className="text-[10px] font-semibold text-sky-700">
-                          Public · Community-Auditable
+                          100% Open Source
                         </span>
                       </div>
                       <p className="text-[11px] leading-relaxed text-zinc-600">
-                        Explore every component, mana calculation, and bot playtest rule directly on GitHub—or clone the repo to inspect, modify, and compile your own local build.
+                        Explore every component, mana calculation, and bot rule on GitHub, or compile your own local build from source.
                       </p>
 
                       <div className="flex items-center justify-between gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-2">
@@ -890,7 +760,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      <div className="flex flex-wrap gap-1.5">
                         <a
                           href={GITHUB_SOURCE_URL}
                           target="_blank"
@@ -921,437 +791,274 @@ export const TopBar: React.FC<TopBarProps> = ({
                       </div>
                     </div>
 
-                    {/* Why Open Source Card */}
                     <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2">
                       <div className="text-xs font-semibold text-zinc-900">
-                        Why Umbras Pass Is 100% Open Source
+                        Why It&apos;s Open Source
                       </div>
                       <p className="text-[11px] leading-relaxed text-zinc-600">
-                        <strong className="font-semibold text-zinc-800">Honest, Auditable Math:</strong>{' '}
-                        Deckbuilding tools shouldn&apos;t hide behind black-box percentages. Keeping the code public lets any player verify how Monte Carlo opening hands, land-drop odds, synergy ratings, and bot decisions are calculated.
+                        <strong className="font-semibold text-zinc-800">Auditable Math &amp; Bot Logic:</strong>{' '}
+                        Public code lets players inspect how Monte Carlo opening hands, mana checks, synergy scores, and AI bot plays work—with no hidden black-box rules.
                       </p>
                       <p className="text-[11px] leading-relaxed text-zinc-600">
-                        <strong className="font-semibold text-zinc-800">Built for the MTG Community:</strong>{' '}
-                        Created as a free passion project by <strong className="font-semibold text-zinc-800">BizRoomba (bssman89)</strong> so players everywhere can fork the repository, self-host, run local <span className="font-mono">.gguf</span> models without lock-in, and contribute card-rule or AI improvements.
-                      </p>
-                      <p className="text-[11px] leading-relaxed text-zinc-600">
-                        <strong className="font-semibold text-zinc-800">Transparency &amp; Control:</strong>{' '}
-                        Public source files let you confirm your decklists and local playtests stay yours—with zero paywalls, telemetry bloat, or hidden trackers.
+                        <strong className="font-semibold text-zinc-800">Community-Built &amp; Local-First:</strong>{' '}
+                        Built by a player for the MTG community so anyone can fork, self-host, swap local <span className="font-mono">.gguf</span> models without lock-in, and keep decklists under their control.
                       </p>
                     </div>
+                  </div>
+                ) : settingsArea === 'resources' ? (
+                  /* Card Marketplaces & Deck Platforms Resources Tab */
+                  <div className="p-3.5 bg-zinc-50 space-y-2.5">
+                    <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs font-semibold text-zinc-900">
+                          Card Marketplaces
+                        </div>
+                        <span className="text-[10px] font-medium text-zinc-500">
+                          Singles &amp; Pricing
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {CARD_MARKETPLACES.map((site) => (
+                          <a
+                            key={site.label}
+                            href={site.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:border-sky-600 hover:bg-zinc-100 transition-colors"
+                          >
+                            <span>{site.label}</span>
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
 
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSettingsArea('about')}
-                        className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:border-sky-600 hover:bg-zinc-50 cursor-pointer"
-                      >
-                        <Info className="h-3 w-3 shrink-0" />
-                        <span>About &amp; Dev Credits</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setSettingsArea('disclaimers')}
-                        className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 hover:border-sky-600 hover:bg-zinc-50 cursor-pointer"
-                      >
-                        <Scale className="h-3 w-3 shrink-0" />
-                        <span>Source Files Disclaimer</span>
-                      </button>
+                    <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="text-xs font-semibold text-zinc-900">
+                          Deck Platforms &amp; Resources
+                        </div>
+                        <span className="text-[10px] font-medium text-zinc-500">
+                          Deckbuilding &amp; Data
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {DECK_PLATFORMS.map((site) => (
+                          <a
+                            key={site.label}
+                            href={site.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:border-sky-600 hover:bg-zinc-100 transition-colors"
+                          >
+                            <span>{site.label}</span>
+                            <ExternalLink className="h-3 w-3 shrink-0" />
+                          </a>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ) : settingsArea === 'support' ? (
-                  /* Support, Resources & Bug Reporting Tab */
-                  <div className="p-4 bg-zinc-50 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900">
-                        <LifeBuoy className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-                        <span>Support &amp; Resources</span>
+                  /* Support & Bug Reporting Tab */
+                  <div className="p-3.5 bg-zinc-50 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Mail className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-medium text-zinc-500">
+                            Support Email
+                          </div>
+                          <a
+                            href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('[Umbras Pass] Bug Report')}`}
+                            className="block truncate text-xs font-semibold text-sky-700 hover:underline"
+                          >
+                            {SUPPORT_EMAIL}
+                          </a>
+                        </div>
                       </div>
                       <button
                         type="button"
-                        onClick={() => setSettingsArea('general')}
-                        className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                        onClick={handleCopySupportEmail}
+                        title="Copy support email"
+                        className="rounded-md border border-zinc-200 px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer shrink-0 inline-flex items-center gap-1"
                       >
-                        <ArrowLeft className="h-3 w-3" />
-                        <span>Back</span>
+                        {copiedEmail ? (
+                          <>
+                            <Check className="h-3 w-3 text-emerald-700" />
+                            <span>Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3 w-3" />
+                            <span>Copy</span>
+                          </>
+                        )}
                       </button>
                     </div>
 
-                    <div className="space-y-2.5 text-xs">
-                      <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-1.5 text-[11px] text-zinc-600">
-                        <div>
-                          <span className="font-semibold text-zinc-800">Card Database:</span>{' '}
-                          Scryfall API (Real-time prices &amp; Oracle text)
-                        </div>
-                        <div>
-                          <span className="font-semibold text-zinc-800">Formats Supported:</span>{' '}
-                          Commander, Standard, Modern, Pioneer, Pauper, Legacy, Vintage, Brawl
-                        </div>
+                    {/* Feedback & Bug Reporting */}
+                    <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2">
+                      <div className="text-xs font-semibold text-zinc-900">
+                        Feedback &amp; Bug Reporting
                       </div>
+                      <p className="text-[11px] leading-relaxed text-zinc-600">
+                        Encountered a card parsing mismatch, rule edge-case, or bot playtest anomaly? Let us know so we can refine our analysis engine.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setIsBugFormOpen((prev) => !prev)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-zinc-800 cursor-pointer transition-colors"
+                      >
+                        <Bug className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                        <span>{isBugFormOpen ? 'Close Report Form' : 'Report a Bug / Feedback'}</span>
+                      </button>
 
-                      <div className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Mail className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-                          <div className="min-w-0">
-                            <div className="text-[10px] font-medium text-zinc-500">
-                              Support Email
+                      {isBugFormOpen && (
+                        <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 space-y-3">
+                          <div className="flex items-center justify-between border-b border-zinc-200 pb-2">
+                            <div className="flex items-center gap-1.5">
+                              <MessageSquare className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                              <span className="text-[11px] font-bold text-zinc-900">
+                                Submit Bug Report or Feature Request
+                              </span>
                             </div>
-                            <a
-                              href={`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent('[Umbras Pass] Bug Report')}`}
-                              className="block truncate text-xs font-semibold text-sky-700 hover:underline"
+                            <button
+                              type="button"
+                              onClick={() => setIsBugFormOpen(false)}
+                              className="text-[11px] text-zinc-500 hover:text-zinc-800 cursor-pointer"
                             >
-                              {SUPPORT_EMAIL}
-                            </a>
+                              Cancel
+                            </button>
                           </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleCopySupportEmail}
-                          title="Copy support email"
-                          className="rounded-md border border-zinc-200 px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer shrink-0 inline-flex items-center gap-1"
-                        >
-                          {copiedEmail ? (
-                            <>
-                              <Check className="h-3 w-3 text-emerald-700" />
-                              <span>Copied</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="h-3 w-3" />
-                              <span>Copy</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
 
-                      {/* Feedback & Bug Reporting */}
-                      <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2.5">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="text-[11px] font-semibold text-zinc-800">
-                            Feedback &amp; Bug Reporting
-                          </div>
-                        </div>
-                        <p className="text-[11px] leading-relaxed text-zinc-600">
-                          Encountered a card parsing mismatch, rule edge-case, or bot playtest anomaly? Let us know so we can refine our analysis engine.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => setIsBugFormOpen((prev) => !prev)}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-zinc-800 cursor-pointer transition-colors"
-                        >
-                          <Bug className="h-3.5 w-3.5 text-sky-400 shrink-0" />
-                          <span>{isBugFormOpen ? 'Close Report Form' : 'Report a Bug / Feedback'}</span>
-                        </button>
-
-                        {isBugFormOpen && (
-                          <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 space-y-3">
-                            <div className="flex items-center justify-between border-b border-zinc-200 pb-2">
-                              <div className="flex items-center gap-1.5">
-                                <MessageSquare className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-                                <span className="text-[11px] font-bold text-zinc-900">
-                                  Submit Bug Report or Feature Request
-                                </span>
+                          {bugSubmitted ? (
+                            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center space-y-1">
+                              <div className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-emerald-100 text-emerald-700 mx-auto">
+                                <Check className="h-3.5 w-3.5" />
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => setIsBugFormOpen(false)}
-                                className="text-[11px] text-zinc-500 hover:text-zinc-800 cursor-pointer"
-                              >
-                                Cancel
-                              </button>
+                              <div className="text-xs font-semibold text-emerald-900">
+                                Report Submitted Successfully!
+                              </div>
+                              <p className="text-[11px] text-emerald-700">
+                                Thank you for helping improve Umbras Pass. Your report was logged and prepared for {SUPPORT_EMAIL}.
+                              </p>
                             </div>
-
-                            {bugSubmitted ? (
-                              <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-center space-y-1">
-                                <div className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-emerald-100 text-emerald-700 mx-auto">
-                                  <Check className="h-3.5 w-3.5" />
-                                </div>
-                                <div className="text-xs font-semibold text-emerald-900">
-                                  Report Submitted Successfully!
-                                </div>
-                                <p className="text-[11px] text-emerald-700">
-                                  Thank you for helping improve Umbras Pass. Your report was logged and prepared for {SUPPORT_EMAIL}.
-                                </p>
-                              </div>
-                            ) : (
-                              <form onSubmit={handleBugSubmit} className="space-y-2.5">
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                  <div>
-                                    <label htmlFor="settings-bug-category" className="block text-[11px] font-medium text-zinc-700 mb-1">
-                                      Issue Category
-                                    </label>
-                                    <select
-                                      id="settings-bug-category"
-                                      value={bugCategory}
-                                      onChange={(e) => setBugCategory(e.target.value as 'bug' | 'feature' | 'parsing' | 'other')}
-                                      className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-[11px] text-zinc-900 focus:border-sky-600 focus:outline-none"
-                                    >
-                                      <option value="bug">Report a Bug / Error</option>
-                                      <option value="parsing">Card Parsing / Scryfall Mismatch</option>
-                                      <option value="feature">Feature Request</option>
-                                      <option value="other">General Feedback</option>
-                                    </select>
-                                  </div>
-                                  <div>
-                                    <label htmlFor="settings-bug-email" className="block text-[11px] font-medium text-zinc-700 mb-1">
-                                      Your Email (Optional)
-                                    </label>
-                                    <input
-                                      id="settings-bug-email"
-                                      type="email"
-                                      value={bugEmail}
-                                      onChange={(e) => setBugEmail(e.target.value)}
-                                      placeholder="planeswalker@mtg.com"
-                                      className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-[11px] text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
-                                    />
-                                  </div>
-                                </div>
-
+                          ) : (
+                            <form onSubmit={handleBugSubmit} className="space-y-2.5">
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                 <div>
-                                  <label htmlFor="settings-bug-message" className="block text-[11px] font-medium text-zinc-700 mb-1">
-                                    Description &amp; Steps to Reproduce <span className="text-red-600">*</span>
+                                  <label htmlFor="settings-bug-category" className="block text-[11px] font-medium text-zinc-700 mb-1">
+                                    Issue Category
                                   </label>
-                                  <textarea
-                                    id="settings-bug-message"
-                                    rows={3}
-                                    value={bugMessage}
-                                    onChange={(e) => setBugMessage(e.target.value)}
-                                    placeholder="Describe what happened, deck format, or card names involved..."
-                                    className="w-full rounded-md border border-zinc-300 bg-white p-2 text-[11px] text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
+                                  <select
+                                    id="settings-bug-category"
+                                    value={bugCategory}
+                                    onChange={(e) => setBugCategory(e.target.value as 'bug' | 'feature' | 'parsing' | 'other')}
+                                    className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-[11px] text-zinc-900 focus:border-sky-600 focus:outline-none"
+                                  >
+                                    <option value="bug">Report a Bug / Error</option>
+                                    <option value="parsing">Card Parsing / Scryfall Mismatch</option>
+                                    <option value="feature">Feature Request</option>
+                                    <option value="other">General Feedback</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label htmlFor="settings-bug-email" className="block text-[11px] font-medium text-zinc-700 mb-1">
+                                    Your Email (Optional)
+                                  </label>
+                                  <input
+                                    id="settings-bug-email"
+                                    type="email"
+                                    value={bugEmail}
+                                    onChange={(e) => setBugEmail(e.target.value)}
+                                    placeholder="planeswalker@mtg.com"
+                                    className="w-full rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-[11px] text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
                                   />
                                 </div>
+                              </div>
 
-                                {bugError && (
-                                  <div className="text-[11px] font-medium text-red-700">{bugError}</div>
-                                )}
+                              <div>
+                                <label htmlFor="settings-bug-message" className="block text-[11px] font-medium text-zinc-700 mb-1">
+                                  Description &amp; Steps to Reproduce <span className="text-red-600">*</span>
+                                </label>
+                                <textarea
+                                  id="settings-bug-message"
+                                  rows={3}
+                                  value={bugMessage}
+                                  onChange={(e) => setBugMessage(e.target.value)}
+                                  placeholder="Describe what happened, deck format, or card names involved..."
+                                  className="w-full rounded-md border border-zinc-300 bg-white p-2 text-[11px] text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
+                                />
+                              </div>
 
-                                <div className="flex justify-end gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => setIsBugFormOpen(false)}
-                                    className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer"
-                                  >
-                                    Close
-                                  </button>
-                                  <button
-                                    type="submit"
-                                    className="inline-flex items-center gap-1 rounded-md bg-sky-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-sky-800 cursor-pointer"
-                                  >
-                                    <Send className="h-3 w-3" />
-                                    <span>Submit Report</span>
-                                  </button>
-                                </div>
-                              </form>
-                            )}
-                          </div>
-                        )}
-                      </div>
+                              {bugError && (
+                                <div className="text-[11px] font-medium text-red-700">{bugError}</div>
+                              )}
 
-                      <a
-                        href={GITHUB_SOURCE_URL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 hover:border-sky-600 transition-colors"
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <Code2 className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-                          <div className="min-w-0 space-y-0.5">
-                            <div className="text-[10px] font-medium text-zinc-500">
-                              Source Files on GitHub
-                            </div>
-                            <div className="text-[11px] text-zinc-600 leading-snug">
-                              Compile your own version with the source files from GitHub.
-                            </div>
-                            <div className="truncate font-mono text-[11px] font-semibold text-sky-700">
-                              {GITHUB_SOURCE_URL}
-                            </div>
-                          </div>
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setIsBugFormOpen(false)}
+                                  className="rounded-md border border-zinc-300 bg-white px-3 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer"
+                                >
+                                  Close
+                                </button>
+                                <button
+                                  type="submit"
+                                  className="inline-flex items-center gap-1 rounded-md bg-sky-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-sky-800 cursor-pointer"
+                                >
+                                  <Send className="h-3 w-3" />
+                                  <span>Submit Report</span>
+                                </button>
+                              </div>
+                            </form>
+                          )}
                         </div>
-                        <ExternalLink className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
-                      </a>
-
-                      <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2">
-                        <div className="text-[10px] font-medium text-zinc-500">
-                          Card Marketplaces &amp; Resources
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {CARD_MARKETPLACES.map((site) => (
-                            <a
-                              key={site.label}
-                              href={site.href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:border-sky-600 hover:bg-zinc-100 transition-colors"
-                            >
-                              <span>{site.label}</span>
-                              <ExternalLink className="h-3 w-3 shrink-0" />
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2">
-                        <div className="text-[10px] font-medium text-zinc-500">
-                          Deck Platforms &amp; Resources
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
-                          {DECK_PLATFORMS.map((site) => (
-                            <a
-                              key={site.label}
-                              href={site.href}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-semibold text-sky-700 hover:border-sky-600 hover:bg-zinc-100 transition-colors"
-                            >
-                              <span>{site.label}</span>
-                              <ExternalLink className="h-3 w-3 shrink-0" />
-                            </a>
-                          ))}
-                        </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 ) : (
                   /* Disclaimers & Legal Notices Section */
-                  <div className="p-4 bg-zinc-50 space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-900">
-                        <Scale className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-                        <span>Disclaimers &amp; Legal</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setSettingsArea('general')}
-                        className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer"
-                      >
-                        <ArrowLeft className="h-3 w-3" />
-                        <span>Back</span>
-                      </button>
-                    </div>
-
+                  <div className="p-3.5 bg-zinc-50 space-y-2.5">
                     <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-1.5">
-                      <div className="text-[11px] font-semibold text-zinc-700">
-                        General Disclaimer
+                      <div className="text-xs font-semibold text-zinc-900">
+                        Unofficial Fan Project &amp; Trademarks
                       </div>
                       <p className="text-[11px] leading-relaxed text-zinc-600">
-                        Umbras Pass is an independent (indie) program created by fans and has no official affiliation with, endorsement from, or sponsorship by Wizards of the Coast LLC, Hasbro,{' '}
-                        <a
-                          href="https://aistudio.google.com/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sky-700 hover:underline"
-                        >
+                        Umbras Pass is an independent fan project with no official affiliation, endorsement, or sponsorship by Wizards of the Coast LLC, Hasbro,{' '}
+                        <a href="https://aistudio.google.com/" target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">
                           Google AI Studio
                         </a>
                         ,{' '}
-                        <a
-                          href="https://huggingface.co/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sky-700 hover:underline"
-                        >
-                          Hugging Face (huggingface.co)
+                        <a href="https://huggingface.co/" target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">
+                          Hugging Face
                         </a>
                         ,{' '}
-                        <a
-                          href="https://firebase.google.com/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sky-700 hover:underline"
-                        >
-                          Firebase (firebase.google.com)
+                        <a href="https://firebase.google.com/" target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">
+                          Firebase
                         </a>
                         ,{' '}
-                        <a
-                          href="https://vite.dev/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sky-700 hover:underline"
-                        >
-                          Vite (vite.dev)
+                        <a href="https://vite.dev/" target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">
+                          Vite
                         </a>
                         ,{' '}
-                        <a
-                          href="https://www.electronjs.org/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sky-700 hover:underline"
-                        >
-                          Electron (electronjs.org)
+                        <a href="https://www.electronjs.org/" target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">
+                          Electron
                         </a>
                         ,{' '}
-                        <a
-                          href="https://www.npmjs.com/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sky-700 hover:underline"
-                        >
-                          npm (npmjs.com)
+                        <a href="https://www.npmjs.com/" target="_blank" rel="noopener noreferrer" className="text-sky-700 hover:underline">
+                          npm
                         </a>
-                        , Scryfall, EDHREC (edhrec.com), MTG Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox, MTGO, Cockatrice, Deckstats, TappedOut, CubeCobra, MTGTop8, Pastebin, TCGplayer.com, CardKingdom.com, CardTrader.com (cardtrader.com/en-US), eBay.com, or any other Magic: The Gathering (MTG) entities, development platforms, AI model hubs, cloud providers, software runtimes, package registries, deck tools, or marketplace platforms. All card names, symbols, file formats, and trademarks belong to their respective owners. External links to deck platforms and marketplaces are provided strictly for convenience; deck services, pricing, and purchases occur solely on those external sites. Dev Bssman89 or BizRoomba is not liable or responsible for any damages, issues, third-party transactions, or outcomes arising from the use of this program or linked external websites.
+                        , Scryfall, EDHREC, MTG Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox, MTGO, Cockatrice, Deckstats, TappedOut, CubeCobra, MTGTop8, Pastebin, TCGplayer.com, CardKingdom.com, CardTrader.com (cardtrader.com/en-US), or eBay.com. All card names, symbols, and trademarks belong to their respective owners, and all pricing or purchases occur solely on external sites.
                       </p>
                     </div>
 
                     <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-1.5">
-                      <div className="text-[11px] font-semibold text-zinc-700">
-                        Source Files Disclaimer
+                      <div className="text-xs font-semibold text-zinc-900">
+                        Source Files &amp; &ldquo;As Is&rdquo; Liability
                       </div>
                       <p className="text-[11px] leading-relaxed text-zinc-600">
-                        Source files hosted on GitHub are provided &ldquo;as is&rdquo; for community review and self-hosted indie use without warranty of any kind. Anyone cloning, modifying, or running from source is responsible for their own local setup, credentials, and compliance with third-party data provider, development platform, AI model hub, hosting, build toolchain, runtime, package registry, deck platform, and marketplace terms (including{' '}
-                        <a
-                          href="https://aistudio.google.com/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sky-700 hover:underline"
-                        >
-                          Google AI Studio
-                        </a>
-                        ,{' '}
-                        <a
-                          href="https://huggingface.co/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sky-700 hover:underline"
-                        >
-                          Hugging Face (huggingface.co)
-                        </a>
-                        ,{' '}
-                        <a
-                          href="https://firebase.google.com/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sky-700 hover:underline"
-                        >
-                          Firebase (firebase.google.com)
-                        </a>
-                        ,{' '}
-                        <a
-                          href="https://vite.dev/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sky-700 hover:underline"
-                        >
-                          Vite (vite.dev)
-                        </a>
-                        ,{' '}
-                        <a
-                          href="https://www.electronjs.org/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sky-700 hover:underline"
-                        >
-                          Electron (electronjs.org)
-                        </a>
-                        ,{' '}
-                        <a
-                          href="https://www.npmjs.com/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sky-700 hover:underline"
-                        >
-                          npm (npmjs.com)
-                        </a>
-                        , Scryfall, EDHREC (edhrec.com), MTG Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox, MTGO, Cockatrice, Deckstats, TappedOut, CubeCobra, MTGTop8, Pastebin, TCGplayer.com, CardKingdom.com, CardTrader.com (cardtrader.com/en-US), and eBay.com). Dev Bssman89 or BizRoomba is not liable or responsible for any issues, damages, or modifications resulting from the use of these source files or any external links.
+                        GitHub source files and builds are provided &ldquo;as is&rdquo; without warranty of any kind. Users cloning, modifying, or running from source (including local <span className="font-mono">.gguf</span> models) are solely responsible for their own environment, credentials, and compliance with third-party terms. Dev Bssman89 / BizRoomba is not liable for any damages, modifications, third-party transactions, or outcomes from using this program or external links.
                       </p>
                     </div>
                   </div>

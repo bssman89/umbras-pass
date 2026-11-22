@@ -380,9 +380,9 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                 : 'text-zinc-500';
 
               const statusTooltip = card.statusLabel.startsWith('Blocked T')
-                ? `Cannot cast on ${card.statusLabel.replace('Blocked ', 'Turn ')} with the lands drawn so far (missing untapped mana or required colors)`
+                ? `Cannot cast on ${card.statusLabel.replace('Blocked T', 'Turn ')} with the lands drawn so far (missing untapped mana or required colors)`
                 : card.statusLabel.startsWith('Castable T')
-                ? `Castable on ${card.statusLabel.replace('Castable ', 'Turn ')} with the lands drawn so far`
+                ? `Castable on ${card.statusLabel.replace('Castable T', 'Turn ')} with the lands drawn so far`
                 : card.statusLabel === 'Enters Tapped'
                 ? 'This land enters the battlefield tapped'
                 : card.statusLabel === 'Untapped'
