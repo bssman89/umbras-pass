@@ -4,6 +4,35 @@ Umbras Pass is an independent Magic: The Gathering deck analyzer, mana base opti
 
 ---
 
+## Screenshots & App Preview
+
+### Deck Importer & Sample Decks
+Import decklists from Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox CSV, MTGO, or Cockatrice, or test instantly with built-in sample decks.
+
+![Umbras Pass Deck Importer](docs/screenshots/02-deck-importer.png)
+
+### Mana & Land Analysis Dashboard
+Karsten-calibrated land and ramp targets, tapped-land tempo warnings, spell mana curve, and color pip distribution.
+
+![Umbras Pass Mana & Land Analysis Dashboard](docs/screenshots/03-analysis-dashboard.png)
+
+### Advanced Deck Metrics
+Stacked mana curve distribution with cumulative playability curve, color identity breakdown, and average/median CMC benchmarks.
+
+![Umbras Pass Advanced Deck Metrics](docs/screenshots/04-advanced-deck-metrics.png)
+
+### Live Tabletop VS Adaptive AI Bots (1v3 Commander & 1v1)
+Interactive turn-by-turn tabletop simulator against adaptive bots with hover card zoom, phase tracking, and persistent bot matchup memory.
+
+![Umbras Pass Live Tabletop VS AI Bots](docs/screenshots/05-live-tabletop-playtest.png)
+
+### One-Time Local `.gguf` Setup Screen
+New users are guided through a one-click `.gguf` model download or automated setup script on first launch — no cloud API keys needed.
+
+![Umbras Pass One-Time GGUF Setup Screen](docs/screenshots/01-gguf-startup-setup.png)
+
+---
+
 ## Quick Start (Automated Script — Handles Everything)
 
 To unlock full local AI deck analysis and adaptive bot learning, **you need to download a `.gguf` model file once**. Our automated setup script installs all npm & Vite dependencies, creates the `models/` folder, and downloads the recommended `Qwen3-4B-Q4_K_M.gguf` model (~2.5 GB) for you automatically.
