@@ -26,7 +26,7 @@ Interactive turn-by-turn tabletop simulator against adaptive bots with hover car
 
 ![Umbras Pass Live Tabletop VS AI Bots](docs/screenshots/05-live-tabletop-playtest.png)
 
-### One-Time Local `.gguf` Setup Screen
+### Program Setup & Ai Model Configuration  `.gguf` Setup Screen
 New users are guided through a one-click `.gguf` model download or automated setup script on first launch — no cloud API keys needed.
 
 ![Umbras Pass One-Time GGUF Setup Screen](docs/screenshots/01-gguf-startup-setup.png)
