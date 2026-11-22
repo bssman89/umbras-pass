@@ -29,6 +29,7 @@
     "asarUnpack": [
       "dist/**/*",
       "dist-server/**/*",
+      "public/icon.ico",
       "node_modules/**/*"
     ],
     "files": [
@@ -45,10 +46,14 @@
         "portable"
       ],
       "icon": "public/icon.ico",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": true
     },
     "nsis": {
       "artifactName": "Umbras-Pass-Setup-${version}.exe",
+      "installerIcon": "public/icon.ico",
+      "uninstallerIcon": "public/icon.ico",
+      "installerHeaderIcon": "public/icon.ico",
+      "shortcutName": "Umbras Pass",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,

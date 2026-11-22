@@ -70,6 +70,25 @@ function main() {
   runNodeScript(path.join(rootDir, 'scripts', 'build-server.mjs'));
 
   if (shouldPackageWin) {
+    const iconPath = path.join(rootDir, 'public', 'icon.ico');
+    if (!fs.existsSync(iconPath)) {
+      throw new Error(`Missing Windows application icon at ${iconPath}`);
+    }
+    const iconHeader = fs.readFileSync(iconPath).subarray(0, 4);
+    if (
+      iconHeader.length < 4 ||
+      iconHeader[0] !== 0 ||
+      iconHeader[1] !== 0 ||
+      iconHeader[2] !== 1 ||
+      iconHeader[3] !== 0
+    ) {
+      throw new Error(`Invalid .ico file header at ${iconPath} (expected Windows ICO format).`);
+    }
+    const distIconPath = path.join(rootDir, 'dist', 'icon.ico');
+    if (!fs.existsSync(distIconPath)) {
+      fs.copyFileSync(iconPath, distIconPath);
+    }
+
     const targets = shouldPackageWinAll ? ['nsis', 'portable'] : ['nsis'];
     console.log(`[Build] Packaging Windows executables (${targets.join(', ')}) with electron-builder...`);
     runLocalBin(

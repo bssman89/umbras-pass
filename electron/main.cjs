@@ -248,15 +248,39 @@ function registerIpcHandlers() {
   });
 }
 
+function resolveWindowIconPath() {
+  const unpackedBase = process.resourcesPath
+    ? path.join(process.resourcesPath, 'app.asar.unpacked')
+    : '';
+  const localBase = path.join(__dirname, '..');
+
+  const icoCandidates = [
+    unpackedBase ? path.join(unpackedBase, 'public', 'icon.ico') : '',
+    unpackedBase ? path.join(unpackedBase, 'dist', 'icon.ico') : '',
+    path.join(localBase, 'public', 'icon.ico'),
+    path.join(localBase, 'dist', 'icon.ico'),
+  ].filter(Boolean);
+
+  const pngCandidates = [
+    path.join(localBase, 'public', 'assets', 'aistudio', 'Umbras_pass_v3-removebg-preview_58159528.png'),
+    path.join(localBase, 'public', 'icon.png'),
+    unpackedBase ? path.join(unpackedBase, 'dist', 'icon.png') : '',
+  ].filter(Boolean);
+
+  const ordered = process.platform === 'win32'
+    ? [...icoCandidates, ...pngCandidates]
+    : [...pngCandidates, ...icoCandidates];
+
+  for (const candidate of ordered) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+}
+
 async function createWindow() {
-  const iconPath = path.join(
-    __dirname,
-    '..',
-    'public',
-    'assets',
-    'aistudio',
-    'Umbras_pass_v3-removebg-preview_58159528.png'
-  );
+  const iconPath = resolveWindowIconPath();
 
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -266,7 +290,7 @@ async function createWindow() {
     show: false,
     backgroundColor: '#090a0f',
     title: 'Umbras Pass — Indie Magic: The Gathering Deck Analyzer & Playtest Sim',
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    icon: iconPath,
     autoHideMenuBar: true,
     webPreferences: {
       nodeIntegration: false,
