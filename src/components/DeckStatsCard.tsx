@@ -124,7 +124,7 @@ export const DeckStatsCard: React.FC<DeckStatsCardProps> = memo(({
             Card Type Breakdown
           </h3>
           <p className="mt-0.5 text-xs text-zinc-500">
-            Card types, mana averages, and market value across {totalMainCount} cards
+            A snapshot of card types, average mana cost, and estimated value across {totalMainCount} cards.
           </p>
         </div>
         {metrics.sideboardCount > 0 && (
@@ -147,7 +147,7 @@ export const DeckStatsCard: React.FC<DeckStatsCardProps> = memo(({
         </div>
 
         <div>
-          <div className="text-xs font-medium text-zinc-500">Avg. MV (Spells)</div>
+          <div className="text-xs font-medium text-zinc-500">Avg. Spell Cost</div>
           <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-zinc-900">
             {metrics.averageCmcNonLand.toFixed(2)}
           </div>
@@ -155,7 +155,7 @@ export const DeckStatsCard: React.FC<DeckStatsCardProps> = memo(({
         </div>
 
         <div>
-          <div className="text-xs font-medium text-zinc-500">Avg. MV (All)</div>
+          <div className="text-xs font-medium text-zinc-500">Avg. Cost (All Cards)</div>
           <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-zinc-900">
             {metrics.averageCmcWithLands.toFixed(2)}
           </div>

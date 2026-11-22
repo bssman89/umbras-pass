@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
 import {
+  Ban,
   BookOpen,
   ChevronLeft,
   ChevronRight,
@@ -8,6 +9,8 @@ import {
   Droplets,
   Flame,
   Loader2,
+  Maximize2,
+  Minimize2,
   Minus,
   Mountain,
   Plus,
@@ -26,10 +29,14 @@ import type {
   ManaColor,
   PlaytestMode,
 } from '../types/deck';
-import type {
-  LiveBotCreature,
-  LiveBotState,
-  PendingBotAttack,
+import { getBotIntelligenceMeta } from '../utils/botIntelligence';
+import {
+  extractCreatureKeywords,
+  formatCreatureKeywordTags,
+  type BotTurnPhaseStep,
+  type LiveBotCreature,
+  type LiveBotState,
+  type PendingBotAttack,
 } from '../utils/liveBotEngine';
 import {
   buildHoverRect,
@@ -39,6 +46,29 @@ import {
   type HoveredCardPreview,
 } from './CardHoverZoomOverlay';
 import { DeckShuffleAnimation } from './DeckShuffleAnimation';
+import {
+  PermanentCounterEditor,
+  PlayerCountersPanel,
+  TokenCreatorPanel,
+  type TabletopTokenBlueprint,
+} from './TabletopTokenCounterModals';
+import {
+  classifyCardStackProfile,
+  getEffectiveInstantCost,
+  type ActivatedAbilityOption,
+  type StackItem,
+} from '../utils/liveStackEngine';
+import {
+  InterruptResponseBanner,
+  type InterruptWindowMode,
+} from './InterruptResponseBanner';
+import {
+  TabletopStackPanel,
+  type StackCastResponseOptions,
+} from './TabletopStackPanel';
+import { ZoneViewerModal } from './ZoneViewerModal';
+
+export type { TabletopTokenBlueprint };
 
 export type TabletopPhase = 'Untap' | 'Upkeep' | 'Draw' | 'Main' | 'Combat' | 'End';
 
@@ -64,7 +94,47 @@ export interface TabletopPermanent extends TabletopSimCard {
   tapped: boolean;
   attacking: boolean;
   summoningSick: boolean;
+  isToken?: boolean;
+  tokenAbility?: 'treasure' | 'food' | 'clue' | 'blood' | 'none';
+  baseToughness?: number;
+  plusOneCounters?: number;
+  minusOneCounters?: number;
+  otherCounters?: Record<string, number>;
+  protectedUntilEot?: boolean;
+  tempPowerBoost?: number;
+  tempToughnessBoost?: number;
 }
+
+export function getEffectivePermanentStats(perm: TabletopPermanent): {
+  power: number;
+  toughness: number;
+} {
+  const netMod = (perm.plusOneCounters || 0) - (perm.minusOneCounters || 0);
+  const baseTough =
+    perm.baseToughness !== undefined
+      ? perm.baseToughness
+      : Number(perm.meta?.toughness) || Math.max(2, perm.power);
+  return {
+    power: Math.max(0, perm.power + netMod + (perm.tempPowerBoost || 0)),
+    toughness: Math.max(0, baseTough + netMod + (perm.tempToughnessBoost || 0)),
+  };
+}
+
+type TabletopDragSource =
+  | { zone: 'hand'; uid: string; name: string; isLand: boolean }
+  | { zone: 'command'; uid: string; name: string }
+  | {
+      zone: 'battlefield';
+      uid: string;
+      name: string;
+      lane: 'creatures' | 'lands';
+      isCreature: boolean;
+      isCommander: boolean;
+      isToken?: boolean;
+      tapped: boolean;
+    }
+  | { zone: 'graveyard'; uid: string; name: string }
+  | { zone: 'exile'; uid: string; name: string };
 
 export interface TabletopSoloOpponent {
   id: string;
@@ -79,7 +149,15 @@ export interface TabletopSoloOpponent {
 
 export type TabletopManaPool = Record<ManaColor, number>;
 
-export type TabletopSoundKind = 'draw' | 'land' | 'cast' | 'tap' | 'combat' | 'turn' | 'shuffle';
+export type TabletopSoundKind =
+  | 'draw'
+  | 'land'
+  | 'cast'
+  | 'tap'
+  | 'combat'
+  | 'turn'
+  | 'shuffle'
+  | 'alert';
 
 let sharedAudioCtx: AudioContext | null = null;
 
@@ -98,6 +176,27 @@ export function playTabletopSound(enabled: boolean, kind: TabletopSoundKind): vo
     }
 
     const now = sharedAudioCtx.currentTime;
+
+    if (kind === 'alert') {
+      const notes = [
+        { freq: 523.25, offset: 0, dur: 0.09 },
+        { freq: 659.25, offset: 0.085, dur: 0.14 },
+      ];
+      notes.forEach(({ freq, offset, dur }) => {
+        if (!sharedAudioCtx) return;
+        const osc = sharedAudioCtx.createOscillator();
+        const gain = sharedAudioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(sharedAudioCtx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + offset);
+        gain.gain.setValueAtTime(0.045, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + dur);
+        osc.start(now + offset);
+        osc.stop(now + offset + dur + 0.01);
+      });
+      return;
+    }
 
     if (kind === 'shuffle') {
       const bursts = [0, 0.06, 0.12, 0.18];
@@ -124,7 +223,7 @@ export function playTabletopSound(enabled: boolean, kind: TabletopSoundKind): vo
     osc.connect(gain);
     gain.connect(sharedAudioCtx.destination);
 
-    const freqMap: Record<Exclude<TabletopSoundKind, 'shuffle'>, [number, number, number]> = {
+    const freqMap: Record<Exclude<TabletopSoundKind, 'shuffle' | 'alert'>, [number, number, number]> = {
       draw: [420, 560, 0.08],
       land: [260, 310, 0.09],
       cast: [392, 587, 0.14],
@@ -161,6 +260,13 @@ interface TableCardTileProps {
   cornerTone?: 'amber' | 'sky' | 'emerald' | 'red' | 'zinc';
   ptLabel?: string | null;
   subLabel?: string;
+  counterChips?: string[];
+  draggable?: boolean;
+  isDragTarget?: boolean;
+  onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDragEnd?: () => void;
+  onDragOverCard?: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDropOnCard?: (e: React.DragEvent<HTMLDivElement>) => void;
   primaryAction?: {
     label: string;
     onClick: () => void;
@@ -170,7 +276,11 @@ interface TableCardTileProps {
   secondaryAction?: {
     label: string;
     onClick: () => void;
-    tone?: 'red' | 'zinc' | 'sky';
+    tone?: 'red' | 'zinc' | 'sky' | 'amber';
+  };
+  counterAction?: {
+    active?: boolean;
+    onClick: () => void;
   };
   onTileClick?: () => void;
 }
@@ -201,17 +311,27 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
   cornerTone = 'zinc',
   ptLabel,
   subLabel,
+  counterChips,
+  draggable = false,
+  isDragTarget = false,
+  onDragStart,
+  onDragEnd,
+  onDragOverCard,
+  onDropOnCard,
   primaryAction,
   secondaryAction,
+  counterAction,
   onTileClick,
 }) => {
   const [imgFailed, setImgFailed] = useState(false);
   const { enabled: hoverZoomEnabled, showPreview, hidePreview } = useContext(TabletopHoverContext);
 
-  const widthClass = size === 'sm' ? 'w-[84px]' : 'w-[104px]';
+  const widthClass = size === 'sm' ? 'w-[88px]' : 'w-[108px]';
   const artHeightClass = size === 'sm' ? 'h-[60px]' : 'h-[78px]';
 
-  const frameRingClass = attacking
+  const frameRingClass = isDragTarget
+    ? 'border-amber-400 ring-2 ring-amber-400 scale-[1.03] shadow-lg'
+    : attacking
     ? 'border-red-500 ring-2 ring-red-500/80 -translate-y-1.5 shadow-md'
     : newlyDrawn
     ? 'border-amber-400 ring-2 ring-amber-400/75 animate-card-draw-slide shadow-sm'
@@ -265,11 +385,32 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
 
   return (
     <div
+      draggable={draggable}
+      onDragStart={(e) => {
+        hidePreview();
+        onDragStart?.(e);
+      }}
+      onDragEnd={() => onDragEnd?.()}
+      onDragOver={(e) => {
+        if (onDragOverCard) {
+          e.preventDefault();
+          onDragOverCard(e);
+        }
+      }}
+      onDrop={(e) => {
+        if (onDropOnCard) {
+          e.preventDefault();
+          e.stopPropagation();
+          onDropOnCard(e);
+        }
+      }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={hidePreview}
       className={`${widthClass} relative shrink-0 rounded-lg border bg-white p-1.5 flex flex-col justify-between transition-all duration-150 select-none ${frameRingClass} ${
         tapped ? 'rotate-3 opacity-75' : ''
-      } ${hoverZoomEnabled ? 'hover:z-20 hover:scale-[1.06] hover:shadow-lg' : ''}`}
+      } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${
+        hoverZoomEnabled ? 'hover:z-20 hover:scale-[1.06] hover:shadow-lg' : ''
+      }`}
     >
       <button
         type="button"
@@ -278,9 +419,9 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
           if (onTileClick) onTileClick();
           else onInspect(name, meta);
         }}
-        title={`${name}${meta?.manaCost ? ` (${meta.manaCost})` : ''} — click to ${
-          onTileClick ? 'select' : 'inspect'
-        }`}
+        title={`${name}${meta?.manaCost ? ` (${meta.manaCost})` : ''} — ${
+          draggable ? 'drag to move/play or ' : ''
+        }click to ${onTileClick ? 'select' : 'inspect'}`}
         className="w-full text-left cursor-pointer group focus:outline-none"
       >
         <div
@@ -290,6 +431,7 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
             <img
               src={meta.imageUri}
               alt={name}
+              draggable={false}
               referrerPolicy="no-referrer"
               onError={() => setImgFailed(true)}
               className="h-full w-full object-cover object-top"
@@ -348,10 +490,22 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
               <span className="shrink-0 tabular-nums">{meta.cmc}</span>
             )}
           </div>
+          {counterChips && counterChips.length > 0 && (
+            <div className="flex flex-wrap items-center gap-0.5 pt-0.5">
+              {counterChips.slice(0, 3).map((chip) => (
+                <span
+                  key={chip}
+                  className="rounded bg-emerald-900 px-1 py-0.2 font-mono text-[8px] font-bold text-amber-200 tabular-nums leading-tight"
+                >
+                  {chip}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </button>
 
-      {(primaryAction || secondaryAction || onTileClick) && (
+      {(primaryAction || secondaryAction || counterAction || onTileClick) && (
         <div className="mt-1.5 flex items-center gap-1 border-t border-zinc-100 pt-1">
           {primaryAction && (
             <button
@@ -366,6 +520,23 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
               )}`}
             >
               {primaryAction.label}
+            </button>
+          )}
+          {counterAction && (
+            <button
+              type="button"
+              onClick={() => {
+                hidePreview();
+                counterAction.onClick();
+              }}
+              title={`Edit counters on ${name}`}
+              className={`rounded border px-1 py-0.5 font-mono text-[9px] font-bold leading-tight cursor-pointer whitespace-nowrap shrink-0 ${
+                counterAction.active
+                  ? 'border-sky-600 bg-sky-700 text-white'
+                  : 'border-zinc-300 bg-zinc-100 text-zinc-800 hover:border-sky-500 hover:text-sky-700'
+              }`}
+            >
+              ±
             </button>
           )}
           {secondaryAction && (
@@ -462,6 +633,7 @@ interface LiveTabletopArenaProps {
   commanderTaxByUid: Record<string, number>;
   battlefield: TabletopPermanent[];
   graveyard: TabletopSimCard[];
+  exile?: TabletopSimCard[];
   liveBots: LiveBotState[];
   opponentTrackers: TabletopSoloOpponent[];
   selectedCombatTargetId: string;
@@ -469,6 +641,19 @@ interface LiveTabletopArenaProps {
   blockerAssignments: Record<string, string>;
   soundEnabled: boolean;
   isShufflingDeck?: boolean;
+  isFullscreen?: boolean;
+  botStepAwaitingContinue?: boolean;
+  activeBotTurnBanner?: {
+    botName: string;
+    seatNumber: number;
+    queuePosition: number;
+    queueTotal: number;
+    phaseSteps: BotTurnPhaseStep[];
+    adaptationNote: string;
+    isLastBotInRound: boolean;
+  } | null;
+  onContinueNextBotTurn?: () => void;
+  onToggleFullscreen?: () => void;
   onToggleSound: () => void;
   onShuffleLibrary?: () => void;
   onSelectCombatTarget: (id: string) => void;
@@ -498,6 +683,51 @@ interface LiveTabletopArenaProps {
   onNextPhase: () => void;
   onPassTurn: () => void;
   onInspectCard: (name: string, meta?: CardMetadata | null) => void;
+  // Interactive Tabletop Tokens, Counters & Drag-and-Drop
+  playerCounters?: Record<string, number>;
+  isMonarch?: boolean;
+  onCreateToken?: (blueprint: TabletopTokenBlueprint) => void;
+  onActivateTokenAbility?: (perm: TabletopPermanent) => void;
+  onAdjustPermanentCounter?: (uid: string, counterKey: string, delta: number) => void;
+  onAdjustPlayerCounter?: (label: string, delta: number) => void;
+  onToggleMonarch?: () => void;
+  onReorderBattlefield?: (sourceUid: string, targetUid: string) => void;
+  onDiscardFromHand?: (card: TabletopSimCard) => void;
+  onExileFromHand?: (card: TabletopSimCard) => void;
+  onMovePermanentToExile?: (perm: TabletopPermanent) => void;
+  onBouncePermanentToHand?: (perm: TabletopPermanent) => void;
+  onReturnTopGraveyardToBattlefield?: () => void;
+  onReturnTopGraveyardToHand?: () => void;
+  onReturnTopExileToBattlefield?: () => void;
+  onReturnTopExileToHand?: () => void;
+  onMovePlayerZoneCard?: (
+    fromZone: 'graveyard' | 'exile',
+    cardUid: string,
+    destination: 'battlefield' | 'hand' | 'graveyard' | 'exile'
+  ) => void;
+  onDragAttackOpponent?: (permUid: string, opponentId: string) => void;
+  // Interactive Stack, Interrupt/Response Window & Activated Abilities
+  stackItems?: StackItem[];
+  activatedAbilities?: ActivatedAbilityOption[];
+  combatFogActive?: boolean;
+  totalAvailableMana?: number;
+  interruptCountdownMs?: number;
+  interruptTotalMs?: number;
+  interruptTimerHeld?: boolean;
+  interruptWindowMode?: InterruptWindowMode;
+  onToggleHoldInterrupt?: () => void;
+  onCastStackResponse?: (cardUid: string, options: StackCastResponseOptions) => void;
+  onActivateAbility?: (
+    ability: ActivatedAbilityOption,
+    options: StackCastResponseOptions
+  ) => void;
+  onResolveStackTop?: () => void;
+  onResolveStackAll?: () => void;
+  onCastCombatInstant?: (
+    cardUid: string,
+    targetAttackerUid?: string,
+    targetPlayerCreatureUid?: string
+  ) => void;
 }
 
 const MANA_BUTTONS: Array<{ color: ManaColor; chipClass: string }> = [
@@ -538,6 +768,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
   commanderTaxByUid,
   battlefield,
   graveyard,
+  exile = [],
   liveBots,
   opponentTrackers,
   selectedCombatTargetId,
@@ -545,6 +776,11 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
   blockerAssignments,
   soundEnabled,
   isShufflingDeck = false,
+  isFullscreen = false,
+  botStepAwaitingContinue = false,
+  activeBotTurnBanner = null,
+  onContinueNextBotTurn,
+  onToggleFullscreen,
   onToggleSound,
   onShuffleLibrary,
   onSelectCombatTarget,
@@ -570,11 +806,61 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
   onNextPhase,
   onPassTurn,
   onInspectCard,
+  playerCounters = {},
+  isMonarch = false,
+  onCreateToken,
+  onActivateTokenAbility,
+  onAdjustPermanentCounter,
+  onAdjustPlayerCounter,
+  onToggleMonarch,
+  onReorderBattlefield,
+  onDiscardFromHand,
+  onExileFromHand,
+  onMovePermanentToExile,
+  onBouncePermanentToHand,
+  onReturnTopGraveyardToBattlefield,
+  onReturnTopGraveyardToHand,
+  onReturnTopExileToBattlefield,
+  onReturnTopExileToHand,
+  onMovePlayerZoneCard,
+  onDragAttackOpponent,
+  stackItems = [],
+  activatedAbilities = [],
+  combatFogActive = false,
+  totalAvailableMana,
+  interruptCountdownMs = 0,
+  interruptTotalMs = 0,
+  interruptTimerHeld = false,
+  interruptWindowMode = '12s',
+  onToggleHoldInterrupt,
+  onCastStackResponse,
+  onActivateAbility,
+  onResolveStackTop,
+  onResolveStackAll,
+  onCastCombatInstant,
 }) => {
   const [hoverZoomEnabled, setHoverZoomEnabled] = useState<boolean>(() =>
     loadHoverZoomPreference()
   );
   const [hoveredCard, setHoveredCard] = useState<HoveredCardPreview | null>(null);
+  const [showTokenCreator, setShowTokenCreator] = useState<boolean>(false);
+  const [showPlayerCounters, setShowPlayerCounters] = useState<boolean>(false);
+  const [editingCounterUid, setEditingCounterUid] = useState<string | null>(null);
+  const [dragSource, setDragSource] = useState<TabletopDragSource | null>(null);
+  const [activeDropZone, setActiveDropZone] = useState<string | null>(null);
+  const [dragOverCardUid, setDragOverCardUid] = useState<string | null>(null);
+  const [combatInstantTargetAtkUid, setCombatInstantTargetAtkUid] = useState<string>('');
+  const [combatTrickTargetBlkUid, setCombatTrickTargetBlkUid] = useState<string>('');
+  const [zoneModalTarget, setZoneModalTarget] = useState<{
+    ownerId: string;
+    zone: 'graveyard' | 'exile';
+  } | null>(null);
+  const hasActiveStack = stackItems.length > 0;
+  const effectiveAvailableMana =
+    totalAvailableMana !== undefined
+      ? totalAvailableMana
+      : totalManaPool + untappedLandsCount;
+  const hasCommanderOnBoard = battlefield.some((p) => p.isCommander);
 
   const handleToggleHoverZoom = () => {
     setHoverZoomEnabled((prev) => {
@@ -593,11 +879,159 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
     setHoveredCard(null);
   }, []);
 
+  const clearDragState = useCallback(() => {
+    setDragSource(null);
+    setActiveDropZone(null);
+    setDragOverCardUid(null);
+  }, []);
+
+  const beginDrag = (e: React.DragEvent, source: TabletopDragSource) => {
+    setDragSource(source);
+    try {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', `${source.zone}:${source.uid}`);
+    } catch {
+      // Ignore restricted dataTransfer environments
+    }
+  };
+
+  const handleDropOnCreaturesLane = (e: React.DragEvent) => {
+    e.preventDefault();
+    const src = dragSource;
+    clearDragState();
+    if (!src || botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack) return;
+
+    if (src.zone === 'hand') {
+      const card = hand.find((c) => c.uid === src.uid);
+      if (!card) return;
+      if (card.isLand) onPlayLand(card);
+      else onCastFromHand(card);
+    } else if (src.zone === 'command') {
+      const cmd = commandZone.find((c) => c.uid === src.uid);
+      if (cmd) onCastCommander(cmd);
+    } else if (src.zone === 'graveyard') {
+      onReturnTopGraveyardToBattlefield?.();
+    } else if (src.zone === 'exile') {
+      onReturnTopExileToBattlefield?.();
+    }
+  };
+
+  const handleDropOnLandsLane = (e: React.DragEvent) => {
+    e.preventDefault();
+    const src = dragSource;
+    clearDragState();
+    if (!src || botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack) return;
+
+    if (src.zone === 'hand') {
+      const card = hand.find((c) => c.uid === src.uid);
+      if (!card) return;
+      if (card.isLand) onPlayLand(card);
+      else onCastFromHand(card);
+    } else if (src.zone === 'graveyard') {
+      onReturnTopGraveyardToBattlefield?.();
+    } else if (src.zone === 'exile') {
+      onReturnTopExileToBattlefield?.();
+    }
+  };
+
+  const handleDropOnGraveyard = (e: React.DragEvent) => {
+    e.preventDefault();
+    const src = dragSource;
+    clearDragState();
+    if (!src || botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack) return;
+
+    if (src.zone === 'hand') {
+      const card = hand.find((c) => c.uid === src.uid);
+      if (card) onDiscardFromHand?.(card);
+    } else if (src.zone === 'battlefield') {
+      const perm = battlefield.find((p) => p.uid === src.uid);
+      if (perm) onMovePermanentToGy(perm);
+    } else if (src.zone === 'exile') {
+      onMovePlayerZoneCard?.('exile', src.uid, 'graveyard');
+    }
+  };
+
+  const handleDropOnExile = (e: React.DragEvent) => {
+    e.preventDefault();
+    const src = dragSource;
+    clearDragState();
+    if (!src || botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack) return;
+
+    if (src.zone === 'hand') {
+      const card = hand.find((c) => c.uid === src.uid);
+      if (card) onExileFromHand?.(card);
+    } else if (src.zone === 'battlefield') {
+      const perm = battlefield.find((p) => p.uid === src.uid);
+      if (perm) onMovePermanentToExile?.(perm);
+    } else if (src.zone === 'graveyard') {
+      onMovePlayerZoneCard?.('graveyard', src.uid, 'exile');
+    }
+  };
+
+  const handleDropOnCommandZone = (e: React.DragEvent) => {
+    e.preventDefault();
+    const src = dragSource;
+    clearDragState();
+    if (!src || botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack) return;
+
+    if (src.zone === 'battlefield' && src.isCommander) {
+      const perm = battlefield.find((p) => p.uid === src.uid);
+      if (perm) onReturnCommanderToZone(perm);
+    }
+  };
+
+  const handleDropOnHand = (e: React.DragEvent) => {
+    e.preventDefault();
+    const src = dragSource;
+    clearDragState();
+    if (!src || botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack) return;
+
+    if (src.zone === 'battlefield') {
+      const perm = battlefield.find((p) => p.uid === src.uid);
+      if (perm) onBouncePermanentToHand?.(perm);
+    } else if (src.zone === 'graveyard') {
+      onReturnTopGraveyardToHand?.();
+    } else if (src.zone === 'exile') {
+      onReturnTopExileToHand?.();
+    }
+  };
+
+  const handleDropOnOpponentSeat = (e: React.DragEvent, oppId: string) => {
+    e.preventDefault();
+    const src = dragSource;
+    clearDragState();
+    if (!src || botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack) return;
+
+    if (src.zone === 'battlefield' && src.isCreature && !src.tapped) {
+      onDragAttackOpponent?.(src.uid, oppId);
+    }
+  };
+
+  const formatPermanentCounterChips = (perm: TabletopPermanent): string[] => {
+    const chips: string[] = [];
+    if ((perm.plusOneCounters || 0) > 0) chips.push(`+${perm.plusOneCounters}/+${perm.plusOneCounters}`);
+    if ((perm.minusOneCounters || 0) > 0) chips.push(`-${perm.minusOneCounters}/-${perm.minusOneCounters}`);
+    if (perm.otherCounters) {
+      for (const [label, count] of Object.entries(perm.otherCounters)) {
+        if (count > 0) {
+          const short = label.length > 5 ? label.slice(0, 4) : label;
+          chips.push(`${short} ${count}`);
+        }
+      }
+    }
+    return chips;
+  };
+
+  const editingCounterPerm = editingCounterUid
+    ? battlefield.find((p) => p.uid === editingCounterUid) || null
+    : null;
+
+  const activePlayerCounterEntries = Object.entries(playerCounters).filter(([, v]) => v > 0);
+
   const landsAndRocks = battlefield.filter((b) => b.isLand || b.isArtifactOrRock);
   const creaturesAndOther = battlefield.filter((b) => !b.isLand && !b.isArtifactOrRock);
   const untappedBlockers = battlefield.filter((b) => b.isCreature && !b.tapped);
   const attackersCount = battlefield.filter((b) => b.attacking).length;
-  const totalAvailableMana = totalManaPool + untappedLandsCount;
 
   const opponentCount = liveBotMode ? liveBots.length : opponentTrackers.length;
   const podSeatGridClass =
@@ -646,7 +1080,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
             <span className="text-emerald-300/40" aria-hidden="true">·</span>
             <span className="font-semibold text-sky-200">
               {botsAreActing && activeBotIdx !== null && liveBots[activeBotIdx]
-                ? `${liveBots[activeBotIdx].name} Acting...`
+                ? `Seat ${activeBotIdx + 2}: ${liveBots[activeBotIdx].name}'s Turn`
                 : `Your Turn · ${activePhase} (${phaseIdx + 1}/${phases.length})`}
             </span>
           </div>
@@ -698,6 +1132,35 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               )}
               {soundEnabled ? 'Sound On' : 'Sound Off'}
             </button>
+            {onToggleFullscreen && (
+              <button
+                type="button"
+                onClick={onToggleFullscreen}
+                aria-pressed={isFullscreen}
+                title={
+                  isFullscreen
+                    ? 'Exit Fullscreen Play Area (Esc)'
+                    : 'Expand Tabletop to Fullscreen inside program'
+                }
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                  isFullscreen
+                    ? 'border-amber-300/70 bg-amber-500/20 text-amber-100 hover:bg-amber-500/30'
+                    : 'border-sky-300/60 bg-sky-950/60 text-sky-100 hover:bg-sky-900/60'
+                }`}
+              >
+                {isFullscreen ? (
+                  <>
+                    <Minimize2 className="h-3.5 w-3.5 text-amber-300 shrink-0" />
+                    Exit Fullscreen
+                  </>
+                ) : (
+                  <>
+                    <Maximize2 className="h-3.5 w-3.5 text-sky-300 shrink-0" />
+                    Fullscreen
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -881,9 +1344,28 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                   onClick={() => {
                     if (!bot.eliminated) onSelectCombatTarget(bot.id);
                   }}
+                  onDragOver={(e) => {
+                    if (
+                      !bot.eliminated &&
+                      dragSource?.zone === 'battlefield' &&
+                      dragSource.isCreature &&
+                      !dragSource.tapped
+                    ) {
+                      e.preventDefault();
+                      setActiveDropZone(`opp:${bot.id}`);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (activeDropZone === `opp:${bot.id}`) setActiveDropZone(null);
+                  }}
+                  onDrop={(e) => {
+                    if (!bot.eliminated) handleDropOnOpponentSeat(e, bot.id);
+                  }}
                   className={`rounded-xl border p-3.5 space-y-3 transition-colors cursor-pointer ${
                     bot.eliminated
                       ? 'border-red-400/45 bg-[#2A171C]/80 opacity-70'
+                      : activeDropZone === `opp:${bot.id}`
+                      ? 'border-red-400 bg-red-950/55 ring-2 ring-red-400'
                       : isActing
                       ? 'border-amber-400 bg-[#124F3D] ring-1 ring-amber-400/60'
                       : isSelectedTarget
@@ -919,6 +1401,33 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       <div className="text-[11px] text-emerald-100/75 truncate">
                         {bot.commanderName ? `${bot.commanderName} · ` : ''}
                         {bot.archetype}
+                        {' · '}
+                        <span
+                          className={`font-mono text-[10px] font-semibold ${
+                            bot.intelligence === 'mastermind'
+                              ? 'text-amber-300'
+                              : bot.intelligence === 'competitive'
+                              ? 'text-sky-200'
+                              : bot.intelligence === 'novice'
+                              ? 'text-emerald-200/80'
+                              : 'text-emerald-200'
+                          }`}
+                        >
+                          {getBotIntelligenceMeta(bot.intelligence).label} AI
+                        </span>
+                        {bot.liveMemory ? (
+                          <>
+                            {' · '}
+                            <span className="font-mono text-[10px] text-sky-200">
+                              IQ {bot.liveMemory.botIqScore}
+                            </span>
+                            {bot.liveMemory.grudgeScore >= 18 && (
+                              <span className="font-mono text-[10px] text-amber-300">
+                                {' · '}Aggro {bot.liveMemory.grudgeScore}
+                              </span>
+                            )}
+                          </>
+                        ) : null}
                       </div>
                     </div>
 
@@ -960,7 +1469,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                   <div className="flex flex-wrap items-center justify-between gap-2 border-y border-[#1A624D] py-2">
                     <CardBackFan count={bot.handCount} shuffling={isShufflingDeck} />
 
-                    <div className="flex flex-wrap items-center gap-2 font-mono text-[10px] tabular-nums text-emerald-100/90">
+                    <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px] tabular-nums text-emerald-100/90">
                       <span className="inline-flex items-center gap-1">
                         {isShufflingDeck && (
                           <Shuffle className="h-2.5 w-2.5 text-amber-300 animate-spin shrink-0" />
@@ -968,7 +1477,30 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                         Lib {bot.libraryCount}
                       </span>
                       <span className="text-emerald-300/40" aria-hidden="true">·</span>
-                      <span>GY {bot.graveyardCount}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setZoneModalTarget({ ownerId: bot.id, zone: 'graveyard' });
+                        }}
+                        title={`View ${bot.name}'s Graveyard`}
+                        className="inline-flex items-center gap-1 rounded border border-[#287D64] bg-[#0B392C] px-1.5 py-0.5 text-[10px] font-semibold text-emerald-100 hover:border-sky-400 hover:text-white cursor-pointer transition-colors"
+                      >
+                        <Coins className="h-2.5 w-2.5 text-emerald-300" />
+                        GY {Math.max(bot.graveyardCount || 0, (bot.graveyardCards || []).length)}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setZoneModalTarget({ ownerId: bot.id, zone: 'exile' });
+                        }}
+                        title={`View ${bot.name}'s Exile`}
+                        className="inline-flex items-center gap-1 rounded border border-[#287D64] bg-[#0B392C] px-1.5 py-0.5 text-[10px] font-semibold text-violet-200 hover:border-violet-400 hover:text-white cursor-pointer transition-colors"
+                      >
+                        <Ban className="h-2.5 w-2.5 text-violet-300" />
+                        Exile {Math.max(bot.exileCount || 0, (bot.exileCards || []).length)}
+                      </button>
                       <span className="text-emerald-300/40" aria-hidden="true">·</span>
                       <span>
                         {untappedLands}/{bot.landsInPlay} Lands
@@ -1031,51 +1563,69 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                         )}
                       </div>
                     ) : (
-                      bot.creatures.map((cr: LiveBotCreature) => (
-                        <TableCardTile
-                          key={cr.uid}
-                          name={cr.name}
-                          meta={cr.meta}
-                          onInspect={onInspectCard}
-                          size="sm"
-                          tapped={cr.tapped}
-                          summoningSick={cr.summoningSick}
-                          cornerTag={
-                            cr.isCommander
-                              ? 'Cmdr'
-                              : cr.hasInfect
-                              ? 'Infect'
-                              : cr.flying
-                              ? 'Fly'
-                              : undefined
-                          }
-                          cornerTone={
-                            cr.isCommander
-                              ? 'amber'
-                              : cr.hasInfect
-                              ? 'emerald'
-                              : 'sky'
-                          }
-                          ptLabel={`${cr.power}/${cr.toughness}`}
-                          subLabel={cr.toxicValue > 0 ? `Toxic ${cr.toxicValue}` : 'Creature'}
-                        />
-                      ))
+                      bot.creatures.map((cr: LiveBotCreature) => {
+                        const kwTags = formatCreatureKeywordTags(cr);
+                        return (
+                          <TableCardTile
+                            key={cr.uid}
+                            name={cr.name}
+                            meta={cr.meta}
+                            onInspect={onInspectCard}
+                            size="sm"
+                            tapped={cr.tapped}
+                            summoningSick={cr.summoningSick}
+                            cornerTag={
+                              cr.isCommander
+                                ? 'Cmdr'
+                                : cr.hasInfect
+                                ? 'Infect'
+                                : cr.flying
+                                ? 'Fly'
+                                : cr.deathtouch
+                                ? 'DT'
+                                : cr.trample
+                                ? 'Trample'
+                                : undefined
+                            }
+                            cornerTone={
+                              cr.isCommander
+                                ? 'amber'
+                                : cr.hasInfect
+                                ? 'emerald'
+                                : 'sky'
+                            }
+                            ptLabel={`${cr.power}/${cr.toughness}`}
+                            subLabel={kwTags.length > 0 ? kwTags.slice(0, 2).join(' · ') : 'Creature'}
+                          />
+                        );
+                      })
                     )}
                   </div>
 
-                  {/* Last Action Summary */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-emerald-100/85 border-t border-[#1A624D] pt-2">
-                    <span className="truncate flex-1" title={bot.lastActionSummary}>
-                      <strong className="text-white">Last:</strong> {bot.lastActionSummary}
-                    </span>
-                    {bot.lastTargetName && bot.lastTargetName !== '—' && (
-                      <span
-                        className={`font-mono text-[10px] font-bold shrink-0 ${
-                          bot.lastTargetName === 'You' ? 'text-red-300' : 'text-amber-300'
-                        }`}
-                      >
-                        → {bot.lastTargetName}
+                  {/* Last Action Summary & Real-Time Adaptation Read */}
+                  <div className="space-y-1 text-[11px] text-emerald-100/85 border-t border-[#1A624D] pt-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="truncate flex-1" title={bot.lastActionSummary}>
+                        <strong className="text-white">Last:</strong> {bot.lastActionSummary}
                       </span>
+                      {bot.lastTargetName && bot.lastTargetName !== '—' && (
+                        <span
+                          className={`font-mono text-[10px] font-bold shrink-0 ${
+                            bot.lastTargetName === 'You' ? 'text-red-300' : 'text-amber-300'
+                          }`}
+                        >
+                          → {bot.lastTargetName}
+                        </span>
+                      )}
+                    </div>
+                    {bot.liveMemory?.lastAdaptationNote && (
+                      <div
+                        className="truncate text-[10px] text-sky-200/90"
+                        title={bot.liveMemory.lastAdaptationNote}
+                      >
+                        <strong className="text-sky-300">Learned:</strong>{' '}
+                        {bot.liveMemory.lastAdaptationNote}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -1096,9 +1646,25 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 <div
                   key={opp.id}
                   onClick={() => onSelectCombatTarget(opp.id)}
+                  onDragOver={(e) => {
+                    if (
+                      dragSource?.zone === 'battlefield' &&
+                      dragSource.isCreature &&
+                      !dragSource.tapped
+                    ) {
+                      e.preventDefault();
+                      setActiveDropZone(`opp:${opp.id}`);
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (activeDropZone === `opp:${opp.id}`) setActiveDropZone(null);
+                  }}
+                  onDrop={(e) => handleDropOnOpponentSeat(e, opp.id)}
                   className={`rounded-xl border p-3.5 space-y-2.5 transition-colors cursor-pointer ${
                     isKO
                       ? 'border-red-400/45 bg-[#2A171C]/80 opacity-75'
+                      : activeDropZone === `opp:${opp.id}`
+                      ? 'border-red-400 bg-red-950/55 ring-2 ring-red-400'
                       : isSelected
                       ? 'border-sky-400 bg-[#114B3A] ring-1 ring-sky-400/50'
                       : 'border-[#1E6E56] bg-[#0B392C]/85 hover:border-emerald-400/60'
@@ -1193,6 +1759,28 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                         </button>
                       </div>
                     )}
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setZoneModalTarget({ ownerId: opp.id, zone: 'graveyard' })
+                        }
+                        className="inline-flex items-center gap-1 rounded border border-[#287D64] bg-[#0F4C3A] px-1.5 py-0.5 text-[10px] font-semibold text-emerald-100 hover:border-sky-400 cursor-pointer"
+                      >
+                        <Coins className="h-2.5 w-2.5 text-emerald-300" />
+                        GY 0
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setZoneModalTarget({ ownerId: opp.id, zone: 'exile' })
+                        }
+                        className="inline-flex items-center gap-1 rounded border border-[#287D64] bg-[#0F4C3A] px-1.5 py-0.5 text-[10px] font-semibold text-violet-200 hover:border-violet-400 cursor-pointer"
+                      >
+                        <Ban className="h-2.5 w-2.5 text-violet-300" />
+                        Exile 0
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -1200,19 +1788,102 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
           </div>
         )}
 
-        {/* 3. Center Battlefront Bar: Incoming Blockers OR Combat/Mana/Phase Command Strip */}
-        {pendingIncomingAttack ? (
+        {/* 3. Center Battlefront Bar: Interrupt/Response Alert + Interactive Spell Stack OR Incoming Blockers OR Sequential Bot Turn Banner OR Combat/Mana/Phase Command Strip */}
+        {hasActiveStack && onCastStackResponse && onResolveStackTop && onResolveStackAll ? (
+          <div className="space-y-2.5">
+            {onToggleHoldInterrupt && onActivateAbility && (
+              <InterruptResponseBanner
+                theme="tabletop"
+                stackItems={stackItems}
+                handCards={hand}
+                playerCreatures={battlefield
+                  .filter((p) => p.isCreature)
+                  .map((p) => {
+                    const eff = getEffectivePermanentStats(p);
+                    return {
+                      uid: p.uid,
+                      name: p.name,
+                      power: eff.power,
+                      toughness: eff.toughness,
+                      isCommander: p.isCommander,
+                      protectedUntilEot: p.protectedUntilEot,
+                    };
+                  })}
+                liveBots={liveBots}
+                activatedAbilities={activatedAbilities}
+                totalAvailableMana={effectiveAvailableMana}
+                untappedLandsCount={untappedLandsCount}
+                hasCommanderInPlay={hasCommanderOnBoard}
+                countdownMs={interruptCountdownMs}
+                totalWindowMs={interruptTotalMs}
+                isTimerHeld={interruptTimerHeld}
+                windowMode={interruptWindowMode}
+                onToggleHoldTimer={onToggleHoldInterrupt}
+                onCastResponse={onCastStackResponse}
+                onActivateAbility={onActivateAbility}
+                onResolveTop={onResolveStackTop}
+                onResolveAll={onResolveStackAll}
+                onTapAllUntappedLands={onTapAllUntappedLands}
+                onInspectCard={(name) => onInspectCard(name)}
+              />
+            )}
+            <TabletopStackPanel
+              theme="tabletop"
+              stackItems={stackItems}
+              handCards={hand}
+              playerCreatures={battlefield
+                .filter((p) => p.isCreature)
+                .map((p) => {
+                  const eff = getEffectivePermanentStats(p);
+                  return {
+                    uid: p.uid,
+                    name: p.name,
+                    power: eff.power,
+                    toughness: eff.toughness,
+                    isCommander: p.isCommander,
+                    protectedUntilEot: p.protectedUntilEot,
+                  };
+                })}
+              liveBots={liveBots}
+              activatedAbilities={activatedAbilities}
+              totalAvailableMana={effectiveAvailableMana}
+              totalManaPool={totalManaPool}
+              untappedLandsCount={untappedLandsCount}
+              hasCommanderInPlay={hasCommanderOnBoard}
+              onCastResponse={onCastStackResponse}
+              onActivateAbility={onActivateAbility}
+              onResolveTop={onResolveStackTop}
+              onResolveAll={onResolveStackAll}
+              onTapAllUntappedLands={onTapAllUntappedLands}
+              onInspectCard={(name) => onInspectCard(name)}
+            />
+          </div>
+        ) : pendingIncomingAttack ? (
           <div className="rounded-xl border-2 border-red-400 bg-[#2C1216]/95 p-4 space-y-3 shadow-lg">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-xs font-bold text-red-100">
-                <Shield className="h-4 w-4 text-red-300 shrink-0" />
-                <span>
-                  Incoming Attack from {pendingIncomingAttack.botName} — Assign Visual Blockers
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-red-100">
+                  <Shield className="h-4 w-4 text-red-300 shrink-0" />
+                  <span>
+                    Incoming Attack from {pendingIncomingAttack.botName} — Assign Blockers or Respond at Instant Speed
+                  </span>
+                </div>
+                {pendingIncomingAttack.adaptationReason && (
+                  <div className="text-[11px] text-amber-200/90 pl-6">
+                    Bot Read: {pendingIncomingAttack.adaptationReason}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {combatFogActive && (
+                  <span className="rounded border border-emerald-400/70 bg-emerald-600/30 px-2 py-0.5 text-[11px] font-bold text-emerald-100">
+                    Fog Active · 0 Combat Damage
+                  </span>
+                )}
+                <span className="font-mono text-[11px] text-red-200 tabular-nums">
+                  {untappedBlockers.length} untapped creature{untappedBlockers.length === 1 ? '' : 's'} ready
                 </span>
               </div>
-              <span className="font-mono text-[11px] text-red-200 tabular-nums">
-                {untappedBlockers.length} untapped creature{untappedBlockers.length === 1 ? '' : 's'} ready
-              </span>
             </div>
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1220,6 +1891,8 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 const assignedIds = Object.entries(blockerAssignments)
                   .filter(([, targetId]) => targetId === atk.uid)
                   .map(([blkId]) => blkId);
+                const atkKwTags = formatCreatureKeywordTags(atk);
+                const menaceIncomplete = atk.menace && assignedIds.length === 1;
 
                 return (
                   <div
@@ -1232,24 +1905,31 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       onInspect={onInspectCard}
                       size="sm"
                       attacking
-                      cornerTag={atk.isCommander ? 'Cmdr ATK' : 'ATK'}
+                      cornerTag={atk.isCommander ? 'Cmdr ATK' : atk.flying ? 'Fly ATK' : 'ATK'}
                       cornerTone="red"
                       ptLabel={`${atk.power}/${atk.toughness}`}
-                      subLabel={
-                        atk.hasInfect
-                          ? 'Infect'
-                          : atk.toxicValue > 0
-                          ? `Toxic ${atk.toxicValue}`
-                          : 'Attacker'
-                      }
+                      subLabel={atkKwTags.length > 0 ? atkKwTags.slice(0, 2).join(' · ') : 'Attacker'}
                     />
 
                     <div className="flex-1 min-w-0 space-y-2">
                       <div className="text-[11px] font-semibold text-red-100">
-                        {assignedIds.length > 0
-                          ? `Blocked by ${assignedIds.length} creature${assignedIds.length === 1 ? '' : 's'}`
-                          : `Unblocked (${atk.power} ${atk.hasInfect ? 'poison' : 'combat dmg'})`}
+                        {combatFogActive
+                          ? 'Combat damage prevented this turn (Fog active)'
+                          : menaceIncomplete
+                          ? 'Menace: assign 1 more blocker or attack goes unblocked!'
+                          : assignedIds.length > 0
+                          ? `Blocked by ${assignedIds.length} creature${assignedIds.length === 1 ? '' : 's'}${
+                              atk.trample ? ' (Trample excess rolls over)' : ''
+                            }`
+                          : `Unblocked (${atk.power} ${atk.hasInfect ? 'poison' : 'combat dmg'}${
+                              atk.lifelink ? ' · Lifelink' : ''
+                            })`}
                       </div>
+                      {atkKwTags.length > 0 && (
+                        <div className="font-mono text-[10px] text-amber-200/90">
+                          {atkKwTags.join(' · ')}
+                        </div>
+                      )}
 
                       {untappedBlockers.length === 0 ? (
                         <div className="text-[11px] text-red-200/75">
@@ -1259,20 +1939,32 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                         <div className="flex flex-wrap gap-1.5">
                           {untappedBlockers.map((blk) => {
                             const isBlockingThis = blockerAssignments[blk.uid] === atk.uid;
-                            const blkTough = Number(blk.meta?.toughness) || Math.max(2, blk.power);
+                            const blkStats = getEffectivePermanentStats(blk);
+                            const blkKw = extractCreatureKeywords(blk.meta);
+                            const canLegallyBlock = !atk.flying || blkKw.flying || blkKw.reach;
                             return (
                               <button
                                 key={blk.uid}
                                 type="button"
+                                disabled={!canLegallyBlock}
+                                title={
+                                  canLegallyBlock
+                                    ? `Toggle ${blk.name} as blocker`
+                                    : `${blk.name} cannot block ${atk.name} (Flying requires Flying or Reach)`
+                                }
                                 onClick={() => onToggleBlocker(blk.uid, atk.uid)}
-                                className={`rounded border px-2 py-1 text-[11px] font-semibold cursor-pointer transition-colors ${
-                                  isBlockingThis
-                                    ? 'border-sky-400 bg-sky-700 text-white'
-                                    : 'border-zinc-500/60 bg-zinc-900 text-zinc-200 hover:border-sky-400'
+                                className={`rounded border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                                  !canLegallyBlock
+                                    ? 'border-zinc-700 bg-zinc-950/60 text-zinc-500 cursor-not-allowed opacity-55'
+                                    : isBlockingThis
+                                    ? 'border-sky-400 bg-sky-700 text-white cursor-pointer'
+                                    : 'border-zinc-500/60 bg-zinc-900 text-zinc-200 hover:border-sky-400 cursor-pointer'
                                 }`}
                               >
                                 {isBlockingThis ? 'Blocking: ' : 'Block w/ '}
-                                {blk.name} ({blk.power}/{blkTough})
+                                {blk.name} ({blkStats.power}/{blkStats.toughness})
+                                {blk.protectedUntilEot ? ' [Indest.]' : ''}
+                                {!canLegallyBlock ? ' [No Fly/Reach]' : ''}
                               </button>
                             );
                           })}
@@ -1284,13 +1976,145 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               })}
             </div>
 
+            {/* Instant-Speed Combat Responses Strip (Removal on Attackers, Flash Blockers, Fog, Pump/Protection) */}
+            {onCastCombatInstant && (() => {
+              const combatInstants = hand
+                .map((card) => {
+                  const profile = classifyCardStackProfile(card.name, card.typeLine, card.meta);
+                  if (!profile.isInstantSpeed || profile.mechanic === 'counterspell') return null;
+                  const effectiveCost = getEffectiveInstantCost(
+                    card.name,
+                    card.cmc,
+                    hasCommanderOnBoard,
+                    profile
+                  );
+                  return {
+                    card,
+                    profile,
+                    effectiveCost,
+                    canAfford: effectiveCost <= effectiveAvailableMana,
+                  };
+                })
+                .filter((x): x is NonNullable<typeof x> => Boolean(x));
+
+              if (combatInstants.length === 0) return null;
+
+              const defaultAtkUid =
+                pendingIncomingAttack.attackers.some((a) => a.uid === combatInstantTargetAtkUid)
+                  ? combatInstantTargetAtkUid
+                  : pendingIncomingAttack.attackers[0]?.uid || '';
+              const playerCreaturesList = battlefield.filter((p) => p.isCreature);
+              const defaultBlkUid =
+                playerCreaturesList.some((c) => c.uid === combatTrickTargetBlkUid)
+                  ? combatTrickTargetBlkUid
+                  : playerCreaturesList[0]?.uid || '';
+
+              const hasTargetedRemoval = combatInstants.some(
+                (i) =>
+                  i.profile.mechanic === 'instant-removal' ||
+                  i.profile.mechanic === 'burn-or-drain'
+              );
+              const hasTargetedBuff =
+                playerCreaturesList.length > 0 &&
+                combatInstants.some(
+                  (i) =>
+                    i.profile.mechanic === 'combat-trick' ||
+                    (i.profile.mechanic === 'protection' && !i.profile.protectsWholeBoard)
+                );
+
+              return (
+                <div className="rounded-lg border border-sky-400/40 bg-[#140B16]/90 p-2.5 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <div className="flex items-center gap-1.5 font-bold text-sky-200">
+                      <Sparkles className="h-3.5 w-3.5 text-amber-300 shrink-0" />
+                      <span>Instant-Speed Combat Responses</span>
+                      <span className="font-mono text-[10px] text-sky-300/90 tabular-nums">
+                        ({effectiveAvailableMana} mana open)
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {hasTargetedRemoval && pendingIncomingAttack.attackers.length > 1 && (
+                        <label className="inline-flex items-center gap-1 text-[10px] text-red-200">
+                          <span>Target Attacker:</span>
+                          <select
+                            value={defaultAtkUid}
+                            onChange={(e) => setCombatInstantTargetAtkUid(e.target.value)}
+                            className="rounded border border-red-400/50 bg-[#2C1216] px-1.5 py-0.5 text-[10px] text-white"
+                          >
+                            {pendingIncomingAttack.attackers.map((a) => (
+                              <option key={a.uid} value={a.uid}>
+                                {a.name} ({a.power}/{a.toughness})
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      )}
+                      {hasTargetedBuff && (
+                        <label className="inline-flex items-center gap-1 text-[10px] text-emerald-200">
+                          <span>Buff/Protect:</span>
+                          <select
+                            value={defaultBlkUid}
+                            onChange={(e) => setCombatTrickTargetBlkUid(e.target.value)}
+                            className="rounded border border-emerald-400/50 bg-[#0B392C] px-1.5 py-0.5 text-[10px] text-white"
+                          >
+                            {playerCreaturesList.map((c) => {
+                              const eff = getEffectivePermanentStats(c);
+                              return (
+                                <option key={c.uid} value={c.uid}>
+                                  {c.name} ({eff.power}/{eff.toughness})
+                                </option>
+                              );
+                            })}
+                          </select>
+                        </label>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-1.5">
+                    {combatInstants.map(({ card, profile, effectiveCost, canAfford }) => (
+                      <button
+                        key={card.uid}
+                        type="button"
+                        disabled={!canAfford}
+                        title={
+                          canAfford
+                            ? profile.summaryHint
+                            : `Needs ${effectiveCost} mana (${effectiveAvailableMana} open)`
+                        }
+                        onClick={() =>
+                          onCastCombatInstant(
+                            card.uid,
+                            defaultAtkUid || undefined,
+                            defaultBlkUid || undefined
+                          )
+                        }
+                        className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                          !canAfford
+                            ? 'border-zinc-700 bg-zinc-900/60 text-zinc-500 cursor-not-allowed'
+                            : 'border-sky-400/60 bg-sky-700/35 text-sky-100 hover:bg-sky-600/50 cursor-pointer'
+                        }`}
+                      >
+                        <Flame className="h-3 w-3 text-amber-300 shrink-0" />
+                        <span>{card.name}</span>
+                        <span className="font-mono text-[10px] opacity-85">
+                          ({effectiveCost === 0 && profile.freeWithCommander ? 'Free' : effectiveCost})
+                        </span>
+                        <span className="text-[10px] opacity-80">· {profile.mechanicLabel}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => onResolveIncomingAttack(true)}
                 className="rounded-lg border border-red-300/60 bg-red-950/60 px-3 py-1.5 text-xs font-semibold text-red-100 hover:bg-red-900 cursor-pointer whitespace-nowrap shrink-0"
               >
-                Take All Unblocked
+                {combatFogActive ? 'Continue (0 Damage)' : 'Take All Unblocked'}
               </button>
               <button
                 type="button"
@@ -1301,6 +2125,64 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 Resolve Combat
               </button>
             </div>
+          </div>
+        ) : activeBotTurnBanner ? (
+          <div className="rounded-xl border-2 border-amber-400/80 bg-[#0B392C]/95 p-3.5 space-y-2.5 shadow-md">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                {!botStepAwaitingContinue && (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-300 shrink-0" />
+                )}
+                <span className="font-mono font-bold text-amber-300">
+                  Seat {activeBotTurnBanner.seatNumber}
+                </span>
+                <span className="font-bold text-white">
+                  {activeBotTurnBanner.botName}&rsquo;s Turn
+                </span>
+                <span className="text-emerald-300/45" aria-hidden="true">·</span>
+                <span className="font-mono text-[11px] tabular-nums text-emerald-200">
+                  Bot {activeBotTurnBanner.queuePosition} of {activeBotTurnBanner.queueTotal}
+                </span>
+              </div>
+
+              {onContinueNextBotTurn && (
+                <button
+                  type="button"
+                  onClick={onContinueNextBotTurn}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-bold text-zinc-950 hover:bg-amber-400 cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  {activeBotTurnBanner.isLastBotInRound
+                    ? `Start Your Turn (T${turn + 1})`
+                    : 'Next Bot Turn'}
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {activeBotTurnBanner.phaseSteps.length > 0 && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 text-[11px]">
+                {activeBotTurnBanner.phaseSteps.map((step, i) => (
+                  <div
+                    key={`${step.phase}-${i}`}
+                    className="rounded-lg border border-[#1E6E56] bg-[#0F4C3A]/85 px-2.5 py-1.5"
+                  >
+                    <div className="font-mono text-[10px] font-bold uppercase text-amber-300">
+                      {step.phase}
+                    </div>
+                    <div className="mt-0.5 text-emerald-50/95 leading-snug">
+                      {step.summary}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {activeBotTurnBanner.adaptationNote && (
+              <div className="text-[11px] text-sky-200">
+                <strong className="text-sky-300">Live Learning:</strong>{' '}
+                {activeBotTurnBanner.adaptationNote}
+              </div>
+            )}
           </div>
         ) : (
           <div className="rounded-xl border border-[#1E6E56] bg-[#0B392C]/95 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3">
@@ -1393,7 +2275,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     <button
                       type="button"
                       onClick={onResolveCombat}
-                      disabled={attackersCount === 0}
+                      disabled={attackersCount === 0 || hasActiveStack}
                       className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-red-500 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                     >
                       <Swords className="h-3.5 w-3.5" />
@@ -1405,7 +2287,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               <button
                 type="button"
                 onClick={onPrevPhase}
-                disabled={phaseIdx === 0 || botsAreActing || isSimulationFinished}
+                disabled={phaseIdx === 0 || botsAreActing || hasActiveStack || isSimulationFinished}
                 className="inline-flex items-center gap-1 rounded-md border border-[#2A8469] bg-[#0F4C3A] px-2 py-1 text-[11px] font-medium text-emerald-100 hover:bg-[#176B53] disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
               >
                 <ChevronLeft className="h-3 w-3" />
@@ -1414,7 +2296,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               <button
                 type="button"
                 onClick={onNextPhase}
-                disabled={botsAreActing || isSimulationFinished}
+                disabled={botsAreActing || hasActiveStack || isSimulationFinished}
                 className="inline-flex items-center gap-1 rounded-md bg-sky-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-sky-500 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
               >
                 {phaseIdx === phases.length - 1
@@ -1428,7 +2310,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 <button
                   type="button"
                   onClick={onPassTurn}
-                  disabled={botsAreActing || isSimulationFinished}
+                  disabled={botsAreActing || hasActiveStack || isSimulationFinished}
                   className="rounded-md border border-sky-400/50 bg-sky-950/60 px-2.5 py-1 text-[11px] font-semibold text-sky-200 hover:bg-sky-900 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   Pass → Bots
@@ -1439,7 +2321,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
         )}
 
         {/* 4. Bottom Player Playmat (Your Seat + Battlefield + Command/Library + Hand) */}
-        <div className="rounded-xl border border-emerald-400/35 bg-[#125541]/90 p-3.5 sm:p-4 space-y-4">
+        <div className="rounded-xl border border-emerald-400/35 bg-[#125541]/90 p-3.5 sm:p-4 space-y-3.5">
           {/* Your Seat Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#20765C] pb-3">
             <div className="flex flex-wrap items-center gap-2.5">
@@ -1453,13 +2335,56 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                   <span className="font-mono text-[11px] text-emerald-200/80">
                     ({mode} · Lands {landsPlayedThisTurn}/1)
                   </span>
+                  {isMonarch && (
+                    <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-amber-300">
+                      <Crown className="h-3 w-3" />
+                      Monarch
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Life & Poison Controls */}
-            <div className="flex flex-wrap items-center gap-3 font-mono text-xs tabular-nums">
-              <div className="flex items-center gap-1">
+            {/* Life, Poison, Tokens & Counters Controls */}
+            <div className="flex flex-wrap items-center gap-2.5 font-mono text-xs tabular-nums">
+              {onCreateToken && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTokenCreator((v) => !v);
+                    setShowPlayerCounters(false);
+                  }}
+                  disabled={botsAreActing || Boolean(pendingIncomingAttack) || isSimulationFinished}
+                  className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 font-sans text-[11px] font-semibold cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-40 transition-colors ${
+                    showTokenCreator
+                      ? 'border-amber-300 bg-amber-500 text-zinc-950'
+                      : 'border-amber-300/50 bg-amber-950/50 text-amber-200 hover:bg-amber-900/60'
+                  }`}
+                >
+                  <Sparkles className="h-3 w-3 shrink-0" />
+                  + Token
+                </button>
+              )}
+
+              {onAdjustPlayerCounter && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPlayerCounters((v) => !v);
+                    setShowTokenCreator(false);
+                  }}
+                  className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 font-sans text-[11px] font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                    showPlayerCounters
+                      ? 'border-sky-300 bg-sky-600 text-white'
+                      : 'border-sky-300/45 bg-sky-950/50 text-sky-200 hover:bg-sky-900/60'
+                  }`}
+                >
+                  <Plus className="h-3 w-3 shrink-0" />
+                  Counters
+                </button>
+              )}
+
+              <div className="flex items-center gap-1 border-l border-[#20765C] pl-2.5">
                 <Flame className="h-3.5 w-3.5 text-red-300 mr-0.5 shrink-0" />
                 {[-5, -1].map((d) => (
                   <button
@@ -1494,7 +2419,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 ))}
               </div>
 
-              <div className="flex items-center gap-1.5 border-l border-[#20765C] pl-3">
+              <div className="flex items-center gap-1.5 border-l border-[#20765C] pl-2.5">
                 <Skull className="h-3.5 w-3.5 text-emerald-300 shrink-0" />
                 <span>PSN {yourPoison}/10</span>
                 <button
@@ -1508,136 +2433,352 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
             </div>
           </div>
 
-          {/* Board Grid: Left Deck/Cmd/GY Column + Right Permanents Lanes */}
-          <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[210px_1fr]">
-            {/* Left Side Piles: Library Deck Stack, Command Zone, Graveyard */}
-            <div className="space-y-3">
-              {/* Interactive Library & Graveyard Row */}
-              <div className="grid grid-cols-2 gap-2">
+          {/* Active Player Counters Strip (only shown when player has active Energy/XP/Storm/Custom counters) */}
+          {activePlayerCounterEntries.length > 0 && onAdjustPlayerCounter && (
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono tabular-nums">
+              {activePlayerCounterEntries.map(([label, val]) => (
                 <div
-                  className={`rounded-lg border p-2.5 flex flex-col justify-between gap-2 transition-colors ${
-                    isShufflingDeck
-                      ? 'border-amber-300 ring-1 ring-amber-300/60 bg-gradient-to-br from-sky-950 via-zinc-900 to-amber-950'
-                      : 'border-amber-300/45 bg-gradient-to-br from-sky-950 via-zinc-900 to-amber-950'
-                  }`}
+                  key={label}
+                  className="inline-flex items-center gap-1.5 rounded border border-sky-300/45 bg-[#0B392C]/90 px-2 py-0.5 text-sky-100"
                 >
+                  <span className="font-semibold text-sky-200">{label}:</span>
                   <button
                     type="button"
-                    onClick={() => onDrawCard(1, true)}
+                    onClick={() => onAdjustPlayerCounter(label, -1)}
+                    className="rounded bg-black/25 px-1 text-emerald-200 hover:text-white cursor-pointer"
+                  >
+                    -
+                  </button>
+                  <span className="font-bold text-white">{val}</span>
+                  <button
+                    type="button"
+                    onClick={() => onAdjustPlayerCounter(label, 1)}
+                    className="rounded bg-black/25 px-1 text-emerald-200 hover:text-white cursor-pointer"
+                  >
+                    +
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Inline Token Creator / Player Counters / Card Counter Editor Panels */}
+          {showTokenCreator && onCreateToken && (
+            <TokenCreatorPanel
+              onCreateToken={(bp) => {
+                onCreateToken(bp);
+                setShowTokenCreator(false);
+              }}
+              onClose={() => setShowTokenCreator(false)}
+            />
+          )}
+
+          {showPlayerCounters && onAdjustPlayerCounter && onToggleMonarch && (
+            <PlayerCountersPanel
+              playerCounters={playerCounters}
+              isMonarch={isMonarch}
+              onAdjustPlayerCounter={onAdjustPlayerCounter}
+              onToggleMonarch={onToggleMonarch}
+              onClose={() => setShowPlayerCounters(false)}
+            />
+          )}
+
+          {editingCounterPerm && onAdjustPermanentCounter && (
+            <PermanentCounterEditor
+              permanentUid={editingCounterPerm.uid}
+              permanentName={editingCounterPerm.name}
+              isCreature={editingCounterPerm.isCreature}
+              plusOneCounters={editingCounterPerm.plusOneCounters || 0}
+              minusOneCounters={editingCounterPerm.minusOneCounters || 0}
+              otherCounters={editingCounterPerm.otherCounters || {}}
+              onAdjustCounter={onAdjustPermanentCounter}
+              onClose={() => setEditingCounterUid(null)}
+            />
+          )}
+
+          {/* Live Drag Guidance Bar (only visible while dragging a card) */}
+          {dragSource && (
+            <div className="rounded-lg border border-amber-300/70 bg-amber-950/60 px-3 py-1.5 text-[11px] font-medium text-amber-100 flex flex-wrap items-center justify-between gap-2">
+              <span>
+                Dragging <strong className="text-white">{dragSource.name}</strong> —{' '}
+                {dragSource.zone === 'hand'
+                  ? 'drop onto Battlefield to play/cast, Graveyard to discard, or Exile.'
+                  : dragSource.zone === 'command'
+                  ? 'drop onto Battlefield to cast your Commander.'
+                  : dragSource.zone === 'graveyard'
+                  ? 'drop onto Battlefield to reanimate, Hand to return, or Exile.'
+                  : dragSource.zone === 'exile'
+                  ? 'drop onto Battlefield to cast/return, Hand to return, or Graveyard.'
+                  : dragSource.isCreature && !dragSource.tapped
+                  ? 'drop onto another card to reorder, an Opponent Seat to attack, Hand to bounce, Graveyard, or Exile.'
+                  : 'drop onto another card to reorder, Hand to bounce, Command Zone, Graveyard, or Exile.'}
+              </span>
+            </div>
+          )}
+
+          {/* Board Grid: Left Deck/GY/Exile/Cmd Column + Right Permanents Lanes */}
+          <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[224px_1fr]">
+            {/* Left Side Piles: Library Deck Stack, Graveyard, Exile, Command Zone */}
+            <div className="space-y-3">
+              {/* Interactive Library Card Stack */}
+              <div
+                className={`rounded-lg border p-2.5 flex items-center justify-between gap-2 transition-colors ${
+                  isShufflingDeck
+                    ? 'border-amber-300 ring-1 ring-amber-300/60 bg-gradient-to-br from-sky-950 via-zinc-900 to-amber-950'
+                    : 'border-amber-300/45 bg-gradient-to-br from-sky-950 via-zinc-900 to-amber-950'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => onDrawCard(1, true)}
+                  disabled={
+                    library.length === 0 ||
+                    botsAreActing ||
+                    Boolean(pendingIncomingAttack) ||
+                    isSimulationFinished ||
+                    isShufflingDeck
+                  }
+                  title="Click deck stack to draw 1 card (+1 Turn)"
+                  className="min-w-0 flex-1 text-left disabled:opacity-50 cursor-pointer transition-transform hover:-translate-y-0.5"
+                >
+                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-200">
+                    <BookOpen className="h-3 w-3 shrink-0" />
+                    <span>{isShufflingDeck ? 'Shuffling' : 'Library'}</span>
+                  </div>
+
+                  {isShufflingDeck ? (
+                    <div className="mt-1 flex items-center py-0.5">
+                      <DeckShuffleAnimation size="sm" theme="felt" />
+                    </div>
+                  ) : (
+                    <div className="mt-0.5 flex items-baseline gap-2">
+                      <span className="font-mono text-lg font-bold tabular-nums text-white">
+                        {library.length}
+                      </span>
+                      <span className="text-[9px] text-amber-200/80">Click to Draw</span>
+                    </div>
+                  )}
+                </button>
+
+                {onShuffleLibrary && (
+                  <button
+                    type="button"
+                    onClick={onShuffleLibrary}
                     disabled={
-                      library.length === 0 ||
+                      library.length < 2 ||
                       botsAreActing ||
                       Boolean(pendingIncomingAttack) ||
-                      isSimulationFinished ||
-                      isShufflingDeck
+                      isSimulationFinished
                     }
-                    title="Click deck stack to draw 1 card (+1 Turn)"
-                    className="w-full text-left disabled:opacity-50 cursor-pointer transition-transform hover:-translate-y-0.5"
+                    title="Shuffle your remaining library"
+                    className="inline-flex items-center justify-center gap-1 rounded border border-amber-300/40 bg-zinc-950/65 px-2 py-1.5 text-[10px] font-semibold text-amber-200 hover:bg-zinc-900 hover:border-amber-300 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <div className="flex items-center justify-between text-[10px] font-bold text-amber-200">
-                      <span>{isShufflingDeck ? 'Shuffling' : 'Library'}</span>
-                      <BookOpen className="h-3 w-3" />
-                    </div>
-
-                    {isShufflingDeck ? (
-                      <div className="mt-1.5 flex items-center justify-center py-0.5">
-                        <DeckShuffleAnimation size="sm" theme="felt" />
-                      </div>
-                    ) : (
-                      <>
-                        <div className="mt-1 font-mono text-lg font-bold tabular-nums text-white">
-                          {library.length}
-                        </div>
-                        <div className="text-[9px] text-amber-200/80">Click to Draw</div>
-                      </>
-                    )}
+                    <Shuffle className={`h-2.5 w-2.5 ${isShufflingDeck ? 'animate-spin' : ''}`} />
+                    {isShufflingDeck ? '...' : 'Shuffle'}
                   </button>
+                )}
+              </div>
 
-                  {onShuffleLibrary && (
-                    <button
-                      type="button"
-                      onClick={onShuffleLibrary}
-                      disabled={
-                        library.length < 2 ||
-                        botsAreActing ||
-                        Boolean(pendingIncomingAttack) ||
-                        isSimulationFinished
-                      }
-                      title="Shuffle your remaining library"
-                      className="inline-flex w-full items-center justify-center gap-1 rounded border border-amber-300/40 bg-zinc-950/65 px-2 py-1 text-[10px] font-semibold text-amber-200 hover:bg-zinc-900 hover:border-amber-300 disabled:opacity-40 cursor-pointer whitespace-nowrap"
-                    >
-                      <Shuffle className={`h-2.5 w-2.5 ${isShufflingDeck ? 'animate-spin' : ''}`} />
-                      {isShufflingDeck ? 'Shuffling...' : 'Shuffle'}
-                    </button>
-                  )}
-                </div>
-
-                <div
+              {/* Interactive Graveyard & Exile Zones (click to open zone viewer modal, drag & drop supported) */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  draggable={Boolean(graveyard[0]) && !botsAreActing && !pendingIncomingAttack}
+                  onDragStart={(e) => {
+                    if (graveyard[0]) {
+                      handleHidePreview();
+                      beginDrag(e, {
+                        zone: 'graveyard',
+                        uid: graveyard[0].uid,
+                        name: graveyard[0].name,
+                      });
+                    }
+                  }}
+                  onDragEnd={clearDragState}
+                  onDragOver={(e) => {
+                    if (
+                      dragSource &&
+                      (dragSource.zone === 'hand' ||
+                        dragSource.zone === 'battlefield' ||
+                        dragSource.zone === 'exile')
+                    ) {
+                      e.preventDefault();
+                      setActiveDropZone('graveyard');
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (activeDropZone === 'graveyard') setActiveDropZone(null);
+                  }}
+                  onDrop={handleDropOnGraveyard}
                   onMouseEnter={(e) => {
                     if (!hoverZoomEnabled || !graveyard[0]) return;
                     handleShowPreview({
                       name: graveyard[0].name,
                       meta: graveyard[0].meta,
                       rect: buildHoverRect(e.currentTarget),
-                      statusTags: ['Top of Graveyard'],
+                      statusTags: ['Graveyard Top · Click pile to view all'],
                     });
                   }}
                   onMouseLeave={handleHidePreview}
                   onClick={() => {
-                    if (graveyard[0]) {
-                      handleHidePreview();
-                      onInspectCard(graveyard[0].name, graveyard[0].meta);
-                    }
+                    handleHidePreview();
+                    setZoneModalTarget({ ownerId: 'player', zone: 'graveyard' });
                   }}
-                  className={`rounded-lg border border-[#247059] bg-[#0B392C]/90 p-2.5 flex flex-col justify-between ${
-                    graveyard[0] ? 'cursor-pointer hover:border-sky-400/70' : ''
+                  title="Click to inspect & manage your Graveyard (or drop cards here)"
+                  className={`rounded-lg border p-2.5 text-left flex flex-col justify-between transition-colors cursor-pointer ${
+                    activeDropZone === 'graveyard'
+                      ? 'border-red-400 bg-red-950/60 ring-2 ring-red-400'
+                      : graveyard[0]
+                      ? 'border-[#247059] bg-[#0B392C]/90 hover:border-emerald-400'
+                      : 'border-[#247059] bg-[#0B392C]/90 hover:border-emerald-400/70'
                   }`}
                 >
-                  <div className="flex items-center justify-between text-[10px] font-bold text-emerald-200">
+                  <div className="flex items-center justify-between text-[10px] font-bold text-emerald-200 w-full">
                     <span>Graveyard</span>
-                    <Coins className="h-3 w-3 text-zinc-300" />
+                    <Coins className="h-3 w-3 text-emerald-300 shrink-0" />
                   </div>
                   <div className="mt-1 font-mono text-lg font-bold tabular-nums text-white">
                     {graveyard.length}
                   </div>
-                  <div className="truncate text-[9px] text-emerald-200/80">
-                    {graveyard[0] ? graveyard[0].name : 'Empty'}
+                  <div className="truncate text-[9px] text-emerald-200/80 w-full">
+                    {activeDropZone === 'graveyard'
+                      ? 'Drop to GY'
+                      : graveyard[0]
+                      ? graveyard[0].name
+                      : 'Click to open'}
                   </div>
-                </div>
+                </button>
+
+                <button
+                  type="button"
+                  draggable={Boolean(exile[0]) && !botsAreActing && !pendingIncomingAttack}
+                  onDragStart={(e) => {
+                    if (exile[0]) {
+                      handleHidePreview();
+                      beginDrag(e, {
+                        zone: 'exile',
+                        uid: exile[0].uid,
+                        name: exile[0].name,
+                      });
+                    }
+                  }}
+                  onDragEnd={clearDragState}
+                  onDragOver={(e) => {
+                    if (
+                      dragSource &&
+                      (dragSource.zone === 'hand' ||
+                        dragSource.zone === 'battlefield' ||
+                        dragSource.zone === 'graveyard')
+                    ) {
+                      e.preventDefault();
+                      setActiveDropZone('exile');
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (activeDropZone === 'exile') setActiveDropZone(null);
+                  }}
+                  onDrop={handleDropOnExile}
+                  onMouseEnter={(e) => {
+                    if (!hoverZoomEnabled || !exile[0]) return;
+                    handleShowPreview({
+                      name: exile[0].name,
+                      meta: exile[0].meta,
+                      rect: buildHoverRect(e.currentTarget),
+                      statusTags: ['Exile Top · Click pile to view all'],
+                    });
+                  }}
+                  onMouseLeave={handleHidePreview}
+                  onClick={() => {
+                    handleHidePreview();
+                    setZoneModalTarget({ ownerId: 'player', zone: 'exile' });
+                  }}
+                  title="Click to inspect & manage your Exile pile (or drop cards here)"
+                  className={`rounded-lg border p-2.5 text-left flex flex-col justify-between transition-colors cursor-pointer ${
+                    activeDropZone === 'exile'
+                      ? 'border-violet-400 bg-violet-950/70 ring-2 ring-violet-400'
+                      : exile[0]
+                      ? 'border-violet-400/50 bg-[#1B1733]/80 hover:border-violet-300'
+                      : 'border-[#247059] bg-[#0B392C]/90 hover:border-violet-400/70'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-[10px] font-bold text-violet-200 w-full">
+                    <span>Exile</span>
+                    <Ban className="h-3 w-3 text-violet-300 shrink-0" />
+                  </div>
+                  <div className="mt-1 font-mono text-lg font-bold tabular-nums text-white">
+                    {exile.length}
+                  </div>
+                  <div className="truncate text-[9px] text-violet-200/80 w-full">
+                    {activeDropZone === 'exile'
+                      ? 'Drop to Exile'
+                      : exile[0]
+                      ? exile[0].name
+                      : 'Click to open'}
+                  </div>
+                </button>
               </div>
 
-              {/* Command Zone Cards */}
-              {allowsCommandZone && commandZone.length > 0 && (
-                <div className="rounded-lg border border-[#247059] bg-[#0B392C]/85 p-2.5 space-y-2">
+              {/* Command Zone Cards (also acts as drop target to return Commander) */}
+              {allowsCommandZone &&
+                (commandZone.length > 0 ||
+                  (dragSource?.zone === 'battlefield' && dragSource.isCommander)) && (
+                <div
+                  onDragOver={(e) => {
+                    if (dragSource?.zone === 'battlefield' && dragSource.isCommander) {
+                      e.preventDefault();
+                      setActiveDropZone('command');
+                    }
+                  }}
+                  onDragLeave={() => {
+                    if (activeDropZone === 'command') setActiveDropZone(null);
+                  }}
+                  onDrop={handleDropOnCommandZone}
+                  className={`rounded-lg border p-2.5 space-y-2 transition-colors ${
+                    activeDropZone === 'command'
+                      ? 'border-amber-400 bg-amber-950/55 ring-2 ring-amber-400'
+                      : 'border-[#247059] bg-[#0B392C]/85'
+                  }`}
+                >
                   <div className="flex items-center justify-between text-[10px] font-bold text-amber-200">
                     <span>Command Zone</span>
                     <Crown className="h-3 w-3" />
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {commandZone.map((cmd) => {
-                      const tax = commanderTaxByUid[cmd.uid] || 0;
-                      const totalCost = cmd.cmc + tax;
-                      const canCast = totalAvailableMana >= totalCost;
-                      return (
-                        <TableCardTile
-                          key={cmd.uid}
-                          name={cmd.name}
-                          meta={cmd.meta}
-                          onInspect={onInspectCard}
-                          size="sm"
-                          playable={canCast ? 'commander' : 'none'}
-                          cornerTag={tax > 0 ? `+${tax} Tax` : 'Cmdr'}
-                          cornerTone="amber"
-                          primaryAction={{
-                            label: `Cast (${totalCost})`,
-                            onClick: () => onCastCommander(cmd),
-                            disabled: !canCast || botsAreActing || Boolean(pendingIncomingAttack),
-                            tone: 'amber',
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
+                  {commandZone.length === 0 ? (
+                    <div className="py-2 text-center text-[10px] text-amber-200/80">
+                      Drop Commander here to return to Command Zone
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {commandZone.map((cmd) => {
+                        const tax = commanderTaxByUid[cmd.uid] || 0;
+                        const totalCost = cmd.cmc + tax;
+                        const canCast = effectiveAvailableMana >= totalCost;
+                        return (
+                          <TableCardTile
+                            key={cmd.uid}
+                            name={cmd.name}
+                            meta={cmd.meta}
+                            onInspect={onInspectCard}
+                            size="sm"
+                            draggable={!botsAreActing && !pendingIncomingAttack && !hasActiveStack && !isSimulationFinished}
+                            onDragStart={(e) =>
+                              beginDrag(e, { zone: 'command', uid: cmd.uid, name: cmd.name })
+                            }
+                            onDragEnd={clearDragState}
+                            playable={canCast ? 'commander' : 'none'}
+                            cornerTag={tax > 0 ? `+${tax} Tax` : 'Cmdr'}
+                            cornerTone="amber"
+                            primaryAction={{
+                              label: `Cast (${totalCost})`,
+                              onClick: () => onCastCommander(cmd),
+                              disabled: !canCast || botsAreActing || Boolean(pendingIncomingAttack),
+                              tone: 'amber',
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1645,26 +2786,86 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
             {/* Right Lanes: Creatures/Permanents Front Row + Lands/Rocks Back Row */}
             <div className="space-y-3 min-w-0">
               {/* Front Row: Creatures & Nonland Permanents */}
-              <div className="rounded-lg border border-[#247059] bg-[#0B392C]/75 p-2.5 space-y-2">
+              <div
+                onDragOver={(e) => {
+                  if (
+                    dragSource &&
+                    (dragSource.zone === 'hand' ||
+                      dragSource.zone === 'command' ||
+                      dragSource.zone === 'graveyard' ||
+                      dragSource.zone === 'exile')
+                  ) {
+                    e.preventDefault();
+                    setActiveDropZone('creatures');
+                  }
+                }}
+                onDragLeave={() => {
+                  if (activeDropZone === 'creatures') setActiveDropZone(null);
+                }}
+                onDrop={handleDropOnCreaturesLane}
+                className={`rounded-lg border p-2.5 space-y-2 transition-colors ${
+                  activeDropZone === 'creatures'
+                    ? 'border-sky-400 bg-sky-950/45 ring-2 ring-sky-400/75'
+                    : 'border-[#247059] bg-[#0B392C]/75'
+                }`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
                   <span className="font-semibold text-emerald-100">
                     Creatures &amp; Nonland Permanents ({creaturesAndOther.length})
                   </span>
-                  {activePhase === 'Combat' && (
-                    <span className="font-mono text-[10px] text-red-300">
-                      Click Atk on ready creatures to declare attackers
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {activePhase === 'Combat' ? (
+                      <span className="font-mono text-[10px] text-red-300">
+                        Click Attack or drag a creature onto an opponent seat
+                      </span>
+                    ) : (
+                      <span className="font-mono text-[10px] text-emerald-200/75">
+                        Drag cards here to cast · drag between cards to reorder
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {creaturesAndOther.length === 0 ? (
                   <div className="py-3 text-center text-[11px] text-emerald-200/70">
-                    No creatures or nonland permanents in play yet. Cast a spell from your hand below.
+                    {activeDropZone === 'creatures'
+                      ? 'Drop card here to put onto the Battlefield!'
+                      : 'Drag a spell from your hand here, cast from hand, or click + Token above.'}
                   </div>
                 ) : (
                   <div className="flex items-start gap-2.5 overflow-x-auto pb-1">
                     {creaturesAndOther.map((perm) => {
-                      const tough = Number(perm.meta?.toughness) || Math.max(2, perm.power);
+                      const stats = getEffectivePermanentStats(perm);
+                      const counterChips = formatPermanentCounterChips(perm);
+                      const kwTags = perm.isCreature
+                        ? formatCreatureKeywordTags({
+                            ...extractCreatureKeywords(perm.meta),
+                            hasInfect: perm.hasInfect,
+                            toxicValue: perm.toxicValue,
+                          })
+                        : [];
+
+                      const tokenPrimary =
+                        perm.tokenAbility === 'treasure'
+                          ? {
+                              label: 'Sac +1 Mana',
+                              onClick: () => onActivateTokenAbility?.(perm),
+                              tone: 'amber' as const,
+                            }
+                          : perm.tokenAbility === 'food'
+                          ? {
+                              label: 'Sac +3 HP',
+                              onClick: () => onActivateTokenAbility?.(perm),
+                              tone: 'emerald' as const,
+                            }
+                          : perm.tokenAbility === 'clue' || perm.tokenAbility === 'blood'
+                          ? {
+                              label: 'Sac Draw',
+                              onClick: () => onActivateTokenAbility?.(perm),
+                              tone: 'sky' as const,
+                            }
+                          : null;
+
                       return (
                         <TableCardTile
                           key={perm.uid}
@@ -1675,17 +2876,65 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                           tapped={perm.tapped}
                           attacking={perm.attacking}
                           summoningSick={perm.summoningSick}
+                          draggable={!botsAreActing && !pendingIncomingAttack && !isSimulationFinished}
+                          isDragTarget={dragOverCardUid === perm.uid}
+                          onDragStart={(e) =>
+                            beginDrag(e, {
+                              zone: 'battlefield',
+                              uid: perm.uid,
+                              name: perm.name,
+                              lane: 'creatures',
+                              isCreature: perm.isCreature,
+                              isCommander: perm.isCommander,
+                              isToken: perm.isToken,
+                              tapped: perm.tapped,
+                            })
+                          }
+                          onDragEnd={clearDragState}
+                          onDragOverCard={() => {
+                            if (
+                              dragSource?.zone === 'battlefield' &&
+                              dragSource.uid !== perm.uid
+                            ) {
+                              setDragOverCardUid(perm.uid);
+                            }
+                          }}
+                          onDropOnCard={() => {
+                            if (
+                              dragSource?.zone === 'battlefield' &&
+                              dragSource.uid !== perm.uid
+                            ) {
+                              onReorderBattlefield?.(dragSource.uid, perm.uid);
+                            }
+                            clearDragState();
+                          }}
                           cornerTag={
                             perm.attacking
                               ? 'ATK'
                               : perm.isCommander
                               ? 'Cmdr'
+                              : perm.isToken
+                              ? 'Token'
                               : undefined
                           }
-                          cornerTone={perm.attacking ? 'red' : 'amber'}
-                          ptLabel={perm.isCreature ? `${perm.power}/${tough}` : null}
+                          cornerTone={
+                            perm.attacking ? 'red' : perm.isToken ? 'sky' : 'amber'
+                          }
+                          ptLabel={perm.isCreature ? `${stats.power}/${stats.toughness}` : null}
+                          subLabel={
+                            kwTags.length > 0
+                              ? kwTags.slice(0, 2).join(' · ')
+                              : perm.isToken
+                              ? perm.isCreature
+                                ? 'Token Creature'
+                                : 'Token'
+                              : undefined
+                          }
+                          counterChips={counterChips}
                           primaryAction={
-                            activePhase === 'Combat' && perm.isCreature && !perm.tapped
+                            tokenPrimary
+                              ? tokenPrimary
+                              : activePhase === 'Combat' && perm.isCreature && !perm.tapped
                               ? {
                                   label: perm.attacking ? 'Attacking' : 'Attack',
                                   onClick: () => onToggleAttacker(perm.uid),
@@ -1697,6 +2946,17 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                                   tone: 'zinc',
                                 }
                           }
+                          counterAction={
+                            onAdjustPermanentCounter
+                              ? {
+                                  active: editingCounterUid === perm.uid,
+                                  onClick: () =>
+                                    setEditingCounterUid((cur) =>
+                                      cur === perm.uid ? null : perm.uid
+                                    ),
+                                }
+                              : undefined
+                          }
                           secondaryAction={
                             perm.isCommander
                               ? {
@@ -1705,7 +2965,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                                   tone: 'zinc',
                                 }
                               : {
-                                  label: 'GY',
+                                  label: perm.isToken ? 'Del' : 'GY',
                                   onClick: () => onMovePermanentToGy(perm),
                                   tone: 'red',
                                 }
@@ -1718,7 +2978,28 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               </div>
 
               {/* Back Row: Lands & Mana Rocks */}
-              <div className="rounded-lg border border-[#247059] bg-[#0B392C]/75 p-2.5 space-y-2">
+              <div
+                onDragOver={(e) => {
+                  if (
+                    dragSource &&
+                    (dragSource.zone === 'hand' ||
+                      dragSource.zone === 'graveyard' ||
+                      dragSource.zone === 'exile')
+                  ) {
+                    e.preventDefault();
+                    setActiveDropZone('lands');
+                  }
+                }}
+                onDragLeave={() => {
+                  if (activeDropZone === 'lands') setActiveDropZone(null);
+                }}
+                onDrop={handleDropOnLandsLane}
+                className={`rounded-lg border p-2.5 space-y-2 transition-colors ${
+                  activeDropZone === 'lands'
+                    ? 'border-emerald-400 bg-emerald-950/45 ring-2 ring-emerald-400/75'
+                    : 'border-[#247059] bg-[#0B392C]/75'
+                }`}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
                   <span className="font-semibold text-emerald-100">
                     Lands &amp; Mana Sources ({landsAndRocks.length})
@@ -1730,47 +3011,122 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
 
                 {landsAndRocks.length === 0 ? (
                   <div className="py-2.5 text-center text-[11px] text-emerald-200/70">
-                    No lands or mana rocks on battlefield yet.
+                    {activeDropZone === 'lands'
+                      ? 'Drop land or mana rock here!'
+                      : 'Drag a land from your hand here or click Play Land below.'}
                   </div>
                 ) : (
                   <div className="flex items-start gap-2 overflow-x-auto pb-1">
-                    {landsAndRocks.map((perm) => (
-                      <TableCardTile
-                        key={perm.uid}
-                        name={perm.name}
-                        meta={perm.meta}
-                        onInspect={onInspectCard}
-                        size="sm"
-                        tapped={perm.tapped}
-                        subLabel={perm.producedMana.slice(0, 2).join('/')}
-                        onTileClick={() => onTogglePermanentTap(perm)}
-                        primaryAction={{
-                          label: perm.tapped ? 'Untap' : `+${perm.producedMana[0] || 'C'}`,
-                          onClick: () => onTogglePermanentTap(perm),
-                          tone: perm.tapped ? 'zinc' : 'emerald',
-                        }}
-                        secondaryAction={{
-                          label: 'GY',
-                          onClick: () => onMovePermanentToGy(perm),
-                          tone: 'zinc',
-                        }}
-                      />
-                    ))}
+                    {landsAndRocks.map((perm) => {
+                      const counterChips = formatPermanentCounterChips(perm);
+                      return (
+                        <TableCardTile
+                          key={perm.uid}
+                          name={perm.name}
+                          meta={perm.meta}
+                          onInspect={onInspectCard}
+                          size="sm"
+                          tapped={perm.tapped}
+                          draggable={!botsAreActing && !pendingIncomingAttack && !isSimulationFinished}
+                          isDragTarget={dragOverCardUid === perm.uid}
+                          onDragStart={(e) =>
+                            beginDrag(e, {
+                              zone: 'battlefield',
+                              uid: perm.uid,
+                              name: perm.name,
+                              lane: 'lands',
+                              isCreature: perm.isCreature,
+                              isCommander: perm.isCommander,
+                              isToken: perm.isToken,
+                              tapped: perm.tapped,
+                            })
+                          }
+                          onDragEnd={clearDragState}
+                          onDragOverCard={() => {
+                            if (
+                              dragSource?.zone === 'battlefield' &&
+                              dragSource.uid !== perm.uid
+                            ) {
+                              setDragOverCardUid(perm.uid);
+                            }
+                          }}
+                          onDropOnCard={() => {
+                            if (
+                              dragSource?.zone === 'battlefield' &&
+                              dragSource.uid !== perm.uid
+                            ) {
+                              onReorderBattlefield?.(dragSource.uid, perm.uid);
+                            }
+                            clearDragState();
+                          }}
+                          subLabel={perm.producedMana.slice(0, 2).join('/')}
+                          counterChips={counterChips}
+                          onTileClick={() => onTogglePermanentTap(perm)}
+                          primaryAction={{
+                            label: perm.tapped ? 'Untap' : `+${perm.producedMana[0] || 'C'}`,
+                            onClick: () => onTogglePermanentTap(perm),
+                            tone: perm.tapped ? 'zinc' : 'emerald',
+                          }}
+                          counterAction={
+                            onAdjustPermanentCounter
+                              ? {
+                                  active: editingCounterUid === perm.uid,
+                                  onClick: () =>
+                                    setEditingCounterUid((cur) =>
+                                      cur === perm.uid ? null : perm.uid
+                                    ),
+                                }
+                              : undefined
+                          }
+                          secondaryAction={{
+                            label: 'GY',
+                            onClick: () => onMovePermanentToGy(perm),
+                            tone: 'zinc',
+                          }}
+                        />
+                      );
+                    })}
                   </div>
                 )}
               </div>
             </div>
           </div>
 
-          {/* 5. Bottom Hand Tray */}
-          <div className="rounded-lg border border-[#247059] bg-[#0B392C]/90 p-3 space-y-2.5">
+          {/* 5. Bottom Hand Tray (also acts as drop target to bounce permanents or return from GY) */}
+          <div
+            onDragOver={(e) => {
+              if (
+                dragSource &&
+                (dragSource.zone === 'battlefield' ||
+                  dragSource.zone === 'graveyard' ||
+                  dragSource.zone === 'exile')
+              ) {
+                e.preventDefault();
+                setActiveDropZone('hand');
+              }
+            }}
+            onDragLeave={() => {
+              if (activeDropZone === 'hand') setActiveDropZone(null);
+            }}
+            onDrop={handleDropOnHand}
+            className={`rounded-lg border p-3 space-y-2.5 transition-colors ${
+              activeDropZone === 'hand'
+                ? 'border-sky-400 bg-sky-950/50 ring-2 ring-sky-400/75'
+                : 'border-[#247059] bg-[#0B392C]/90'
+            }`}
+          >
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-2 font-bold text-white">
                 <RotateCcw className="h-3.5 w-3.5 text-amber-300 shrink-0" />
                 <span>Your Hand ({hand.length} cards)</span>
+                {activeDropZone === 'hand' && (
+                  <span className="font-mono text-[10px] text-sky-300">
+                    Drop to return to Hand
+                  </span>
+                )}
               </div>
               <span className="font-mono text-[11px] tabular-nums text-emerald-200">
-                Available Mana: {totalAvailableMana} ({totalManaPool} pool + {untappedLandsCount} lands)
+                Available Mana: {effectiveAvailableMana} ({totalManaPool} pool + {untappedLandsCount} lands)
               </span>
             </div>
 
@@ -1782,7 +3138,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               <div className="flex items-start gap-2.5 overflow-x-auto pb-1">
                 {hand.map((card) => {
                   const isNewlyDrawn = lastDrawnUids.includes(card.uid);
-                  const canAutoPay = !card.isLand && totalAvailableMana >= card.cmc;
+                  const canAutoPay = !card.isLand && effectiveAvailableMana >= card.cmc;
                   const playableKind: 'land' | 'spell' | 'none' = card.isLand
                     ? landsPlayedThisTurn === 0
                       ? 'land'
@@ -1791,6 +3147,12 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     ? 'spell'
                     : 'none';
 
+                  const stackProfile = classifyCardStackProfile(
+                    card.name,
+                    card.typeLine,
+                    card.meta
+                  );
+
                   return (
                     <TableCardTile
                       key={card.uid}
@@ -1798,6 +3160,21 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       meta={card.meta}
                       onInspect={onInspectCard}
                       size="md"
+                      draggable={
+                        !botsAreActing &&
+                        !pendingIncomingAttack &&
+                        !hasActiveStack &&
+                        !isSimulationFinished
+                      }
+                      onDragStart={(e) =>
+                        beginDrag(e, {
+                          zone: 'hand',
+                          uid: card.uid,
+                          name: card.name,
+                          isLand: card.isLand,
+                        })
+                      }
+                      onDragEnd={clearDragState}
                       playable={playableKind}
                       newlyDrawn={isNewlyDrawn}
                       cornerTag={
@@ -1805,21 +3182,38 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                           ? 'Drew'
                           : card.isLand
                           ? 'Land'
+                          : stackProfile.isInstantSpeed
+                          ? stackProfile.mechanic === 'counterspell'
+                            ? 'Counter'
+                            : 'Instant'
                           : undefined
                       }
-                      cornerTone={isNewlyDrawn ? 'amber' : 'emerald'}
+                      cornerTone={
+                        isNewlyDrawn
+                          ? 'amber'
+                          : card.isLand
+                          ? 'emerald'
+                          : 'sky'
+                      }
                       primaryAction={
                         card.isLand
                           ? {
                               label: landsPlayedThisTurn === 0 ? 'Play Land' : 'Extra Land',
                               onClick: () => onPlayLand(card),
-                              disabled: botsAreActing || Boolean(pendingIncomingAttack),
+                              disabled:
+                                botsAreActing ||
+                                Boolean(pendingIncomingAttack) ||
+                                hasActiveStack,
                               tone: landsPlayedThisTurn === 0 ? 'emerald' : 'zinc',
                             }
                           : {
                               label: `Cast (${card.cmc})`,
                               onClick: () => onCastFromHand(card),
-                              disabled: !canAutoPay || botsAreActing || Boolean(pendingIncomingAttack),
+                              disabled:
+                                !canAutoPay ||
+                                botsAreActing ||
+                                Boolean(pendingIncomingAttack) ||
+                                hasActiveStack,
                               tone: canAutoPay ? 'sky' : 'zinc',
                             }
                       }
@@ -1832,6 +3226,23 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
         </div>
       </div>
     </div>
+    <ZoneViewerModal
+      isOpen={Boolean(zoneModalTarget)}
+      onClose={() => setZoneModalTarget(null)}
+      initialOwnerId={zoneModalTarget?.ownerId || 'player'}
+      initialZone={zoneModalTarget?.zone || 'graveyard'}
+      playerName={deckName || 'Your Deck'}
+      playerGraveyard={graveyard}
+      playerExile={exile}
+      liveBotMode={liveBotMode}
+      liveBots={liveBots}
+      soloOpponents={opponentTrackers}
+      botsAreActing={botsAreActing}
+      hasActiveStack={hasActiveStack}
+      pendingIncomingAttack={Boolean(pendingIncomingAttack)}
+      onInspectCard={onInspectCard}
+      onMovePlayerZoneCard={onMovePlayerZoneCard}
+    />
     <CardHoverZoomOverlay
       preview={hoveredCard}
       enabled={hoverZoomEnabled}

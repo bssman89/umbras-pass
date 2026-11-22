@@ -10,7 +10,8 @@
   - [Option B: Run from Source (Developers)](#option-b-run-from-source-developers)
 - [Manual AI Model Setup (Optional)](#manual-ai-model-setup-optional)
 - [Troubleshooting & FAQ](#troubleshooting--faq)
-- [Developer Reference & Building Releases](#developer-reference--building-releases)
+- [Developer Reference & Building Releases](#developer-reference-tech-stack--building-windows-releases-click-to-expand)
+- [Disclaimer](#disclaimer)
 
 ---
 
@@ -149,3 +150,17 @@ If you prefer to download the AI model manually or already have `.gguf` files on
 `models/`, `*.gguf`, `firebase-applet-config.json`, `dist-electron/`, and `.env*` (except `.env.example`) are ignored via `.gitignore` so large model weights, compiled binaries, and personal credentials are never committed to GitHub.
 
 </details>
+
+---
+
+## Disclaimer
+
+### Unofficial Fan Project & Trademarks
+**Umbras Pass** is an independent (indie), open-source program created by hobbyist developer **BizRoomba** (`bssman89`) for the *Magic: The Gathering* community. It has **no official affiliation with, endorsement from, or sponsorship by** Wizards of the Coast LLC, Hasbro, [Google AI Studio](https://aistudio.google.com/), [Hugging Face (`huggingface.co`)](https://huggingface.co/), [Firebase (`firebase.google.com`)](https://firebase.google.com/), [Vite (`vite.dev`)](https://vite.dev/), [Electron (`electronjs.org`)](https://www.electronjs.org/), [npm (`npmjs.com`)](https://www.npmjs.com/), Scryfall, EDHREC (`edhrec.com`), MTG Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox, MTGO, Cockatrice, Deckstats, TappedOut, CubeCobra, MTGTop8, Pastebin, TCGplayer.com, CardKingdom.com, CardTrader.com (`cardtrader.com/en-US`), eBay.com, or any other *Magic: The Gathering* (MTG) entities, development platforms, AI model hubs, cloud providers, software runtimes, package registries, deck tools, or marketplace platforms.
+
+*Magic: The Gathering* and all associated card names, symbols, artwork, file formats, and trademarks belong to their respective owners. Card metadata and imagery are sourced via [Scryfall](https://scryfall.com/). External links to deck platforms, card marketplaces, and third-party resources are provided strictly for informational convenience—pricing, deck services, availability, and transactions occur solely on those external websites.
+
+### Source Files, Builds & "As Is" Liability Notice
+Source files, scripts, and release builds hosted on GitHub are provided **"as is"** for community review and self-hosted indie use without warranty of any kind, express or implied. Anyone cloning, modifying, compiling, or running Umbras Pass from source—or downloading third-party `.gguf` AI models—is solely responsible for their own local environment, hardware resources, credentials, and compliance with applicable third-party data provider, development platform, AI model hub, hosting, build toolchain, runtime, package registry, deck platform, and marketplace terms.
+
+Dev **Bssman89 / BizRoomba** is not liable or responsible for any damages, issues, modifications, third-party transactions, or outcomes arising from the use of this program, its source files, downloaded AI models, or linked external websites.

@@ -148,6 +148,7 @@ const DEFAULT_OPPONENTS_BY_MODE: Record<PlaytestMode, BotOpponentConfig[]> = {
       name: 'Bot 1 (Vex)',
       archetype: 'Mono-Red Aggro / Burn',
       indignance: 'measured',
+      intelligence: 'tactical',
       customDeckText: '',
     },
   ],
@@ -157,6 +158,7 @@ const DEFAULT_OPPONENTS_BY_MODE: Record<PlaytestMode, BotOpponentConfig[]> = {
       name: 'Bot 1 (Vex)',
       archetype: 'Mono-Red Aggro / Burn',
       indignance: 'ruthless',
+      intelligence: 'tactical',
       customDeckText: '',
     },
     {
@@ -164,6 +166,7 @@ const DEFAULT_OPPONENTS_BY_MODE: Record<PlaytestMode, BotOpponentConfig[]> = {
       name: 'Bot 2 (Lyra)',
       archetype: 'Azorius Control & Countermagic',
       indignance: 'measured',
+      intelligence: 'competitive',
       customDeckText: '',
     },
   ],
@@ -173,6 +176,7 @@ const DEFAULT_OPPONENTS_BY_MODE: Record<PlaytestMode, BotOpponentConfig[]> = {
       name: 'Bot 1 (Vex)',
       archetype: 'Mono-Red Aggro / Burn',
       indignance: 'ruthless',
+      intelligence: 'tactical',
       customDeckText: '',
     },
     {
@@ -180,6 +184,7 @@ const DEFAULT_OPPONENTS_BY_MODE: Record<PlaytestMode, BotOpponentConfig[]> = {
       name: 'Bot 2 (Lyra)',
       archetype: 'Azorius Control & Countermagic',
       indignance: 'measured',
+      intelligence: 'competitive',
       customDeckText: '',
     },
     {
@@ -187,6 +192,7 @@ const DEFAULT_OPPONENTS_BY_MODE: Record<PlaytestMode, BotOpponentConfig[]> = {
       name: 'Bot 3 (Kor)',
       archetype: 'Golgari Graveyard Value',
       indignance: 'forgiving',
+      intelligence: 'tactical',
       customDeckText: '',
     },
   ],
@@ -360,7 +366,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
       setManaSyncNotice(
         selectedLandChangesCount > 0
           ? `Mana optimization synced (${selectedLandChangesCount} land adjustment${selectedLandChangesCount === 1 ? '' : 's'} active · ${typeof manaOptimizedLandCount === 'number' ? `${manaOptimizedLandCount} lands` : 'ready'}).`
-          : 'Mana optimization mode active. Toggle land adjustments in Section 03 to update live.'
+          : 'Mana optimization mode active. Toggle land adjustments in Mana & Lands to update live.'
       );
     }
   }, [manaSyncNonce, selectedLandChangesCount, manaOptimizedLandCount]);
@@ -1196,12 +1202,12 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="font-display text-xl font-bold text-zinc-900">
-            09. Bot Match Simulator
+            Bot Playtest
           </h2>
           <p className="mt-0.5 text-sm text-zinc-600">
             {autoLearnEnabled
-              ? `Test ${detectedFormat} hands and play 2–4 player matches against adaptive AI bots.`
-              : `Run 2–4 player ${detectedFormat} matches using saved bot memory and coaching.`}
+              ? `Play live 2–4 player ${detectedFormat} games or run quick simulations against adaptive AI bots.`
+              : `Play live 2–4 player ${detectedFormat} games or run simulations using your saved bot coaching.`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1211,7 +1217,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
             className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 hover:text-zinc-900 whitespace-nowrap shrink-0 cursor-pointer"
           >
             <BookOpen className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-            How Sim &amp; Bot Learning Work
+            Playtest &amp; Bot Guide
           </button>
           {localAiEngineInfo && (
             <button
@@ -1521,7 +1527,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
               <div className="flex flex-wrap items-center gap-2 text-zinc-700">
                 <RefreshCw className="h-3.5 w-3.5 text-sky-700 shrink-0" />
                 <span className="font-semibold text-zinc-900">
-                  Live-synced with 03. Mana Base &amp; Curve
+                  Live-synced with Mana &amp; Lands
                 </span>
                 <span className="text-zinc-300" aria-hidden="true">·</span>
                 {selectedLandChangesCount > 0 ? (
@@ -1530,7 +1536,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                   </span>
                 ) : totalLandChangesCount > 0 ? (
                   <span className="text-amber-800">
-                    No land fixes selected yet — apply recommended fixes or toggle individually in Section 03.
+                    No land fixes selected yet — apply recommended fixes or toggle individually in Mana &amp; Lands.
                   </span>
                 ) : (
                   <span className="text-zinc-600">
@@ -1552,14 +1558,15 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                 <button
                   type="button"
                   onClick={() =>
-                    document.getElementById('mana-section')?.scrollIntoView({
-                      behavior: 'smooth',
-                      block: 'start',
-                    })
+                    window.dispatchEvent(
+                      new CustomEvent<string>('deck-navigate-section', {
+                        detail: 'mana-section',
+                      })
+                    )
                   }
                   className="rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap"
                 >
-                  Adjust in 03. Mana Base
+                  Adjust in Mana &amp; Lands
                 </button>
               </div>
             </div>
@@ -2286,6 +2293,13 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
           }
           mode={mode}
           opponents={visibleOpponents}
+          onModeChange={setMode}
+          onUpdateOpponentsForMode={(nextOpps) =>
+            setOpponentsByMode((prev) => ({
+              ...prev,
+              [mode]: nextOpps,
+            }))
+          }
           findMeta={findMeta}
           onInspectCard={onInspectCard}
           liveVsBotsNonce={liveVsBotsNonce}
@@ -2297,6 +2311,9 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
           onRunBotMatch={() => void handleRunPlaytest(false)}
           isSimulatingBotMatch={loading}
           onLiveStatsChange={onLiveStatsChange}
+          botMemory={botMemory}
+          onSaveBotMemoryProfiles={onSaveBotMemoryProfiles}
+          autoLearnEnabled={autoLearnEnabled}
         />
       </Suspense>
 

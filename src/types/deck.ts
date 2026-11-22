@@ -252,11 +252,14 @@ export type PlaytestDeckVersion = 'original' | 'mana-optimized' | 'full-optimize
 
 export type BotIndignanceLevel = 'forgiving' | 'measured' | 'ruthless' | 'vindictive';
 
+export type BotIntelligenceLevel = 'novice' | 'tactical' | 'competitive' | 'mastermind';
+
 export interface BotOpponentConfig {
   id: string;
   name: string;
   archetype: string;
   indignance?: BotIndignanceLevel;
+  intelligence?: BotIntelligenceLevel;
   customDeckText?: string;
 }
 

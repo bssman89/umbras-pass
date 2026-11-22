@@ -124,6 +124,7 @@ async function startInternalServer(port) {
         HOST: '127.0.0.1',
         NODE_ENV: 'production',
         UMBRAS_DESKTOP: '1',
+        UMBRAS_APP_VERSION: app.getVersion(),
         UMBRAS_USER_DATA_DIR: userDataDir,
         UMBRAS_BUNDLED_MODELS_DIR: bundledModelsDir,
         UMBRAS_DIST_DIR: distDir,
@@ -194,6 +195,41 @@ function registerIpcHandlers() {
     const modelsDir = path.join(app.getPath('userData'), 'models');
     fs.mkdirSync(modelsDir, { recursive: true });
     await shell.openPath(modelsDir);
+  });
+
+  ipcMain.handle('desktop:open-updates-folder', async () => {
+    const updatesDir = path.join(app.getPath('userData'), 'updates');
+    fs.mkdirSync(updatesDir, { recursive: true });
+    await shell.openPath(updatesDir);
+  });
+
+  ipcMain.handle('desktop:launch-update-installer', async (_event, rawFilePath) => {
+    if (typeof rawFilePath !== 'string' || !rawFilePath.trim()) {
+      return { ok: false, error: 'Installer path is required.' };
+    }
+    const updatesDir = path.resolve(path.join(app.getPath('userData'), 'updates'));
+    fs.mkdirSync(updatesDir, { recursive: true });
+    const resolvedTarget = path.resolve(rawFilePath.trim());
+    const normalizeForCmp = (p) => (process.platform === 'win32' ? p.toLowerCase() : p);
+    if (!normalizeForCmp(resolvedTarget).startsWith(normalizeForCmp(updatesDir + path.sep))) {
+      return { ok: false, error: 'Refused to open file outside the verified updates folder.' };
+    }
+    if (!resolvedTarget.toLowerCase().endsWith('.exe')) {
+      return { ok: false, error: 'Only verified .exe installers can be launched.' };
+    }
+    if (!fs.existsSync(resolvedTarget)) {
+      return { ok: false, error: 'Downloaded installer file was not found on disk.' };
+    }
+    const realUpdatesDir = fs.realpathSync(updatesDir);
+    const realTarget = fs.realpathSync(resolvedTarget);
+    if (!normalizeForCmp(realTarget).startsWith(normalizeForCmp(realUpdatesDir + path.sep))) {
+      return { ok: false, error: 'Refused to open symlinked file outside the verified updates folder.' };
+    }
+    const openError = await shell.openPath(realTarget);
+    if (openError) {
+      return { ok: false, error: openError };
+    }
+    return { ok: true };
   });
 
   ipcMain.handle('desktop:exit-app', async () => {

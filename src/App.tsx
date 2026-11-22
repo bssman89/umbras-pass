@@ -19,8 +19,12 @@ import {
 import { FirestoreErrorBoundary } from './components/FirestoreErrorBoundary';
 import { TopBar, type ActiveSection } from './components/TopBar';
 import { DeckImporter } from './components/DeckImporter';
-import { FooterContactSection } from './components/FooterContactSection';
 import { GgufStartupModal } from './components/GgufStartupModal';
+import { GlobalCardHoverPortal } from './components/CardHoverZoomOverlay';
+import {
+  UpdateNotificationBanner,
+  UpdatesRollbackModal,
+} from './components/UpdatesRollbackModal';
 import { lazyWithRetry } from './utils/lazyWithRetry';
 
 const AnalysisDashboard = lazyWithRetry(() =>
@@ -110,6 +114,9 @@ export default function App() {
     useState<LocalUserProfile | null>(() => loadActiveSessionLocalProfile());
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isDesktopModalOpen, setIsDesktopModalOpen] = useState(false);
+  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
+  const [isUpdatesModalOpen, setIsUpdatesModalOpen] = useState(false);
+  const [hasAvailableUpdate, setHasAvailableUpdate] = useState(false);
   const [authPersistenceMode, setAuthPersistenceMode] =
     useState<GoogleAuthPersistenceMode>(() => getStoredAuthPersistenceMode());
 
@@ -250,7 +257,7 @@ export default function App() {
           setAnalysis(savedWorkspace.analysis);
           setSelection(savedWorkspace.selection);
           setError(null);
-          setActiveSection(savedWorkspace.analysis ? 'mana' : 'import');
+          setActiveSection(savedWorkspace.analysis ? 'analysis' : 'import');
         } else if (!wasGuest) {
           setDeckText('');
           setDeckName('');
@@ -300,7 +307,7 @@ export default function App() {
       setGoal(shared.goal);
       setAnalysis(shared.analysis);
       setSelection(shared.selection);
-      setActiveSection('mana');
+      setActiveSection('analysis');
     }
   }, []);
 
@@ -437,7 +444,7 @@ export default function App() {
       landChangeIds: [...(snapshot.selection?.landChangeIds ?? [])],
     });
     setError(null);
-    setActiveSection('mana');
+    setActiveSection('analysis');
     setIsHistoryOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -857,7 +864,7 @@ export default function App() {
       });
       setAnalysis(data);
       setSelection(defaultSelection);
-      setActiveSection('mana');
+      setActiveSection('analysis');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unexpected analysis error.');
@@ -875,18 +882,20 @@ export default function App() {
     }
     if (!analysis) return;
 
+    if (section === 'analysis') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     const targetId =
-      section === 'mana'
-        ? 'mana-section'
-        : section === 'changes'
-        ? 'changes-section'
+      section === 'optimize'
+        ? 'deck-tuning-section'
         : section === 'playtest'
         ? 'playtest-section'
-        : 'export-section';
-    const el = document.getElementById(targetId);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+        : 'diagnosis-section';
+    window.dispatchEvent(
+      new CustomEvent<string>('deck-navigate-section', { detail: targetId })
+    );
   };
 
   const handleReanalyzeUpdated = (updatedText: string) => {
@@ -952,7 +961,15 @@ export default function App() {
           userDeckCount={totalUserDeckCount}
           onOpenUserDecks={() => setIsHistoryOpen(true)}
           onOpenDesktopModal={() => setIsDesktopModalOpen(true)}
+          onOpenWelcomeModal={() => setIsWelcomeModalOpen(true)}
+          onOpenUpdatesModal={() => setIsUpdatesModalOpen(true)}
+          hasAvailableUpdate={hasAvailableUpdate}
           onRequestExit={() => setIsExitModalOpen(true)}
+        />
+
+        <UpdateNotificationBanner
+          onOpenUpdatesModal={() => setIsUpdatesModalOpen(true)}
+          onUpdateAvailabilityChange={setHasAvailableUpdate}
         />
 
         <main className="flex-1">
@@ -1032,8 +1049,6 @@ export default function App() {
           )}
         </main>
 
-        <FooterContactSection />
-
         {inspectedCard && (
           <Suspense fallback={null}>
             <CardInspectorModal
@@ -1092,7 +1107,15 @@ export default function App() {
         )}
 
         <GgufStartupModal
+          forceOpen={isWelcomeModalOpen}
+          onCloseForceOpen={() => setIsWelcomeModalOpen(false)}
           onOpenAiSettings={() => setIsDesktopModalOpen(true)}
+        />
+
+        <UpdatesRollbackModal
+          isOpen={isUpdatesModalOpen}
+          onClose={() => setIsUpdatesModalOpen(false)}
+          onRequestExitForInstall={() => setIsExitModalOpen(true)}
         />
 
         {isExitModalOpen && (
@@ -1160,6 +1183,7 @@ export default function App() {
           </div>
         )}
       </div>
+      <GlobalCardHoverPortal />
     </FirestoreErrorBoundary>
   );
 }

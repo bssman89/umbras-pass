@@ -312,6 +312,77 @@ export function canLandsPayRequirement(
 }
 
 /**
+ * Checks if any subset of up to `turn` land drops chosen from all `seenLands`
+ * available by Turn T can cast `req` on Turn T (accounting for color requirements
+ * and the fact that only the Turn-T land drop fails to untap on Turn T if tapped).
+ */
+export function canSeenLandsPayAtTurn(
+  seenLands: LibraryCardUnit[],
+  turn: number,
+  req: ParsedManaRequirement
+): boolean {
+  const totalLandDrops = Math.min(turn, seenLands.length);
+  const untappedSeenCount = seenLands.filter((l) => !l.entersTapped).length;
+  const turnTLandEnteredTapped =
+    totalLandDrops === turn && untappedSeenCount === 0;
+  const manaAvailable = turnTLandEnteredTapped
+    ? Math.max(0, totalLandDrops - 1)
+    : totalLandDrops;
+
+  const totalNeeded = Math.max(req.cmc, req.pips.length + req.hybridGroups.length);
+  if (manaAvailable < totalNeeded) return false;
+  if (req.pips.length === 0 && req.hybridGroups.length === 0) return true;
+
+  const pipSlots: ManaColor[][] = [
+    ...req.pips.map((p) => [p]),
+    ...req.hybridGroups,
+  ];
+  pipSlots.sort((a, b) => a.length - b.length);
+
+  // Order untapped lands first so valid assignments are found quickly
+  const orderedLands = [...seenLands].sort((a, b) => {
+    if (a.entersTapped !== b.entersTapped) return a.entersTapped ? 1 : -1;
+    return a.producedColors.length - b.producedColors.length;
+  });
+  const used = new Array<boolean>(orderedLands.length).fill(false);
+
+  const backtrack = (slotIdx: number, chosenHasUntapped: boolean): boolean => {
+    if (slotIdx >= pipSlots.length) {
+      // If we are making all `turn` land drops and have at least one untapped land,
+      // at least one of the `turn` chosen land drops must be untapped (played on Turn T).
+      if (totalLandDrops === turn && !turnTLandEnteredTapped) {
+        if (chosenHasUntapped) return true;
+        if (pipSlots.length < turn) {
+          return orderedLands.some((l, idx) => !used[idx] && !l.entersTapped);
+        }
+        return false;
+      }
+      return true;
+    }
+
+    const allowed = pipSlots[slotIdx];
+    const triedAtLevel = new Set<string>();
+    for (let i = 0; i < orderedLands.length; i++) {
+      if (used[i]) continue;
+      const land = orderedLands[i];
+      if (!allowed.some((c) => land.producedColors.includes(c))) continue;
+      const sig = `${land.entersTapped ? 'T' : 'U'}:${land.producedColors.join(',')}`;
+      if (triedAtLevel.has(sig)) continue;
+      triedAtLevel.add(sig);
+
+      used[i] = true;
+      if (backtrack(slotIdx + 1, chosenHasUntapped || !land.entersTapped)) {
+        return true;
+      }
+      used[i] = false;
+    }
+    return false;
+  };
+
+  return backtrack(0, false);
+}
+
+/**
  * Computes available mana and lands-in-play on Turn T given all lands drawn so far.
  */
 function resolveLandsAtTurn(
@@ -398,9 +469,9 @@ export function drawSampleOpeningHand(
     keepVerdictText = `${landsInHand} lands drawn, but all enter tapped — Turn 1 plays will be delayed.`;
   }
 
-  // Check castability of spells in opening hand by Turn 3 (including Turn 1-3 draws if applicable, or strictly from opening 7 lands + 2-3 draws)
+  // Check castability of spells in opening hand by Turn 3 (including Turn 1-3 draws if applicable)
   const cardsByTurn3 = onPlay ? [...rawHand, ...pool.slice(7, 9)] : [...rawHand, ...pool.slice(7, 10)];
-  const t3State = resolveLandsAtTurn(cardsByTurn3, 3);
+  const landsByTurn3 = cardsByTurn3.filter((c) => c.isLand);
 
   const castableSpellNames = new Set<string>();
   const blockedSpellNames = new Set<string>();
@@ -417,20 +488,12 @@ export function drawSampleOpeningHand(
     const cardsByCheckTurn = onPlay
       ? [...rawHand, ...pool.slice(7, 7 + Math.max(0, checkTurn - 1))]
       : [...rawHand, ...pool.slice(7, 7 + checkTurn)];
-    const state = resolveLandsAtTurn(cardsByCheckTurn, checkTurn);
+    const landsByCheckTurn = cardsByCheckTurn.filter((c) => c.isLand);
     const req = parseManaCostRequirement(card.manaCost, card.cmc);
-    const canCastOnCurve = canLandsPayRequirement(
-      state.landsInPlay,
-      state.manaAvailable,
-      req
-    );
+    const canCastOnCurve = canSeenLandsPayAtTurn(landsByCheckTurn, checkTurn, req);
 
     if (card.cmc <= 3) {
-      const canByT3 = canLandsPayRequirement(
-        t3State.landsInPlay,
-        t3State.manaAvailable,
-        req
-      );
+      const canByT3 = canSeenLandsPayAtTurn(landsByTurn3, 3, req);
       if (canByT3) castableSpellNames.add(card.name);
       else blockedSpellNames.add(card.name);
     }
@@ -588,19 +651,20 @@ export function runOpeningHandMonteCarlo(params: {
     else if (lands7 >= keepMin && lands7 <= keepMax) keepableCount++;
 
     // Evaluate Turns 1..4
-    const turnStates: Array<{ landsInPlay: LibraryCardUnit[]; manaAvailable: number }> = [];
+    const seenLandsByTurn: LibraryCardUnit[][] = [];
     for (let turn = 1; turn <= 4; turn++) {
       const seenCount = Math.min(n, 7 + (onPlay ? turn - 1 : turn));
-      const state = resolveLandsAtTurn(scratch.slice(0, seenCount), turn);
-      turnStates.push(state);
+      const seenSlice = scratch.slice(0, seenCount);
+      seenLandsByTurn.push(seenSlice.filter((c) => c.isLand));
+      const state = resolveLandsAtTurn(seenSlice, turn);
       if (state.landsInPlay.length >= turn) turnLandHits[turn - 1]++;
       if (state.manaAvailable >= turn) turnFullManaHits[turn - 1]++;
     }
 
     // Evaluate early spells on their curve turn
     for (const sp of earlySpellsList) {
-      const st = turnStates[sp.targetTurn - 1];
-      if (canLandsPayRequirement(st.landsInPlay, st.manaAvailable, sp.req)) {
+      const seenLands = seenLandsByTurn[sp.targetTurn - 1];
+      if (canSeenLandsPayAtTurn(seenLands, sp.targetTurn, sp.req)) {
         sp.hits++;
       }
     }
@@ -610,17 +674,11 @@ export function runOpeningHandMonteCarlo(params: {
       n,
       7 + (onPlay ? Math.max(0, customTurn - 1) : customTurn)
     );
-    const customState =
+    const customSeenLands =
       customTurn <= 4
-        ? turnStates[customTurn - 1]
-        : resolveLandsAtTurn(scratch.slice(0, customSeenCount), customTurn);
-    if (
-      canLandsPayRequirement(
-        customState.landsInPlay,
-        customState.manaAvailable,
-        customReq
-      )
-    ) {
+        ? seenLandsByTurn[customTurn - 1]
+        : scratch.slice(0, customSeenCount).filter((c) => c.isLand);
+    if (canSeenLandsPayAtTurn(customSeenLands, customTurn, customReq)) {
       customHits++;
     }
   }

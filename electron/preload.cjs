@@ -7,5 +7,8 @@ contextBridge.exposeInMainWorld('desktopApp', {
   selectGgufFile: () => ipcRenderer.invoke('desktop:select-gguf-file'),
   getDesktopInfo: () => ipcRenderer.invoke('desktop:get-info'),
   openModelsFolder: () => ipcRenderer.invoke('desktop:open-models-folder'),
+  openUpdatesFolder: () => ipcRenderer.invoke('desktop:open-updates-folder'),
+  launchUpdateInstaller: (filePath) =>
+    ipcRenderer.invoke('desktop:launch-update-installer', filePath),
   exitApp: () => ipcRenderer.invoke('desktop:exit-app'),
 });

@@ -31,6 +31,7 @@ interface AdvancedDeckMetricsProps {
   optimizedEntries: ExportDeckEntry[];
   hasSelectedAdjustments: boolean;
   onInspectCard: (name: string, meta?: CardMetadata | null) => void;
+  embedded?: boolean;
 }
 
 const MTG_COLOR_META: Record<
@@ -247,6 +248,7 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
   optimizedEntries,
   hasSelectedAdjustments,
   onInspectCard,
+  embedded = false,
 }) => {
   const [curveMode, setCurveMode] = useState<'stacked' | 'compare'>('stacked');
   const [identityMode, setIdentityMode] = useState<'cards' | 'pips'>('cards');
@@ -555,36 +557,40 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
 
   const avgBucketLabel = BUCKET_LABELS[getBucketIndex(Math.round(computed.avgSpellCmc))];
 
+  const Wrapper: React.ElementType = embedded ? 'div' : 'section';
+
   return (
-    <section id="advanced-metrics-section" className="space-y-5 scroll-mt-20">
+    <Wrapper id={embedded ? undefined : 'advanced-metrics-section'} className={embedded ? 'space-y-5' : 'space-y-5 scroll-mt-20'}>
       {/* Section Header */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="font-display text-xl font-bold text-zinc-900 flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-sky-700 shrink-0" />
-            <span>10. Advanced Deck Metrics</span>
-          </h2>
-          <p className="mt-0.5 text-sm text-zinc-600">
-            Deep mana curve distribution, color identity profile, and role-weighted average CMC analytics.
+          {!embedded && (
+            <h2 className="font-display text-xl font-bold text-zinc-900 flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-sky-700 shrink-0" />
+              <span>Deep Metrics</span>
+            </h2>
+          )}
+          <p className={embedded ? 'text-sm text-zinc-600' : 'mt-0.5 text-sm text-zinc-600'}>
+            Inspect your full mana curve, color breakdown, and average mana cost across each deck role.
           </p>
         </div>
-        <div className="font-mono text-xs tabular-nums text-zinc-500">
+        <div className="font-mono text-xs tabular-nums text-zinc-500 whitespace-nowrap shrink-0">
           {computed.identityName}
           <span className="mx-1.5 text-zinc-300" aria-hidden="true">·</span>
-          {computed.totalSpells} non-land spells analyzed
+          {computed.totalSpells} non-land spells
         </div>
       </div>
 
       {/* Top Advanced Metric Summary Strip */}
       <div className="grid grid-cols-2 divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white sm:grid-cols-4 sm:divide-y-0 sm:divide-x">
         <div className="px-5 py-4">
-          <div className="text-xs font-medium text-zinc-500">Average / Median CMC</div>
+          <div className="text-xs font-medium text-zinc-500">Average &amp; Median Cost</div>
           <div className="mt-1 flex items-baseline gap-2 font-mono tabular-nums">
             <span className="text-2xl font-bold text-sky-700">
               {computed.avgSpellCmc.toFixed(2)}
             </span>
             <span className="text-xs text-zinc-500">
-              / med {computed.medianCmc.toFixed(1)}
+              / median {computed.medianCmc.toFixed(1)}
             </span>
           </div>
           <div className="mt-1 font-mono text-[11px] tabular-nums text-zinc-500">
@@ -593,17 +599,17 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
         </div>
 
         <div className="px-5 py-4">
-          <div className="text-xs font-medium text-zinc-500">Total Curve Weight</div>
+          <div className="text-xs font-medium text-zinc-500">Total Deck Mana</div>
           <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-zinc-900">
             {computed.totalSpellManaWeight} MV
           </div>
           <div className="mt-1 font-mono text-[11px] tabular-nums text-zinc-500">
-            Combined cost across {computed.totalSpells} spells
+            Combined cost of all {computed.totalSpells} spells
           </div>
         </div>
 
         <div className="px-5 py-4">
-          <div className="text-xs font-medium text-zinc-500">Early Curve (0–2 MV)</div>
+          <div className="text-xs font-medium text-zinc-500">Early Plays (0–2 Mana)</div>
           <div className="mt-1 flex items-baseline gap-2 font-mono tabular-nums">
             <span className="text-2xl font-bold text-emerald-700">
               {computed.earlySpellsPct}%
@@ -623,7 +629,7 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
             {computed.identityName}
           </div>
           <div className="mt-1 font-mono text-[11px] tabular-nums text-zinc-500">
-            {computed.totalPips} total colored pips
+            {computed.totalPips} colored mana symbols
             {computed.identityColors.length > 0
               ? ` · ${computed.identityColors.join('/')}`
               : ''}
@@ -639,10 +645,10 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-100 pb-4">
               <div>
                 <h3 className="font-display text-base font-semibold text-zinc-900">
-                  Mana Curve Distribution &amp; Cumulative Playability
+                  Mana Curve &amp; Castability
                 </h3>
                 <p className="mt-0.5 text-xs text-zinc-500">
-                  Spell density by mana value with cumulative castable curve (%). Click any bar to view cards.
+                  Spell count at each mana value alongside cumulative playability. Click any bar to view those cards.
                 </p>
               </div>
 
@@ -850,12 +856,12 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
             <div className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-100 pb-4">
               <div>
                 <h3 className="font-display text-base font-semibold text-zinc-900">
-                  Color Identity Breakdown
+                  Color Breakdown
                 </h3>
                 <p className="mt-0.5 text-xs text-zinc-500">
                   {identityMode === 'cards'
-                    ? 'Non-land spells grouped by card color identity'
-                    : 'Colored mana pip share across spell costs'}
+                    ? 'Non-land spells grouped by color'
+                    : 'Share of colored mana symbols across your spells'}
                 </p>
               </div>
 
@@ -967,10 +973,10 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
         <div className="flex flex-col gap-2 border-b border-zinc-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="font-display text-base font-semibold text-zinc-900">
-              Average CMC by Deck Role &amp; Efficiency Benchmark
+              Average Cost by Deck Role
             </h3>
             <p className="mt-0.5 text-xs text-zinc-500">
-              Compares your mana efficiency across Ramp, Card Draw, Removal, Board Wipes, Creatures, and Non-Creature spells against your format target.
+              Compares average mana cost across ramp, card draw, removal, board wipes, and threats against your format target.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3 font-mono text-xs tabular-nums">
@@ -1053,6 +1059,6 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
           </ResponsiveContainer>
         </div>
       </div>
-    </section>
+    </Wrapper>
   );
 };

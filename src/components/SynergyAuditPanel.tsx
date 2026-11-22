@@ -25,6 +25,11 @@ import {
   isSameCardName,
 } from '../utils/deckRules';
 import { CardLink } from './CardInspectorModal';
+import {
+  buildHoverRect,
+  hideGlobalCardHover,
+  showGlobalCardHover,
+} from './CardHoverZoomOverlay';
 
 interface SynergyAuditPanelProps {
   analysis: DeckAnalysisResult;
@@ -38,6 +43,7 @@ interface SynergyAuditPanelProps {
   onToggleAuditSwap: (spec: ExtraSwapSpec) => void;
   onClearAuditSwaps?: () => void;
   onInspectCard: (name: string, meta?: CardMetadata | null) => void;
+  embedded?: boolean;
 }
 
 type AuditFilter = 'all' | 'color' | 'anti' | 'strategy';
@@ -69,7 +75,18 @@ const MiniCardThumb: React.FC<{
   return (
     <button
       type="button"
-      onClick={() => onInspect(name, meta)}
+      onMouseEnter={(e) =>
+        showGlobalCardHover({
+          name,
+          meta,
+          rect: buildHoverRect(e.currentTarget),
+        })
+      }
+      onMouseLeave={hideGlobalCardHover}
+      onClick={() => {
+        hideGlobalCardHover();
+        onInspect(name, meta);
+      }}
       title={`Inspect ${name}`}
       className="h-[60px] w-[44px] shrink-0 overflow-hidden rounded border border-zinc-200 bg-zinc-100 hover:border-sky-600 transition-colors cursor-pointer flex items-center justify-center"
     >
@@ -102,6 +119,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
   onToggleAuditSwap,
   onClearAuditSwaps,
   onInspectCard,
+  embedded = false,
 }) => {
   const [filter, setFilter] = useState<AuditFilter>('all');
   const [hideResolved, setHideResolved] = useState<boolean>(false);
@@ -334,40 +352,28 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
       ? 'text-amber-700'
       : 'text-red-700';
 
+  const Wrapper: React.ElementType = embedded ? 'div' : 'section';
+
   return (
-    <section id="synergy-audit-section" className="space-y-4 scroll-mt-20">
+    <Wrapper id={embedded ? undefined : 'synergy-audit-section'} className={embedded ? 'space-y-4' : 'space-y-4 scroll-mt-20'}>
       {/* Header & Category Filter */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h2 className="font-display text-xl font-bold text-zinc-900">
-            05. Synergy &amp; Color Audit
-          </h2>
-          <p className="mt-0.5 text-sm text-zinc-600">
+          {!embedded && (
+            <h2 className="font-display text-xl font-bold text-zinc-900">
+              Synergy &amp; Colors
+            </h2>
+          )}
+          <p className={embedded ? 'text-sm text-zinc-600' : 'mt-0.5 text-sm text-zinc-600'}>
+            Checked{' '}
             <span className="font-mono font-semibold tabular-nums text-zinc-800">
               {report.totalCardsScanned}
             </span>{' '}
-            cards checked ·{' '}
-            <span className="font-medium text-zinc-900">
-              {report.detectedStrategy.archetype}
-            </span>{' '}
-            <span className="text-zinc-400" aria-hidden="true">·</span>{' '}
-            <span className="font-mono font-semibold text-sky-700">
-              {report.detectedStrategy.identityLabel}
-            </span>
-            {report.detectedStrategy.dominantTribe && (
-              <>
-                {' '}
-                <span className="text-zinc-400" aria-hidden="true">·</span>{' '}
-                <span className="font-medium text-zinc-800">
-                  {report.detectedStrategy.dominantTribe}
-                </span>
-              </>
-            )}{' '}
-            <span className="text-zinc-400" aria-hidden="true">·</span>{' '}
+            cards for color fit, strategy alignment, and conflicts.{' '}
             <span className={report.counts.total === 0 ? 'text-emerald-700 font-medium' : 'text-amber-700 font-medium'}>
               {report.counts.total === 0
-                ? 'All checks passed'
-                : `${report.counts.total} flag${report.counts.total === 1 ? '' : 's'}`}
+                ? 'All synergy checks passed.'
+                : `${report.counts.total} item${report.counts.total === 1 ? '' : 's'} worth reviewing.`}
             </span>
           </p>
         </div>
@@ -393,7 +399,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                 : 'text-zinc-700 hover:text-zinc-900'
             }`}
           >
-            Color &amp; Pips ({report.counts.colorIssues})
+            Color &amp; Mana ({report.counts.colorIssues})
           </button>
           <button
             type="button"
@@ -404,7 +410,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                 : 'text-zinc-700 hover:text-zinc-900'
             }`}
           >
-            Anti-Synergy ({report.counts.antiSynergy})
+            Conflicts ({report.counts.antiSynergy})
           </button>
           <button
             type="button"
@@ -985,6 +991,6 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
           </div>
         )}
       </div>
-    </section>
+    </Wrapper>
   );
 };

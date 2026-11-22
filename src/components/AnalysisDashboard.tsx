@@ -24,6 +24,7 @@ import type {
 } from '../types/deck';
 import {
   buildOptimizedDeckExport,
+  copyTextToClipboard,
   downloadDeckFile,
   type ExtraSwapSpec,
 } from '../utils/deckExport';
@@ -171,6 +172,8 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
 
   const [auditExtraSwaps, setAuditExtraSwaps] = useState<ExtraSwapSpec[]>([]);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [balanceMetricsTab, setBalanceMetricsTab] = useState<'balance' | 'metrics' | 'synergy'>('balance');
+  const [tuningExportTab, setTuningExportTab] = useState<'mana' | 'changes' | 'export'>('mana');
   const [playtestDeckVersion, setPlaytestDeckVersion] =
     useState<PlaytestDeckVersion>('original');
   const [manaSyncNonce, setManaSyncNonce] = useState(0);
@@ -181,6 +184,8 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
 
   useEffect(() => {
     setAuditExtraSwaps([]);
+    setBalanceMetricsTab('balance');
+    setTuningExportTab('mana');
     setPlaytestDeckVersion('original');
     setManaSyncNonce(0);
     setLatestPlaytestResult(null);
@@ -548,11 +553,45 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
   }, [metrics]);
 
   const jumpToSection = useCallback((id: string) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    let scrollTargetId = id;
+    if (id === 'balance-section') {
+      setBalanceMetricsTab('balance');
+      scrollTargetId = 'balance-metrics-section';
+    } else if (id === 'advanced-metrics-section') {
+      setBalanceMetricsTab('metrics');
+      scrollTargetId = 'balance-metrics-section';
+    } else if (id === 'synergy-audit-section') {
+      setBalanceMetricsTab('synergy');
+      scrollTargetId = 'balance-metrics-section';
+    } else if (id === 'mana-section') {
+      setTuningExportTab('mana');
+      scrollTargetId = 'deck-tuning-section';
+    } else if (id === 'changes-section') {
+      setTuningExportTab('changes');
+      scrollTargetId = 'deck-tuning-section';
+    } else if (id === 'export-section') {
+      setTuningExportTab('export');
+      scrollTargetId = 'deck-tuning-section';
     }
+
+    window.requestAnimationFrame(() => {
+      const el = document.getElementById(scrollTargetId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
   }, []);
+
+  useEffect(() => {
+    const handleNavigateEvent = (event: Event) => {
+      const custom = event as CustomEvent<string>;
+      if (typeof custom.detail === 'string' && custom.detail) {
+        jumpToSection(custom.detail);
+      }
+    };
+    window.addEventListener('deck-navigate-section', handleNavigateEvent);
+    return () => window.removeEventListener('deck-navigate-section', handleNavigateEvent);
+  }, [jumpToSection]);
 
   const hasSelectedAdjustments =
     selectedSwapIds.size > 0 ||
@@ -561,17 +600,20 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
     selectedLandChangeIds.size > 0 ||
     auditExtraSwaps.length > 0;
 
+  const totalSuggestedChanges =
+    (analysis?.swaps?.length ?? 0) +
+    (analysis?.cuts?.length ?? 0) +
+    (analysis?.additions?.length ?? 0);
+  const selectedSuggestedChanges =
+    selectedSwapIds.size + selectedCutIds.size + selectedAddIds.size;
+
   const sectionAnchors = [
-    { id: 'diagnosis-section', label: '01 Diagnosis' },
-    { id: 'balance-section', label: '02 Balance' },
-    { id: 'mana-section', label: '03 Mana & Curve' },
-    { id: 'mana-calculator-section', label: '04 Hand Sim' },
-    { id: 'synergy-audit-section', label: '05 Synergy' },
-    { id: 'changes-section', label: '06 Changes' },
-    { id: 'export-section', label: '07 Export' },
-    { id: 'gallery-section', label: '08 Gallery' },
-    { id: 'playtest-section', label: '09 Playtest' },
-    { id: 'advanced-metrics-section', label: '10 Metrics' },
+    { id: 'diagnosis-section', label: 'Overview' },
+    { id: 'balance-metrics-section', label: 'Balance, Synergy & Metrics' },
+    { id: 'deck-tuning-section', label: 'Mana, Changes & List' },
+    { id: 'mana-calculator-section', label: 'Opening Hands' },
+    { id: 'gallery-section', label: 'Card Gallery' },
+    { id: 'playtest-section', label: 'Bot Playtest' },
   ];
 
   return (
@@ -631,6 +673,109 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
                 true
               );
               downloadDeckFile(exp.exportCsv, analysis?.deckName || 'deck', 'csv');
+            }}
+            onCopyRawList={() => {
+              const exp = buildOptimizedDeckExport(
+                analysis,
+                selectedSwapIds,
+                selectedCutIds,
+                selectedAddIds,
+                selectedLandChangeIds,
+                auditExtraSwaps,
+                simulationExportStats,
+                false
+              );
+              return copyTextToClipboard(exp.rawListText);
+            }}
+            onExportRawListTxt={() => {
+              const exp = buildOptimizedDeckExport(
+                analysis,
+                selectedSwapIds,
+                selectedCutIds,
+                selectedAddIds,
+                selectedLandChangeIds,
+                auditExtraSwaps,
+                simulationExportStats,
+                false
+              );
+              downloadDeckFile(
+                exp.rawListText,
+                analysis?.deckName || 'deck',
+                'txt',
+                'raw-list'
+              );
+            }}
+            onExportMoxfieldTxt={() => {
+              const exp = buildOptimizedDeckExport(
+                analysis,
+                selectedSwapIds,
+                selectedCutIds,
+                selectedAddIds,
+                selectedLandChangeIds,
+                auditExtraSwaps,
+                simulationExportStats,
+                false
+              );
+              downloadDeckFile(
+                exp.moxfieldText,
+                analysis?.deckName || 'deck',
+                'txt',
+                'moxfield'
+              );
+            }}
+            onExportMoxfieldCsv={() => {
+              const exp = buildOptimizedDeckExport(
+                analysis,
+                selectedSwapIds,
+                selectedCutIds,
+                selectedAddIds,
+                selectedLandChangeIds,
+                auditExtraSwaps,
+                simulationExportStats,
+                false
+              );
+              downloadDeckFile(
+                exp.moxfieldCsv,
+                analysis?.deckName || 'deck',
+                'csv',
+                'moxfield'
+              );
+            }}
+            onExportArchidektTxt={() => {
+              const exp = buildOptimizedDeckExport(
+                analysis,
+                selectedSwapIds,
+                selectedCutIds,
+                selectedAddIds,
+                selectedLandChangeIds,
+                auditExtraSwaps,
+                simulationExportStats,
+                false
+              );
+              downloadDeckFile(
+                exp.archidektText,
+                analysis?.deckName || 'deck',
+                'txt',
+                'archidekt'
+              );
+            }}
+            onExportArchidektCsv={() => {
+              const exp = buildOptimizedDeckExport(
+                analysis,
+                selectedSwapIds,
+                selectedCutIds,
+                selectedAddIds,
+                selectedLandChangeIds,
+                auditExtraSwaps,
+                simulationExportStats,
+                false
+              );
+              downloadDeckFile(
+                exp.archidektCsv,
+                analysis?.deckName || 'deck',
+                'csv',
+                'archidekt'
+              );
             }}
           />
           <button
@@ -706,12 +851,12 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
         </div>
 
         <div className="rounded-xl border border-zinc-200 bg-white px-5 py-4">
-          <div className="text-xs font-medium text-zinc-500">Suggested Actions</div>
+          <div className="text-xs font-medium text-zinc-500">Recommended Tweaks</div>
           <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-zinc-900">
             {(analysis?.swaps ?? []).length} swaps · {(analysis?.cuts ?? []).length} cuts
           </div>
           <div className="mt-1 text-xs text-zinc-600 font-mono tabular-nums">
-            {(analysis?.additions ?? []).length} adds · {(analysis?.manaPlan?.landChanges ?? []).length} land fixes
+            {(analysis?.additions ?? []).length} additions · {(analysis?.manaPlan?.landChanges ?? []).length} land fixes
           </div>
         </div>
       </div>
@@ -719,22 +864,18 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
       {/* Section Quick-Jump Bar */}
       <nav
         aria-label="Report sections"
-        className="flex flex-wrap items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2"
+        className="grid grid-cols-2 gap-1 rounded-xl border border-zinc-200 bg-white p-2 sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-center lg:justify-between"
       >
-        {sectionAnchors.map((sec) => {
-          const [num, ...rest] = sec.label.split(' ');
-          return (
-            <button
-              key={sec.id}
-              type="button"
-              onClick={() => jumpToSection(sec.id)}
-              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-            >
-              <span className="font-mono text-[11px] font-semibold text-sky-700">{num}</span>
-              <span>{rest.join(' ')}</span>
-            </button>
-          );
-        })}
+        {sectionAnchors.map((sec) => (
+          <button
+            key={sec.id}
+            type="button"
+            onClick={() => jumpToSection(sec.id)}
+            className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <span>{sec.label}</span>
+          </button>
+        ))}
       </nav>
 
       {/* Rules / Legality / Unresolved Cards Notice */}
@@ -786,17 +927,17 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
         </div>
 
         <div className="px-4 py-3.5">
-          <div className="text-[11px] font-medium text-zinc-500">Avg Spell MV</div>
+          <div className="text-[11px] font-medium text-zinc-500">Avg. Spell Cost</div>
           <div className="mt-0.5 font-mono text-xl font-bold tabular-nums text-sky-700">
             {metrics.averageCmcNonLand.toFixed(2)}
           </div>
           <div className="mt-0.5 text-[11px] font-mono tabular-nums text-zinc-500">
-            {metrics.averageCmcWithLands.toFixed(2)} incl. lands
+            {metrics.averageCmcWithLands.toFixed(2)} with lands
           </div>
         </div>
 
         <div className="px-4 py-3.5">
-          <div className="text-[11px] font-medium text-zinc-500">Land / Spell</div>
+          <div className="text-[11px] font-medium text-zinc-500">Lands vs. Spells</div>
           <div className="mt-0.5 font-mono text-xl font-bold tabular-nums text-zinc-900">
             {summaryStats.landCount} : {summaryStats.spellCount}
           </div>
@@ -825,38 +966,36 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
           <div className="mt-0.5 text-[11px] text-zinc-500">
             {summaryStats.colorCount === 0
               ? 'Colorless build'
-              : `${summaryStats.colorCount}-color mana`}
+              : `${summaryStats.colorCount}-color deck`}
           </div>
         </div>
 
         <div className="px-4 py-3.5">
-          <div className="text-[11px] font-medium text-zinc-500">Engine Mix</div>
+          <div className="text-[11px] font-medium text-zinc-500">Core Support</div>
           <div className="mt-0.5 font-mono text-xl font-bold tabular-nums text-zinc-900">
             {summaryStats.coreEngineTotal}
           </div>
           <div className="mt-0.5 text-[11px] font-mono tabular-nums text-zinc-500">
-            {metrics.currentRamp}R · {metrics.currentDraw}D · {metrics.currentRemoval}I
+            {metrics.currentRamp} Ramp · {metrics.currentDraw} Draw · {metrics.currentRemoval} Removal
           </div>
         </div>
       </section>
 
-      {/* 01. Deck Diagnosis */}
+      {/* Deck Overview */}
       <section id="diagnosis-section" className="space-y-4 scroll-mt-20">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h2 className="font-display text-xl font-bold text-zinc-900">
-              01. Deck Diagnosis
+              Deck Overview
             </h2>
             <p className="mt-0.5 text-sm text-zinc-600">
+              Your{' '}
               <span className="capitalize font-medium text-zinc-800">{metrics.detectedFormat}</span>{' '}
-              · {analysis?.archetype} ·{' '}
-              <span className={metrics.landsDelta === 0 ? 'text-emerald-700 font-medium' : 'text-amber-700 font-medium'}>
-                {landStatusText}
-              </span>
+              {analysis?.archetype ? `${analysis.archetype} ` : ''}list at a glance, highlighting what works well and what to tune first.
             </p>
           </div>
           <span className="font-mono text-xs tabular-nums text-zinc-500">
-            {summaryStats.totalCards} cards analyzed
+            {summaryStats.totalCards} cards reviewed
           </span>
         </div>
 
@@ -870,7 +1009,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
 
           {(analysis?.topPriorities ?? []).length > 0 && (
             <div className="mt-5 border-t border-zinc-100 pt-4">
-              <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <div className="text-xs font-semibold text-zinc-500">
                 Top Priorities
               </div>
               <ol className="mt-2.5 grid grid-cols-1 gap-4 md:grid-cols-3">
@@ -888,170 +1027,388 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
         </div>
       </section>
 
-      {/* 02. Composition & Balance */}
-      <section id="balance-section" className="space-y-5 scroll-mt-20">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+      {/* Balance, Synergy & Metrics (Merged Tabbed Section) */}
+      <section id="balance-metrics-section" className="space-y-5 scroll-mt-20">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="font-display text-xl font-bold text-zinc-900">
-              02. Composition &amp; Balance
+              Balance, Synergy &amp; Metrics
             </h2>
             <p className="mt-0.5 text-sm text-zinc-600">
-              {summaryStats.landCount} lands vs. {summaryStats.spellCount} spells · Avg MV{' '}
-              <span className="font-mono font-semibold tabular-nums text-zinc-800">
-                {metrics.averageCmcNonLand.toFixed(2)}
-              </span>{' '}
-              (target ≤ {formatCmcTarget.toFixed(2)}) · {metrics.currentRamp} ramp, {metrics.currentDraw} draw, {metrics.currentRemoval} removal.
+              Inspect deck balance, deep curve &amp; role metrics, and color synergy diagnostics in one compact workspace.
             </p>
           </div>
-        </div>
 
-        <LandSpellGauge
-          metrics={metrics}
-          optimizedLands={optimizedExport.resultingLandCount}
-          optimizedTotal={optimizedExport.totalMainCount}
-        />
-
-        <Suspense fallback={<PanelFallback heightClass="h-72" />}>
-          <DeckStatsCard
-            metrics={metrics}
-            resolvedCards={safeResolvedCards}
-          />
-        </Suspense>
-
-        {/* Average Converted Mana Cost (CMC) Bar Chart */}
-        <div className="rounded-xl border border-zinc-200 bg-white p-6">
-          <div className="flex flex-col gap-3 border-b border-zinc-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h3 className="font-display text-base font-semibold text-zinc-900">
-                Average Mana Value by Card Type
-              </h3>
-              <p className="mt-0.5 text-xs text-zinc-500">
-                Spell average ({metrics.averageCmcNonLand.toFixed(2)}) vs. format target (≤ {formatCmcTarget.toFixed(2)})
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 font-mono text-xs tabular-nums">
-              <span className="text-zinc-600">
-                Spells:{' '}
-                <span className="font-semibold text-zinc-900">
-                  {metrics.averageCmcNonLand.toFixed(2)}
-                </span>
+          <div
+            role="tablist"
+            aria-label="Balance, Synergy and Metrics views"
+            className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-100 p-1 shrink-0"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={balanceMetricsTab === 'balance'}
+              onClick={() => setBalanceMetricsTab('balance')}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                balanceMetricsTab === 'balance'
+                  ? 'bg-white text-zinc-900 shadow-sm'
+                  : 'text-zinc-600 hover:text-zinc-900'
+              }`}
+            >
+              <span>Deck Balance</span>
+              <span className="font-mono text-[11px] font-normal tabular-nums text-zinc-500">
+                {metrics.averageCmcNonLand.toFixed(2)} MV
               </span>
-              <span className="text-zinc-300" aria-hidden="true">·</span>
-              <span className="text-zinc-600">
-                With Lands:{' '}
-                <span className="font-semibold text-zinc-900">
-                  {metrics.averageCmcWithLands.toFixed(2)}
-                </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={balanceMetricsTab === 'metrics'}
+              onClick={() => setBalanceMetricsTab('metrics')}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                balanceMetricsTab === 'metrics'
+                  ? 'bg-white text-zinc-900 shadow-sm'
+                  : 'text-zinc-600 hover:text-zinc-900'
+              }`}
+            >
+              <span>Deep Metrics</span>
+              <span className="font-mono text-[11px] font-normal tabular-nums text-zinc-500">
+                {summaryStats.spellCount} spells
               </span>
-              {optimizedAvgCmcNonLand !== metrics.averageCmcNonLand && (
-                <>
-                  <span className="text-zinc-300" aria-hidden="true">·</span>
-                  <span className="text-sky-700">
-                    With Fixes:{' '}
-                    <span className="font-semibold">{optimizedAvgCmcNonLand.toFixed(2)}</span>
-                  </span>
-                </>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={balanceMetricsTab === 'synergy'}
+              onClick={() => setBalanceMetricsTab('synergy')}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                balanceMetricsTab === 'synergy'
+                  ? 'bg-white text-zinc-900 shadow-sm'
+                  : 'text-zinc-600 hover:text-zinc-900'
+              }`}
+            >
+              <span>Synergy &amp; Colors</span>
+              {auditExtraSwaps.length > 0 && (
+                <span className="font-mono text-[11px] font-normal tabular-nums text-sky-700">
+                  +{auditExtraSwaps.length} fix{auditExtraSwaps.length === 1 ? '' : 'es'}
+                </span>
               )}
-              <span className="text-zinc-300" aria-hidden="true">·</span>
-              <span className="text-zinc-500">
-                Format Target ≤ {formatCmcTarget.toFixed(2)}
-              </span>
-            </div>
-          </div>
-
-          <div className="mt-4 h-[240px] w-full">
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart
-                data={averageCmcChartData}
-                margin={{ top: 22, right: 12, left: -14, bottom: 4 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#2C3444" vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fontSize: 11, fill: '#E4E4E7', fontWeight: 500 }}
-                  axisLine={{ stroke: '#3B4458' }}
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                  minTickGap={4}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: '#94A3B8' }}
-                  axisLine={false}
-                  tickLine={false}
-                  allowDecimals
-                  domain={[0, (dataMax: number) => Math.max(4, Math.ceil(dataMax + 0.6))]}
-                />
-                <Tooltip
-                  cursor={{ fill: 'rgba(41, 171, 226, 0.10)' }}
-                  content={<AverageCmcTooltip />}
-                />
-                <ReferenceLine
-                  y={formatCmcTarget}
-                  stroke="#F59E0B"
-                  strokeDasharray="4 4"
-                  label={{
-                    value: `Target ${formatCmcTarget.toFixed(2)}`,
-                    position: 'insideTopRight',
-                    fill: '#FBBF24',
-                    fontSize: 11,
-                    fontFamily: 'JetBrains Mono, monospace',
-                  }}
-                />
-                <Bar dataKey="avgCmc" name="Average CMC" radius={[4, 4, 0, 0]} maxBarSize={42}>
-                  {averageCmcChartData.map((entry) => (
-                    <Cell key={entry.key} fill={entry.color} />
-                  ))}
-                  <LabelList
-                    dataKey="avgCmc"
-                    position="top"
-                    formatter={(val: unknown) => Number(val).toFixed(2)}
-                    style={{
-                      fill: '#E4E4E7',
-                      fontSize: 11,
-                      fontWeight: 600,
-                      fontFamily: 'JetBrains Mono, monospace',
-                    }}
-                  />
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            </button>
           </div>
         </div>
 
-        <Suspense fallback={<PanelFallback heightClass="h-80" />}>
-          <DeckRadarChart
-            metrics={metrics}
-            resolvedCards={safeResolvedCards}
-          />
-        </Suspense>
+        {balanceMetricsTab === 'balance' && (
+          <div role="tabpanel" className="space-y-5">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <p className="text-sm text-zinc-600">
+                How your {summaryStats.landCount} lands and {summaryStats.spellCount} spells line up across ramp, card draw, removal, and budget.
+              </p>
+              <span className="font-mono text-xs tabular-nums text-zinc-500 whitespace-nowrap shrink-0">
+                Avg. spell cost {metrics.averageCmcNonLand.toFixed(2)} (target ≤ {formatCmcTarget.toFixed(2)})
+              </span>
+            </div>
 
-        <DeckBudgetComparison
-          analysis={analysis}
-          selectedSwapIds={selectedSwapIds}
-          selectedCutIds={selectedCutIds}
-          selectedAddIds={selectedAddIds}
-          selectedLandChangeIds={selectedLandChangeIds}
-          extraSwaps={auditExtraSwaps}
-          onInspectCard={onInspectCard}
-        />
+            <LandSpellGauge
+              metrics={metrics}
+              optimizedLands={optimizedExport.resultingLandCount}
+              optimizedTotal={optimizedExport.totalMainCount}
+            />
+
+            <Suspense fallback={<PanelFallback heightClass="h-72" />}>
+              <DeckStatsCard
+                metrics={metrics}
+                resolvedCards={safeResolvedCards}
+              />
+            </Suspense>
+
+            {/* Average Converted Mana Cost (CMC) Bar Chart */}
+            <div className="rounded-xl border border-zinc-200 bg-white p-6">
+              <div className="flex flex-col gap-3 border-b border-zinc-100 pb-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="font-display text-base font-semibold text-zinc-900">
+                    Average Mana Cost by Card Type
+                  </h3>
+                  <p className="mt-0.5 text-xs text-zinc-500">
+                    Compares each card type&apos;s average cost against your format target of {formatCmcTarget.toFixed(2)} or less.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 font-mono text-xs tabular-nums">
+                  <span className="text-zinc-600">
+                    Spells:{' '}
+                    <span className="font-semibold text-zinc-900">
+                      {metrics.averageCmcNonLand.toFixed(2)}
+                    </span>
+                  </span>
+                  <span className="text-zinc-300" aria-hidden="true">·</span>
+                  <span className="text-zinc-600">
+                    With Lands:{' '}
+                    <span className="font-semibold text-zinc-900">
+                      {metrics.averageCmcWithLands.toFixed(2)}
+                    </span>
+                  </span>
+                  {optimizedAvgCmcNonLand !== metrics.averageCmcNonLand && (
+                    <>
+                      <span className="text-zinc-300" aria-hidden="true">·</span>
+                      <span className="text-sky-700">
+                        With Fixes:{' '}
+                        <span className="font-semibold">{optimizedAvgCmcNonLand.toFixed(2)}</span>
+                      </span>
+                    </>
+                  )}
+                  <span className="text-zinc-300" aria-hidden="true">·</span>
+                  <span className="text-zinc-500">
+                    Format Target ≤ {formatCmcTarget.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-4 h-[240px] w-full">
+                <ResponsiveContainer width="100%" height={240}>
+                  <BarChart
+                    data={averageCmcChartData}
+                    margin={{ top: 22, right: 12, left: -14, bottom: 4 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2C3444" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      tick={{ fontSize: 11, fill: '#E4E4E7', fontWeight: 500 }}
+                      axisLine={{ stroke: '#3B4458' }}
+                      tickLine={false}
+                      interval="preserveStartEnd"
+                      minTickGap={4}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: '#94A3B8' }}
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals
+                      domain={[0, (dataMax: number) => Math.max(4, Math.ceil(dataMax + 0.6))]}
+                    />
+                    <Tooltip
+                      cursor={{ fill: 'rgba(41, 171, 226, 0.10)' }}
+                      content={<AverageCmcTooltip />}
+                    />
+                    <ReferenceLine
+                      y={formatCmcTarget}
+                      stroke="#F59E0B"
+                      strokeDasharray="4 4"
+                      label={{
+                        value: `Target ${formatCmcTarget.toFixed(2)}`,
+                        position: 'insideTopRight',
+                        fill: '#FBBF24',
+                        fontSize: 11,
+                        fontFamily: 'JetBrains Mono, monospace',
+                      }}
+                    />
+                    <Bar dataKey="avgCmc" name="Average CMC" radius={[4, 4, 0, 0]} maxBarSize={42}>
+                      {averageCmcChartData.map((entry) => (
+                        <Cell key={entry.key} fill={entry.color} />
+                      ))}
+                      <LabelList
+                        dataKey="avgCmc"
+                        position="top"
+                        formatter={(val: unknown) => Number(val).toFixed(2)}
+                        style={{
+                          fill: '#E4E4E7',
+                          fontSize: 11,
+                          fontWeight: 600,
+                          fontFamily: 'JetBrains Mono, monospace',
+                        }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <Suspense fallback={<PanelFallback heightClass="h-80" />}>
+              <DeckRadarChart
+                metrics={metrics}
+                resolvedCards={safeResolvedCards}
+              />
+            </Suspense>
+
+            <DeckBudgetComparison
+              analysis={analysis}
+              selectedSwapIds={selectedSwapIds}
+              selectedCutIds={selectedCutIds}
+              selectedAddIds={selectedAddIds}
+              selectedLandChangeIds={selectedLandChangeIds}
+              extraSwaps={auditExtraSwaps}
+              onInspectCard={onInspectCard}
+            />
+          </div>
+        )}
+
+        {balanceMetricsTab === 'metrics' && (
+          <div role="tabpanel">
+            <Suspense fallback={<PanelFallback heightClass="h-96" />}>
+              <AdvancedDeckMetrics
+                embedded
+                analysis={analysis}
+                resolvedCards={safeResolvedCards}
+                optimizedEntries={optimizedExport.entries}
+                hasSelectedAdjustments={hasSelectedAdjustments}
+                onInspectCard={onInspectCard}
+              />
+            </Suspense>
+          </div>
+        )}
+
+        {balanceMetricsTab === 'synergy' && (
+          <div role="tabpanel">
+            <SynergyAuditPanel
+              embedded
+              analysis={analysis}
+              selectedSwapIds={selectedSwapIds}
+              selectedCutIds={selectedCutIds}
+              selectedAddIds={selectedAddIds}
+              selectedLandChangeIds={selectedLandChangeIds}
+              extraSwaps={auditExtraSwaps}
+              onToggleSwap={(id) => toggleSelectionKey('swapIds', id)}
+              onToggleCut={(id) => toggleSelectionKey('cutIds', id)}
+              onToggleAuditSwap={handleToggleAuditSwap}
+              onClearAuditSwaps={() => setAuditExtraSwaps([])}
+              onInspectCard={onInspectCard}
+            />
+          </div>
+        )}
       </section>
 
-      {/* 03. Mana Base & Curve */}
-      <ManaBreakdown
-        metrics={metrics}
-        manaPlan={analysis?.manaPlan}
-        resolvedCards={safeResolvedCards}
-        optimizedEntries={optimizedExport.entries}
-        selectedLandChangeIds={selectedLandChangeIds}
-        onToggleLandChange={(id) => toggleSelectionKey('landChangeIds', id)}
-        onInspectCard={onInspectCard}
-        manaOptimizedLandCount={manaOptimizedExport.resultingLandCount}
-        isPlaytestManaSynced={playtestDeckVersion === 'mana-optimized'}
-        onSelectAllLandChanges={handleSelectAllLandChanges}
-        onSyncManaToPlaytest={handleSyncManaToPlaytest}
-      />
+      {/* Mana & Lands, Card Changes & Optimized List (Combined Section) */}
+      <section id="deck-tuning-section" className="space-y-5 scroll-mt-20">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="font-display text-xl font-bold text-zinc-900">
+              Mana &amp; Lands, Card Changes &amp; Optimized List
+            </h2>
+            <p className="mt-0.5 text-sm text-zinc-600">
+              Fine-tune your mana base and lands, pick card swaps, cuts, and additions, then review and export your updated list in one place.
+            </p>
+          </div>
 
-      {/* 04. Opening Hand & Mana Simulator */}
+          <div
+            role="tablist"
+            aria-label="Mana and Lands, Card Changes, and Optimized List views"
+            className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-100 p-1 shrink-0"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tuningExportTab === 'mana'}
+              onClick={() => setTuningExportTab('mana')}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                tuningExportTab === 'mana'
+                  ? 'bg-white text-zinc-900 shadow-sm'
+                  : 'text-zinc-600 hover:text-zinc-900'
+              }`}
+            >
+              <span>Mana &amp; Lands</span>
+              <span className="font-mono text-[11px] font-normal tabular-nums text-zinc-500">
+                {metrics.currentLands}→{metrics.recommendedLands}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tuningExportTab === 'changes'}
+              onClick={() => setTuningExportTab('changes')}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                tuningExportTab === 'changes'
+                  ? 'bg-white text-zinc-900 shadow-sm'
+                  : 'text-zinc-600 hover:text-zinc-900'
+              }`}
+            >
+              <span>Card Changes</span>
+              <span className="font-mono text-[11px] font-normal tabular-nums text-zinc-500">
+                {selectedSuggestedChanges}/{totalSuggestedChanges}
+              </span>
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tuningExportTab === 'export'}
+              onClick={() => setTuningExportTab('export')}
+              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                tuningExportTab === 'export'
+                  ? 'bg-white text-zinc-900 shadow-sm'
+                  : 'text-zinc-600 hover:text-zinc-900'
+              }`}
+            >
+              <span>Optimized List</span>
+              <span
+                className={`font-mono text-[11px] font-normal tabular-nums ${
+                  activeDeckDelta === 0 ? 'text-emerald-700' : 'text-amber-700'
+                }`}
+              >
+                {optimizedExport.totalMainCount}/{metrics.targetDeckSize}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {tuningExportTab === 'mana' && (
+          <div role="tabpanel">
+            <ManaBreakdown
+              embedded
+              metrics={metrics}
+              manaPlan={analysis?.manaPlan}
+              resolvedCards={safeResolvedCards}
+              optimizedEntries={optimizedExport.entries}
+              selectedLandChangeIds={selectedLandChangeIds}
+              onToggleLandChange={(id) => toggleSelectionKey('landChangeIds', id)}
+              onInspectCard={onInspectCard}
+              manaOptimizedLandCount={manaOptimizedExport.resultingLandCount}
+              isPlaytestManaSynced={playtestDeckVersion === 'mana-optimized'}
+              onSelectAllLandChanges={handleSelectAllLandChanges}
+              onSyncManaToPlaytest={handleSyncManaToPlaytest}
+            />
+          </div>
+        )}
+
+        {tuningExportTab === 'changes' && (
+          <div role="tabpanel">
+            <CardChangesPanel
+              embedded
+              swaps={analysis?.swaps || []}
+              cuts={analysis?.cuts || []}
+              additions={analysis?.additions || []}
+              selectedSwapIds={selectedSwapIds}
+              selectedCutIds={selectedCutIds}
+              selectedAddIds={selectedAddIds}
+              onToggleSwap={(id) => toggleSelectionKey('swapIds', id)}
+              onToggleCut={(id) => toggleSelectionKey('cutIds', id)}
+              onToggleAdd={(id) => toggleSelectionKey('addIds', id)}
+              onSelectAllChanges={handleSelectAllChanges}
+              onInspectCard={onInspectCard}
+            />
+          </div>
+        )}
+
+        {tuningExportTab === 'export' && (
+          <div role="tabpanel">
+            <OptimizedExportPanel
+              embedded
+              analysis={analysis}
+              selectedSwapIds={selectedSwapIds}
+              selectedCutIds={selectedCutIds}
+              selectedAddIds={selectedAddIds}
+              selectedLandChangeIds={selectedLandChangeIds}
+              extraSwaps={auditExtraSwaps}
+              simulationStats={simulationExportStats}
+              onReanalyzeUpdated={onReanalyzeUpdated}
+              onAutoBalanceSelection={handleAutoBalanceSelection}
+              onSaveSnapshot={onSaveSnapshot}
+              onOpenHistory={onOpenHistory}
+              onOpenPdfReport={() => setIsPdfModalOpen(true)}
+              versionCount={versionCount}
+              justSavedSnapshot={justSavedSnapshot}
+            />
+          </div>
+        )}
+      </section>
+
+      {/* Opening Hands */}
       <ManaCalculator
         deckName={analysis?.deckName || 'Deck'}
         resolvedCards={safeResolvedCards}
@@ -1062,55 +1419,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
         isPlaytestManaSynced={playtestDeckVersion === 'mana-optimized'}
       />
 
-      {/* 05. Synergy & Color Audit */}
-      <SynergyAuditPanel
-        analysis={analysis}
-        selectedSwapIds={selectedSwapIds}
-        selectedCutIds={selectedCutIds}
-        selectedAddIds={selectedAddIds}
-        selectedLandChangeIds={selectedLandChangeIds}
-        extraSwaps={auditExtraSwaps}
-        onToggleSwap={(id) => toggleSelectionKey('swapIds', id)}
-        onToggleCut={(id) => toggleSelectionKey('cutIds', id)}
-        onToggleAuditSwap={handleToggleAuditSwap}
-        onClearAuditSwaps={() => setAuditExtraSwaps([])}
-        onInspectCard={onInspectCard}
-      />
-
-      {/* 06. Card Swaps, Cuts & Additions */}
-      <CardChangesPanel
-        swaps={analysis?.swaps || []}
-        cuts={analysis?.cuts || []}
-        additions={analysis?.additions || []}
-        selectedSwapIds={selectedSwapIds}
-        selectedCutIds={selectedCutIds}
-        selectedAddIds={selectedAddIds}
-        onToggleSwap={(id) => toggleSelectionKey('swapIds', id)}
-        onToggleCut={(id) => toggleSelectionKey('cutIds', id)}
-        onToggleAdd={(id) => toggleSelectionKey('addIds', id)}
-        onSelectAllChanges={handleSelectAllChanges}
-        onInspectCard={onInspectCard}
-      />
-
-      {/* 07. Optimized Decklist & Export */}
-      <OptimizedExportPanel
-        analysis={analysis}
-        selectedSwapIds={selectedSwapIds}
-        selectedCutIds={selectedCutIds}
-        selectedAddIds={selectedAddIds}
-        selectedLandChangeIds={selectedLandChangeIds}
-        extraSwaps={auditExtraSwaps}
-        simulationStats={simulationExportStats}
-        onReanalyzeUpdated={onReanalyzeUpdated}
-        onAutoBalanceSelection={handleAutoBalanceSelection}
-        onSaveSnapshot={onSaveSnapshot}
-        onOpenHistory={onOpenHistory}
-        onOpenPdfReport={() => setIsPdfModalOpen(true)}
-        versionCount={versionCount}
-        justSavedSnapshot={justSavedSnapshot}
-      />
-
-      {/* 08. Visual Card Gallery & Marketplace Prices */}
+      {/* Card Gallery */}
       <Suspense fallback={<PanelFallback heightClass="h-80" />}>
         <CardGalleryPanel
           analysis={analysis}
@@ -1118,7 +1427,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
         />
       </Suspense>
 
-      {/* 09. Bot Match Simulator & Round-by-Round Analyzer */}
+      {/* Bot Playtest */}
       <Suspense fallback={<PanelFallback heightClass="h-96" />}>
         <PlaytestArena
           analysis={analysis}
@@ -1137,17 +1446,6 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
           onResetBotMemory={onResetBotMemory}
           onPlaytestResultChange={setLatestPlaytestResult}
           onLiveStatsChange={setLiveSimStats}
-        />
-      </Suspense>
-
-      {/* 10. Advanced Deck Metrics (Mana Curve, Color Identity & Role CMC) */}
-      <Suspense fallback={<PanelFallback heightClass="h-96" />}>
-        <AdvancedDeckMetrics
-          analysis={analysis}
-          resolvedCards={safeResolvedCards}
-          optimizedEntries={optimizedExport.entries}
-          hasSelectedAdjustments={hasSelectedAdjustments}
-          onInspectCard={onInspectCard}
         />
       </Suspense>
 

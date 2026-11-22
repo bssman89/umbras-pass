@@ -14,6 +14,10 @@ export interface DesktopAppBridge {
   selectGgufFile?: () => Promise<string | null>;
   getDesktopInfo?: () => Promise<DesktopBridgeInfo>;
   openModelsFolder?: () => Promise<void>;
+  openUpdatesFolder?: () => Promise<void>;
+  launchUpdateInstaller?: (
+    filePath: string
+  ) => Promise<{ ok: boolean; error?: string }>;
   exitApp?: () => Promise<void>;
 }
 

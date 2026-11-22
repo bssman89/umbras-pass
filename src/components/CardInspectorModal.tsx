@@ -7,6 +7,11 @@ import {
 } from '../utils/clientFallbackAnalyzer';
 
 export { CardLink } from './CardTooltip';
+import {
+  buildHoverRect,
+  hideGlobalCardHover,
+  showGlobalCardHover,
+} from './CardHoverZoomOverlay';
 
 interface CardInspectorModalProps {
   cardName: string | null;
@@ -26,11 +31,20 @@ export const CardInspectorModal: React.FC<CardInspectorModalProps> = ({
   const [selectedPrintingId, setSelectedPrintingId] = useState<string>('');
 
   useEffect(() => {
+    hideGlobalCardHover();
     setImgFailed(false);
     setShowBackFace(false);
     setPrintingsData(null);
     setSelectedPrintingId('');
 
+    if (!cardName) return;
+
+    return () => {
+      hideGlobalCardHover();
+    };
+  }, [cardName]);
+
+  useEffect(() => {
     if (!cardName) return;
 
     let cancelled = false;
@@ -200,14 +214,55 @@ export const CardInspectorModal: React.FC<CardInspectorModalProps> = ({
           {/* Left: High-Res Card Artwork + Flip Control */}
           <div className="flex flex-col items-center gap-3">
             {activeImage && !imgFailed ? (
-              <img
-                src={activeImage}
-                alt={`${displayName}${activePrinting ? ` (${activePrinting.setName})` : ''}`}
-                decoding="async"
-                referrerPolicy="no-referrer"
-                onError={() => setImgFailed(true)}
-                className="w-full max-w-[260px] rounded-xl border border-zinc-200 object-cover"
-              />
+              <div
+                onMouseEnter={(e) =>
+                  showGlobalCardHover({
+                    name: displayName,
+                    meta: {
+                      ...(meta || {
+                        name: displayName,
+                        manaCost: displayManaCost,
+                        cmc: displayCmc ?? 0,
+                        typeLine: displayTypeLine,
+                        oracleText: displayOracle,
+                        colors: [],
+                        colorIdentity: [],
+                        producedMana: [],
+                        isLand: /land/i.test(displayTypeLine),
+                        isMdfcLand: false,
+                        entersTappedLikely: false,
+                        isRamp: false,
+                        isDraw: false,
+                        isRemoval: false,
+                        isBoardWipe: false,
+                        isProtection: false,
+                        imageUri: activeImage,
+                        priceUsd: null,
+                        scryfallUri: scryfallUrl,
+                        legalInFormat: true,
+                        rarity: activePrinting?.rarity || 'common',
+                      }),
+                      imageUri: activeImage,
+                      typeLine: displayTypeLine,
+                      manaCost: displayManaCost,
+                      oracleText: displayOracle,
+                    },
+                    rect: buildHoverRect(e.currentTarget),
+                    statusTags: activePrinting?.setName ? [activePrinting.setName] : undefined,
+                  })
+                }
+                onMouseLeave={hideGlobalCardHover}
+                className="w-full max-w-[260px] cursor-zoom-in"
+              >
+                <img
+                  src={activeImage}
+                  alt={`${displayName}${activePrinting ? ` (${activePrinting.setName})` : ''}`}
+                  decoding="async"
+                  referrerPolicy="no-referrer"
+                  onError={() => setImgFailed(true)}
+                  className="w-full rounded-xl border border-zinc-200 object-cover transition-transform duration-150 hover:scale-[1.03]"
+                />
+              </div>
             ) : (
               <div className="flex aspect-[5/7] w-full max-w-[260px] flex-col items-center justify-center rounded-xl border border-zinc-200 bg-zinc-100 p-4 text-center">
                 <p className="font-display text-base font-semibold text-zinc-800">{displayName}</p>

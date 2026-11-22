@@ -35,6 +35,7 @@ interface ManaBreakdownProps {
   isPlaytestManaSynced?: boolean;
   onSelectAllLandChanges?: (selectAll: boolean) => void;
   onSyncManaToPlaytest?: () => void;
+  embedded?: boolean;
 }
 
 const COLOR_BAR_HEX: Record<ManaColor, string> = {
@@ -94,6 +95,7 @@ export const ManaBreakdown: React.FC<ManaBreakdownProps> = ({
   isPlaytestManaSynced = false,
   onSelectAllLandChanges,
   onSyncManaToPlaytest,
+  embedded = false,
 }) => {
   const safeCurve = metrics?.curve ?? [];
   const safeColorBreakdown = metrics?.colorBreakdown ?? [];
@@ -155,22 +157,22 @@ export const ManaBreakdown: React.FC<ManaBreakdownProps> = ({
       ? `Add ${metrics.rampDelta} ramp piece${metrics.rampDelta === 1 ? '' : 's'}`
       : 'Ramp count healthy';
 
+  const Wrapper: React.ElementType = embedded ? 'div' : 'section';
+
   return (
-    <section id="mana-section" className="space-y-6 scroll-mt-20">
+    <Wrapper id={embedded ? undefined : 'mana-section'} className={embedded ? 'space-y-5' : 'space-y-6 scroll-mt-20'}>
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="font-display text-xl font-bold text-zinc-900">
-            03. Mana Base &amp; Curve
-          </h2>
-          <p className="mt-0.5 text-sm text-zinc-600">
-            {metrics.currentLands} → {metrics.recommendedLands} lands · {metrics.currentRamp} → {metrics.recommendedRamp} ramp · {metrics.tappedLandCount} tapped · Avg{' '}
-            <span className="font-mono font-semibold tabular-nums text-zinc-800">
-              {metrics.averageCmcNonLand.toFixed(2)}
-            </span>{' '}
-            MV
+          {!embedded && (
+            <h2 className="font-display text-xl font-bold text-zinc-900">
+              Mana &amp; Curve
+            </h2>
+          )}
+          <p className={embedded ? 'text-sm text-zinc-600' : 'mt-0.5 text-sm text-zinc-600'}>
+            Reviews your land count, color sources, mana ramp, and spell curve so your deck casts smoothly on schedule.
           </p>
         </div>
-        <div className="text-xs font-mono tabular-nums text-zinc-500">
+        <div className="text-xs font-mono tabular-nums text-zinc-500 whitespace-nowrap shrink-0">
           {landDeltaLabel}
         </div>
       </div>
@@ -242,8 +244,8 @@ export const ManaBreakdown: React.FC<ManaBreakdownProps> = ({
             </div>
             <p className="mt-1 text-xs text-zinc-500">
               {metrics.tappedLandCount >= 8
-                ? 'Slows turns 1–3; trim ETB-tapped lands'
-                : 'Fast, untapped early mana'}
+                ? 'Slows down early turns; consider trimming lands that enter tapped.'
+                : 'Plenty of untapped lands for smooth early turns.'}
             </p>
           </div>
         </div>
@@ -285,7 +287,7 @@ export const ManaBreakdown: React.FC<ManaBreakdownProps> = ({
                 Spell Mana Curve
               </h3>
               <p className="mt-0.5 text-xs text-zinc-500">
-                Creatures vs. non-creature spells · Avg {metrics.averageCmcNonLand.toFixed(2)} MV
+                Creatures compared to non-creature spells, averaging {metrics.averageCmcNonLand.toFixed(2)} mana value.
               </p>
             </div>
             <span className="font-mono text-xs tabular-nums text-zinc-500">
@@ -364,9 +366,9 @@ export const ManaBreakdown: React.FC<ManaBreakdownProps> = ({
       <div className="rounded-xl border border-zinc-200 bg-white p-6">
         <div className="flex items-center justify-between">
           <h3 className="font-display text-base font-semibold text-zinc-900">
-            Color Balance (Pips vs. Sources)
+            Color Requirements vs. Mana Sources
           </h3>
-          <span className="text-xs text-zinc-500">Lands + 0.5x mana rocks</span>
+          <span className="text-xs text-zinc-500">Counts lands plus half-weight for mana rocks</span>
         </div>
 
         {activeColors.length === 0 ? (
@@ -464,7 +466,7 @@ export const ManaBreakdown: React.FC<ManaBreakdownProps> = ({
                 Land &amp; Mana Adjustments
               </h3>
               <p className="text-xs text-zinc-500">
-                {safeLandChanges.length} suggested tweak{safeLandChanges.length === 1 ? '' : 's'} — check items for export or sync directly to playtest.
+                {safeLandChanges.length} recommended mana tweak{safeLandChanges.length === 1 ? '' : 's'}. Check the ones you want to include in your export or test live.
                 {typeof manaOptimizedLandCount === 'number' && selectedLandChangeIds.size > 0 && (
                   <span className="ml-1.5 font-mono font-medium text-sky-700">
                     ({manaOptimizedLandCount} lands active)
@@ -576,6 +578,6 @@ export const ManaBreakdown: React.FC<ManaBreakdownProps> = ({
           </div>
         </div>
       )}
-    </section>
+    </Wrapper>
   );
 };

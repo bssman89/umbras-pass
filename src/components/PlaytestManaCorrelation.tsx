@@ -38,10 +38,9 @@ export const PlaytestManaCorrelation: React.FC<PlaytestManaCorrelationProps> = (
   );
 
   const jumpToSection = (sectionId: string) => {
-    const el = document.getElementById(sectionId);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
+    window.dispatchEvent(
+      new CustomEvent<string>('deck-navigate-section', { detail: sectionId })
+    );
   };
 
   if (taggedEntries.length === 0) {
@@ -98,7 +97,7 @@ export const PlaytestManaCorrelation: React.FC<PlaytestManaCorrelationProps> = (
             onClick={() => jumpToSection('mana-section')}
             className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
           >
-            02. Mana &amp; Lands
+            Mana &amp; Lands
             <ArrowUpRight className="h-3.5 w-3.5 text-zinc-500" />
           </button>
           <button
@@ -106,7 +105,7 @@ export const PlaytestManaCorrelation: React.FC<PlaytestManaCorrelationProps> = (
             onClick={() => jumpToSection('changes-section')}
             className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
           >
-            03. Card Changes
+            Card Changes
             <ArrowUpRight className="h-3.5 w-3.5 text-zinc-500" />
           </button>
         </div>

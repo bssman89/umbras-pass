@@ -41,7 +41,8 @@ export const QUICK_COACHING_TAGS = [
   'Target fast mana & artifact ramp early',
   'Respect board wipes before overcommitting',
   'Fix your own curve / mulligan slow hands',
-  'Evaluate player threat level more accurately',
+  'Spread pressure & target leading rival bots',
+  'Evaluate table-wide threat level accurately',
 ] as const;
 
 function clampNote(text: string, maxLen = MAX_NOTE_LENGTH): string {
@@ -212,6 +213,8 @@ export function buildBotPastPlayBriefing(
   avgCmdrDmgPerGame: number;
   avgMillPerGame: number;
   recentLossLessons: string[];
+  rivalThreatByName: Record<string, number>;
+  avgDamageToRivalsPerGame: number;
   summaryText: string;
 } {
   if (!mem || mem.matchesPlayed <= 0) {
@@ -226,7 +229,9 @@ export function buildBotPastPlayBriefing(
       avgCmdrDmgPerGame: 0,
       avgMillPerGame: 0,
       recentLossLessons: [],
-      summaryText: 'No prior simulated games logged yet — establishing baseline matchup reads.',
+      rivalThreatByName: {},
+      avgDamageToRivalsPerGame: 0,
+      summaryText: 'No prior simulated games logged yet — establishing baseline matchup reads across the pod.',
     };
   }
 
@@ -251,7 +256,55 @@ export function buildBotPastPlayBriefing(
   const avgCmdrDmgPerGame = cum ? Number((cum.totalCommanderDamageDealt / Math.max(1, gamesPlayed)).toFixed(1)) : 0;
   const avgMillPerGame = cum ? Number((cum.totalCardsMilled / Math.max(1, gamesPlayed)).toFixed(1)) : 0;
 
-  const recentMatches = (mem.recentMatchHistory || [])
+  // Build persistent rival-bot threat ratings from past pod matches & directives
+  const rivalThreatByName: Record<string, number> = {};
+  const allRecent = mem.recentMatchHistory || [];
+  let totalRivalDmgLogged = 0;
+  let podGamesLogged = 0;
+  for (const m of allRecent) {
+    if (Array.isArray(m.rivalsFaced) && m.rivalsFaced.length > 0) {
+      podGamesLogged += 1;
+      totalRivalDmgLogged += m.damageDealtToRivals || 0;
+      for (const rName of m.rivalsFaced) {
+        const key = (rName || '').trim().toLowerCase();
+        if (!key) continue;
+        // Bots learn that rival bots who survived/won while this bot lost are dangerous pod threats!
+        const delta =
+          m.outcomeForBot === 'loss'
+            ? m.eliminatedBy
+              ? 6
+              : 4
+            : m.outcomeForBot === 'close'
+            ? 2
+            : 1;
+        rivalThreatByName[key] = Math.min(20, (rivalThreatByName[key] || 0) + delta);
+      }
+    }
+  }
+  // Also boost rival threat when tactical directives or faced lessons specifically cite a rival bot
+  const combinedLessons = [
+    ...(mem.tacticalDirectives || []),
+    ...(mem.learnedFromFacedDecks || []),
+  ];
+  for (const rKey of Object.keys(rivalThreatByName)) {
+    const cited = combinedLessons.some(
+      (line) =>
+        line.toLowerCase().includes(rKey) &&
+        /eliminat|pressured|pivot|leading|rival|threat|damage/i.test(line)
+    );
+    if (cited) {
+      rivalThreatByName[rKey] = Math.min(24, rivalThreatByName[rKey] + 5);
+    }
+  }
+  const avgDamageToRivalsPerGame =
+    podGamesLogged > 0 ? Number((totalRivalDmgLogged / podGamesLogged).toFixed(1)) : 0;
+
+  const topRivalNames = Object.entries(rivalThreatByName)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name]) => name);
+
+  const recentMatches = allRecent
     .filter((m) => !currentDeckName || m.playerDeckName.toLowerCase() === currentDeckName.toLowerCase())
     .slice(0, 3);
   const recentSummary =
@@ -259,27 +312,30 @@ export function buildBotPastPlayBriefing(
       ? `Recent vs ${currentDeckName || 'table'}: ${recentMatches
           .map(
             (m) =>
-              `${m.outcomeForBot.toUpperCase()}${m.eliminatedBy ? ` [KO:${m.eliminatedBy}]` : ''} (${m.endingBotLife} Bot HP / ${m.endingPlayerLife} Your HP / ${m.poisonInflictedToPlayer} Poison)`
+              `${m.outcomeForBot.toUpperCase()}${m.eliminatedBy ? ` [KO:${m.eliminatedBy}]` : ''} (${m.endingBotLife} Bot HP / ${m.endingPlayerLife} Your HP / ${m.damageDealtToRivals || 0} Rival Dmg)`
           )
           .join('; ')}.`
       : '';
 
   const recentLossLessons = (mem.tacticalDirectives || [])
-    .filter((d) => /loss|eliminat|blocker|wipe|overextend|rival|removal/i.test(d))
+    .filter((d) => /loss|eliminat|blocker|wipe|overextend|rival|removal|pivot/i.test(d))
     .slice(0, 4);
 
   const summaryParts = [
     `${gamesPlayed} prior simulated game${gamesPlayed === 1 ? '' : 's'} (${mem.wins}W-${lossCount}L-${mem.closes}C, ${winRatePct}% bot win rate, IQ ${mem.botIqScore}).`,
     lossCount > 0
-      ? `Experienced ${lossCount} defeat${lossCount === 1 ? '' : 's'} — hold blockers/wipes when behind and assess rival pod bots as well as You.`
+      ? `Experienced ${lossCount} defeat${lossCount === 1 ? '' : 's'} — hold blockers/wipes when behind and actively pressure leading rival bots as well as You.`
+      : '',
+    topRivalNames.length > 0
+      ? `Learned rival pod threats to contest early: ${topRivalNames.join(', ')}.`
       : '',
     knownThreats.length > 0
-      ? `Known player threats to target/counter on sight: ${knownThreats.join(', ')}.`
+      ? `Known player threats to answer: ${knownThreats.join(', ')}.`
       : '',
     manaWeaknesses.length > 0
       ? `Observed player vulnerabilities: ${manaWeaknesses.join(' | ')}.`
       : '',
-    `Historical averages: ${avgPoisonPerGame} Poison/game, ${avgCmdrDmgPerGame} Cmdr Dmg/game, ${avgMillPerGame} Milled/game.`,
+    `Historical averages: ${avgDamageToRivalsPerGame} Rival Dmg/pod, ${avgPoisonPerGame} Poison/game, ${avgCmdrDmgPerGame} Cmdr Dmg/game, ${avgMillPerGame} Milled/game.`,
     recentSummary,
   ].filter(Boolean);
 
@@ -294,6 +350,8 @@ export function buildBotPastPlayBriefing(
     avgCmdrDmgPerGame,
     avgMillPerGame,
     recentLossLessons,
+    rivalThreatByName,
+    avgDamageToRivalsPerGame,
     summaryText: summaryParts.join(' '),
   };
 }
@@ -670,6 +728,222 @@ export function applyUserCoachingToBotProfile(
     tacticalDirectives: mergeUniqueBounded(base.tacticalDirectives, newDirectives),
     updatedAtIso: new Date().toISOString(),
   };
+}
+
+export interface LiveBotMatchLearningInput {
+  botId: string;
+  botName: string;
+  archetype: string;
+  customDeckText?: string;
+  deckIdentitySummary: string;
+  endingBotLife: number;
+  eliminated: boolean;
+  eliminatedReason: 'life' | 'poison' | 'commander' | 'mill' | null;
+  observedUserThreats: string[];
+  observedUserHabits: string[];
+  adaptationHistory: string[];
+  damageDealtToPlayer: number;
+  damageTakenFromPlayer: number;
+  damageDealtToRivals?: number;
+  damageTakenFromRivals?: number;
+  biggestRivalThreatName?: string;
+  spellsCastCount: number;
+  creaturesPlayedCount: number;
+  commanderDamageDealtToYou: number;
+}
+
+export function applyLiveGameLearningsToBotProfiles(params: {
+  existingMemory: Record<string, BotLearningProfile>;
+  opponents: BotOpponentConfig[];
+  liveBotSummaries: LiveBotMatchLearningInput[];
+  playerDeckLabel: string;
+  playerArchetype: string;
+  playerCommanders: string[];
+  mode: '1v1' | '1v2' | '1v3';
+  endingPlayerLife: number;
+  outcome: 'victory' | 'defeat' | 'unfinished';
+  turnsPlayed: number;
+}): {
+  updatedMemory: Record<string, BotLearningProfile>;
+  updatedProfiles: BotLearningProfile[];
+} {
+  const {
+    existingMemory,
+    opponents,
+    liveBotSummaries,
+    playerDeckLabel,
+    playerArchetype,
+    playerCommanders,
+    mode,
+    endingPlayerLife,
+    outcome,
+    turnsPlayed,
+  } = params;
+
+  const nextMemory: Record<string, BotLearningProfile> = { ...existingMemory };
+  const updatedProfiles: BotLearningProfile[] = [];
+  const oppById = new Map(opponents.map((o) => [o.id, o]));
+
+  for (const summary of liveBotSummaries) {
+    const opp: BotOpponentConfig = oppById.get(summary.botId) || {
+      id: summary.botId,
+      name: summary.botName,
+      archetype: summary.archetype,
+      customDeckText: summary.customDeckText,
+    };
+    const botKey = resolveBotLearningKey(opp);
+    const current = nextMemory[botKey] || createDefaultBotProfile(opp);
+
+    const isBotWin = outcome === 'defeat' && !summary.eliminated;
+    const isBotLoss = outcome === 'victory' || summary.eliminated;
+    const isClose = outcome === 'unfinished';
+    const outcomeForBot: 'win' | 'loss' | 'close' = isBotWin
+      ? 'win'
+      : isBotLoss
+      ? 'loss'
+      : 'close';
+
+    const adaptationCount = summary.adaptationHistory.length;
+    const iqDelta = isBotWin
+      ? 14 + Math.min(10, adaptationCount * 2)
+      : isBotLoss
+      ? 18 + Math.min(12, adaptationCount * 2)
+      : 10 + Math.min(8, adaptationCount * 2);
+
+    const rivalDmgDealt = summary.damageDealtToRivals ?? 0;
+    const rivalDmgTaken = summary.damageTakenFromRivals ?? 0;
+    const cmdSuffix =
+      playerCommanders.length > 0 ? ` (${playerCommanders[0]})` : '';
+    const rivalClause = summary.biggestRivalThreatName
+      ? ` & rival ${summary.biggestRivalThreatName}`
+      : '';
+    const facedLesson = clampNote(
+      `[Live ${turnsPlayed}T] Vs ${playerDeckLabel}${cmdSuffix}${rivalClause} (${playerArchetype}): ${
+        summary.observedUserThreats.length > 0
+          ? `tracked key plays ${summary.observedUserThreats.slice(0, 3).join(', ')}`
+          : 'scouted pod curve & board pacing'
+      }${rivalDmgTaken >= 6 && summary.biggestRivalThreatName ? `; rival ${summary.biggestRivalThreatName} dealt ${rivalDmgTaken} dmg` : ''}.`
+    );
+
+    const ownLesson = clampNote(
+      `[Live ${turnsPlayed}T] Piloted ${summary.deckIdentitySummary}: cast ${summary.spellsCastCount} spells (${summary.creaturesPlayedCount} creatures), dealt ${summary.damageDealtToPlayer} dmg to player${
+        rivalDmgDealt > 0 ? ` & ${rivalDmgDealt} dmg to rival bots` : ''
+      }${summary.eliminated ? ` (KO via ${summary.eliminatedReason || 'life'})` : ''}.`
+    );
+
+    const newDirectives: string[] = [];
+    if (summary.adaptationHistory.length > 0) {
+      newDirectives.push(clampNote(`[Live] ${summary.adaptationHistory[0]}`));
+    }
+    if (rivalDmgTaken >= 8 && summary.biggestRivalThreatName) {
+      newDirectives.push(
+        clampNote(
+          `Pod rival lesson: contest ${summary.biggestRivalThreatName} earlier — took ${rivalDmgTaken} dmg from rival bot in live pod.`
+        )
+      );
+    }
+    if (summary.damageTakenFromPlayer >= 12) {
+      newDirectives.push(
+        clampNote(
+          `Vs ${playerDeckLabel}: hold blockers & removal earlier — took ${summary.damageTakenFromPlayer} combat dmg in live game.`
+        )
+      );
+    }
+
+    const winVector: WinConditionType =
+      summary.eliminatedReason === 'poison'
+        ? 'poison'
+        : summary.eliminatedReason === 'commander'
+        ? 'commander'
+        : summary.eliminatedReason === 'mill'
+        ? 'mill'
+        : 'life';
+
+    const prevWv = current.winVectorStats || { life: 0, poison: 0, commander: 0, mill: 0 };
+    const nextWv = {
+      life: prevWv.life + (isBotWin && winVector === 'life' ? 1 : 0),
+      poison: prevWv.poison + (isBotWin && winVector === 'poison' ? 1 : 0),
+      commander: prevWv.commander + (isBotWin && winVector === 'commander' ? 1 : 0),
+      mill: prevWv.mill + (isBotWin && winVector === 'mill' ? 1 : 0),
+    };
+
+    const prevCum = current.cumulativeStats || {
+      totalDamageDealt: 0,
+      totalPoisonDealt: 0,
+      totalCommanderDamageDealt: 0,
+      totalCardsMilled: 0,
+      totalGamesFinished: 0,
+    };
+    const nextCum = {
+      totalDamageDealt: prevCum.totalDamageDealt + summary.damageDealtToPlayer + rivalDmgDealt,
+      totalPoisonDealt: prevCum.totalPoisonDealt,
+      totalCommanderDamageDealt:
+        prevCum.totalCommanderDamageDealt + summary.commanderDamageDealtToYou,
+      totalCardsMilled: prevCum.totalCardsMilled,
+      totalGamesFinished: prevCum.totalGamesFinished + 1,
+    };
+
+    const rivalNames = liveBotSummaries
+      .filter((other) => other.botId !== summary.botId)
+      .map((other) => other.botName);
+
+    const matchRecord: BotMatchTelemetryRecord = {
+      dateIso: new Date().toISOString(),
+      playerDeckName: `[Live] ${playerDeckLabel}`,
+      mode,
+      outcomeForBot,
+      winVector,
+      roundsPlayed: Math.max(1, turnsPlayed),
+      endingPlayerLife,
+      endingBotLife: summary.endingBotLife,
+      poisonInflictedToPlayer: 0,
+      maxCommanderDamageToPlayer: summary.commanderDamageDealtToYou,
+      cardsMilledToPlayer: 0,
+      keyThreatsSeen: summary.observedUserThreats.slice(0, 4),
+      playerManaStumbled: summary.observedUserHabits.some((h) => /missed land/i.test(h)),
+      eliminatedBy: summary.eliminated ? summary.eliminatedReason || 'life' : null,
+      rivalsFaced: rivalNames,
+      damageDealtToRivals: rivalDmgDealt,
+    };
+
+    const updated: BotLearningProfile = {
+      ...current,
+      botKey,
+      botName: (opp.name || current.botName || 'Bot').trim().slice(0, 80),
+      archetype: (
+        opp.customDeckText?.trim() ? 'Custom Decklist' : opp.archetype || current.archetype
+      ).slice(0, 120),
+      matchesPlayed: (current.matchesPlayed || 0) + 1,
+      wins: (current.wins || 0) + (isBotWin ? 1 : 0),
+      losses: (current.losses || 0) + (isBotLoss ? 1 : 0),
+      closes: (current.closes || 0) + (isClose ? 1 : 0),
+      botIqScore: Math.min(2000, (current.botIqScore || 100) + iqDelta),
+      lastDeckFaced: playerDeckLabel,
+      lastOwnDeckSummary: summary.deckIdentitySummary,
+      learnedFromFacedDecks: mergeUniqueBounded(current.learnedFromFacedDecks, [facedLesson]),
+      learnedFromOwnDecks: mergeUniqueBounded(current.learnedFromOwnDecks, [ownLesson]),
+      tacticalDirectives: mergeUniqueBounded(current.tacticalDirectives, newDirectives),
+      knownPlayerThreats: mergeUniqueBounded(
+        current.knownPlayerThreats || [],
+        summary.observedUserThreats,
+        15
+      ),
+      observedPlayerWeaknesses: mergeUniqueBounded(
+        current.observedPlayerWeaknesses || [],
+        summary.observedUserHabits,
+        10
+      ),
+      winVectorStats: nextWv,
+      cumulativeStats: nextCum,
+      recentMatchHistory: [matchRecord, ...(current.recentMatchHistory || [])].slice(0, 10),
+      updatedAtIso: new Date().toISOString(),
+    };
+
+    nextMemory[botKey] = updated;
+    updatedProfiles.push(updated);
+  }
+
+  return { updatedMemory: nextMemory, updatedProfiles };
 }
 
 function isBotSessionOnlyMode(): boolean {

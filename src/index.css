@@ -55,8 +55,7 @@
 /* Custom override to scale and fit the Umbras Pass logo */
 img[src*="Umbras_pass_v3-removebg-preview"] {
   width: auto;
-  height: auto;
-  max-width: 125px;
+  object-fit: contain;
 }
 
 /* Umbras Pass Charcoal, Cyan-Blue (#29ABE2) & Flame-Red (#E53924) Logo Theme */

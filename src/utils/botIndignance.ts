@@ -27,33 +27,33 @@ export const BOT_INDIGNANCE_OPTIONS: BotIndignanceOption[] = [
     shortLabel: 'Moderate',
     label: 'Moderate (Measured)',
     description:
-      'Sequences cleanly, evaluates threats neutrally, and answers obvious bombs fairly.',
+      'Sequences cleanly, evaluates You and rival bots neutrally, and targets the biggest table threat.',
     textColorClass: 'text-sky-700',
     activeSegmentClass: 'bg-white text-sky-700 shadow-sm',
     aiDirective:
-      'MODERATE INDIGNANCE (Balanced & Measured): Sequence lands and spells cleanly, attack open players based on real board threat rather than grudge, and spend removal on whichever permanent is currently the biggest threat at the table.',
+      'MODERATE INDIGNANCE (Balanced & Measured): Sequence lands and spells cleanly, evaluate You and rival bots completely neutrally, spread early attacks across open seats, retaliate against whoever hits you, and spend removal on whichever permanent is currently the biggest threat at the table.',
   },
   {
     id: 'ruthless',
     shortLabel: 'High',
     label: 'High (Ruthless)',
     description:
-      'Optimal spell sequencing; holds countermagic and removal for your engine pieces and presses tempo.',
+      'Cutthroat optimal play—targets whoever is the leading table threat (You or rival bots) and closes out openings.',
     textColorClass: 'text-amber-700',
     activeSegmentClass: 'bg-amber-50 text-amber-800 border border-amber-300 shadow-sm',
     aiDirective:
-      'HIGH INDIGNANCE (Cutthroat & Tight Play): Pilot optimally—hold up instant-speed counters/removal specifically for the human player’s ramp, commander, or engine pieces, double-spell on key turns, and press every tempo or mana stumble.',
+      'HIGH INDIGNANCE (Cutthroat & Optimal Table Play): Pilot ruthlessly to win the pod—hold up instant-speed counters/removal for whichever player (You OR a rival bot) is the current table leader or deploying combo/commander engines, exploit mana stumbles on any seat, and eliminate whichever opponent gives the cleanest path to victory.',
   },
   {
     id: 'vindictive',
     shortLabel: 'Max',
     label: 'Maximum (Vindictive)',
     description:
-      'Archenemy hostility—laser-focuses you over other bots, kills ramp/commander on sight, and shows no mercy.',
+      'Archenemy hostility—heavily favors targeting you, though it will still stop a rival bot about to win.',
     textColorClass: 'text-red-700',
     activeSegmentClass: 'bg-red-50 text-red-800 border border-red-300 shadow-sm',
     aiDirective:
-      'MAXIMUM INDIGNANCE (Spiteful & Relentless Archenemy Focus): Treat the human player as public enemy #1 at all times. Direct disproportionate combat pressure, countermagic, hand disruption, and targeted removal at the human player (killing their mana rocks/dorks, commander, or key lands/engines on sight) even ahead of other bots, and ruthlessly punish any mana screw or tapped-land turn.',
+      'MAXIMUM INDIGNANCE (Archenemy Focus): Treat the human player as primary rival—direct heavier combat pressure, countermagic, and targeted removal at the human player when threat levels are close, while still stopping or finishing off a rival bot that is about to win the pod or aggressively attacked you.',
   },
 ];
 

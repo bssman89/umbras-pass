@@ -5,6 +5,11 @@ import {
   safeParseApiJson,
   searchMtgDatabaseFromBrowserScryfall,
 } from '../utils/clientFallbackAnalyzer';
+import {
+  buildHoverRect,
+  hideGlobalCardHover,
+  showGlobalCardHover,
+} from './CardHoverZoomOverlay';
 
 interface CardGalleryPanelProps {
   analysis: DeckAnalysisResult;
@@ -228,7 +233,19 @@ export const CardGalleryPanel: React.FC<CardGalleryPanelProps> = memo(({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => onInspectCard(item.name, item.meta)}
+                  onMouseEnter={(e) =>
+                    showGlobalCardHover({
+                      name: item.name,
+                      meta: item.meta,
+                      rect: buildHoverRect(e.currentTarget),
+                      statusTags: item.subtitle ? [item.subtitle] : undefined,
+                    })
+                  }
+                  onMouseLeave={hideGlobalCardHover}
+                  onClick={() => {
+                    hideGlobalCardHover();
+                    onInspectCard(item.name, item.meta);
+                  }}
                   className="group flex flex-col text-left rounded-lg border border-zinc-200 bg-white p-2 hover:border-sky-600 transition-colors cursor-pointer"
                 >
                   <div className="relative aspect-[5/7] w-full overflow-hidden rounded-md bg-zinc-100">
@@ -316,17 +333,17 @@ export const CardGalleryPanel: React.FC<CardGalleryPanelProps> = memo(({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="font-display text-xl font-bold text-zinc-900">
-            08. Card Gallery &amp; Market Prices
+            Card Gallery
           </h2>
           <p className="mt-0.5 text-sm text-zinc-600">
-            Browse {deckItems.length} deck cards and {suggestedItems.length} upgrades, swap printings, or compare store prices.
+            Browse card art across your deck and suggested upgrades, inspect printings, and compare live store prices.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-4 text-xs font-mono tabular-nums text-zinc-600">
           {deckMarketTotals.tcgCount > 0 && (
             <span>
-              Deck TCGplayer:{' '}
+              TCGplayer:{' '}
               <span className="font-semibold text-zinc-900">
                 ${deckMarketTotals.tcgTotal.toFixed(2)}
               </span>
@@ -334,9 +351,9 @@ export const CardGalleryPanel: React.FC<CardGalleryPanelProps> = memo(({
           )}
           {deckMarketTotals.ckCount > 0 && (
             <>
-              <span className="text-zinc-300" aria-hidden="true">|</span>
+              <span className="text-zinc-300" aria-hidden="true">·</span>
               <span>
-                Deck Card Kingdom:{' '}
+                Card Kingdom:{' '}
                 <span className="font-semibold text-zinc-900">
                   ${deckMarketTotals.ckTotal.toFixed(2)}
                 </span>

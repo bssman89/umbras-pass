@@ -32,6 +32,12 @@ import {
   selectDesktopAiEngine,
   startHuggingFaceDownload,
 } from './server/localAi.ts';
+import {
+  cancelUpdateDownload,
+  checkGitHubUpdates,
+  getUpdateDownloadState,
+  startReleaseAssetDownload,
+} from './server/updater.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -122,6 +128,45 @@ async function startServer() {
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
+  });
+
+  app.get('/api/updates/check', async (req, res) => {
+    try {
+      const force = req.query.force === '1' || req.query.force === 'true';
+      const result = await checkGitHubUpdates(force);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({
+        error: err instanceof Error ? err.message : 'Failed to check for GitHub updates.',
+      });
+    }
+  });
+
+  app.get('/api/updates/download-status', (_req, res) => {
+    res.json(getUpdateDownloadState());
+  });
+
+  app.post('/api/updates/download', async (req, res) => {
+    try {
+      const { tag, assetName } = req.body as { tag?: string; assetName?: string };
+      if (!tag || typeof tag !== 'string' || !tag.trim()) {
+        res.status(400).json({ error: 'Release tag is required.' });
+        return;
+      }
+      const state = await startReleaseAssetDownload(
+        tag.trim(),
+        typeof assetName === 'string' && assetName.trim() ? assetName.trim() : undefined
+      );
+      res.json(state);
+    } catch (err) {
+      res.status(400).json({
+        error: err instanceof Error ? err.message : 'Failed to start update download.',
+      });
+    }
+  });
+
+  app.post('/api/updates/cancel', (_req, res) => {
+    res.json(cancelUpdateDownload());
   });
 
   app.get('/api/desktop/ai-status', (_req, res) => {

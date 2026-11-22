@@ -5275,6 +5275,8 @@ function runClientSimulationCore(params: {
         | null,
       grudgeByAttacker: new Map<string, number>(),
       lastTargetName: '',
+      consecutiveTargetTurns: 0,
+      missedLandThisRound: false,
       hadWipeThisGame: false,
       botDamageDealtTotal: 0,
       botRivalDamageTotal: 0,
@@ -6451,6 +6453,7 @@ function runClientSimulationCore(params: {
     const missedLand = !playedLandName && r <= 4;
 
     // 2. Bot Opponents' Turns (each living bot sequences strategically across You + rival bots!)
+    const targetedCountThisRound = new Map<string, number>();
     const botPlays: PlaytestBotPlay[] = oppContexts.map((ctx) => {
       const { opp, idx, meta, mem, briefing, bias, blueprint, customNonLands } = ctx;
       const iq = mem?.botIqScore ?? 100;
@@ -6677,6 +6680,7 @@ function runClientSimulationCore(params: {
           ctx.battlefield.push(createTokenPermanent('Landfall Token', 2, 2));
         }
       }
+      ctx.missedLandThisRound = botMissedLand;
 
       const botMana = Math.max(0, ctx.landsInPlay + ctx.rampBonus - botTappedPenalty);
       let botRemainingMana = botMana;
@@ -6774,8 +6778,15 @@ function runClientSimulationCore(params: {
         playerBattlefield.length = 0;
 
         for (const o of oppContexts) {
-          if (o.battlefield.length > 0) {
-            triggerAristocratsOnDeath('bot', o, o.battlefield.length);
+          const wipedCount = o.battlefield.length;
+          if (wipedCount > 0) {
+            triggerAristocratsOnDeath('bot', o, wipedCount);
+            if (o !== ctx) {
+              o.grudgeByAttacker.set(
+                opp.name,
+                (o.grudgeByAttacker.get(opp.name) || 0) + 8 + wipedCount * 3
+              );
+            }
           }
           for (const perm of o.battlefield) {
             recordCreatureDeparture(perm, o.cmdTaxMap, o.graveyard);
@@ -7694,7 +7705,18 @@ function runClientSimulationCore(params: {
       let chosenEndgameEval: EndgameAttackEvaluation | null = null;
 
       if (candidates.length > 0) {
-        const scored = candidates.map((cand) => {
+        // Evaluate table-leader standing symmetrically across You + all living rival bots
+        const candLeadScores = candidates.map(
+          (c) =>
+            c.boardPower * 1.5 +
+            c.engineCount * 4 +
+            c.rampAdvantage * 0.9 +
+            c.life * 0.2 +
+            (c.commanderActive ? 5 : 0)
+        );
+        const maxCandLeadScore = Math.max(...candLeadScores, 1);
+
+        const scored = candidates.map((cand, cIdx) => {
           const postEval = evaluateEndgameAttackLine({
             attackers: candidateAttackers,
             defenderBoard: getCandBoard(cand),
@@ -7730,28 +7752,55 @@ function runClientSimulationCore(params: {
             postEval.totalLifeDamage * 1.15 + postEval.totalPoisonDamage * 3.2;
 
           const vulnerabilityScore =
-            (cand.untappedBlockers === 0 ? 5.5 : -Math.min(4.5, cand.untappedBlockers * 1.1)) +
+            (cand.untappedBlockers === 0 ? 6.5 : -Math.min(5.5, cand.untappedBlockers * 1.25)) +
             (cand.life <= startingLife * 0.45 ? 5 : 0);
 
           const grudgeScore = (ctx.grudgeByAttacker.get(cand.name) || 0) * 0.85;
+          const learnedRivalScore =
+            cand.kind === 'bot'
+              ? (briefing.rivalThreatByName[cand.name.trim().toLowerCase()] || 0) * 0.65
+              : 0;
+
           const clockMomentum =
             cand.poison * 2.2 +
             (formatRules.usesCommanderDamage21 ? cand.cmdFromMe * 0.75 : 0) +
             (cand.libraryRemaining <= 15 ? 8 : 0);
 
+          // Multiplayer pod politics: untouched table-leader bounty & anti-dogpile spread
+          const isTableLeader =
+            candLeadScores[cIdx] >= maxCandLeadScore - 1.5 && maxCandLeadScore >= 12;
+          const timesTargetedThisRound = targetedCountThisRound.get(cand.name) || 0;
+          const leaderBounty =
+            candidates.length >= 2 && isTableLeader && timesTargetedThisRound === 0
+              ? meta.id === 'ruthless'
+                ? 9
+                : 6.5
+              : 0;
+          const antiDogpilePenalty =
+            candidates.length >= 2 &&
+            lethalBonus < 100 &&
+            meta.id !== 'vindictive' &&
+            timesTargetedThisRound > 0
+              ? timesTargetedThisRound * 8.0
+              : 0;
+
+          // Calibrated indignance & symmetric anti-tunneling (Measured & Ruthless have 0 blind player bias!)
           let indignanceBias = 0;
           if (cand.kind === 'you') {
-            if (meta.id === 'vindictive') indignanceBias = 18;
-            else if (meta.id === 'ruthless') indignanceBias = 3;
+            if (meta.id === 'vindictive') indignanceBias = 11;
+            else if (meta.id === 'ruthless') indignanceBias = 0;
             else if (meta.id === 'measured') indignanceBias = 0;
-            else indignanceBias = -2;
+            else indignanceBias = -4;
           }
-          if (
-            meta.id === 'forgiving' &&
-            ctx.lastTargetName === cand.name &&
-            lethalBonus < 100
-          ) {
-            indignanceBias -= 10;
+          if (ctx.lastTargetName === cand.name && lethalBonus < 100 && candidates.length >= 2) {
+            const streak = Math.max(1, ctx.consecutiveTargetTurns || 1);
+            if (meta.id === 'forgiving') {
+              indignanceBias -= 10 * streak;
+            } else if (meta.id === 'measured' && !isTableLeader) {
+              indignanceBias -= 5.5 * streak;
+            } else if (meta.id === 'ruthless' && !isTableLeader) {
+              indignanceBias -= 3.0 * streak;
+            }
           }
           if (
             meta.id === 'forgiving' &&
@@ -7761,20 +7810,22 @@ function runClientSimulationCore(params: {
           ) {
             indignanceBias -= 5;
           }
+
+          // Symmetric stumble exploitation (applies to ANY stumbling seat, You or rival bot!)
+          const candStumbled =
+            cand.kind === 'you'
+              ? missedLand || playedTappedLand
+              : Boolean(cand.botRef?.missedLandThisRound);
           const stumbleExploit =
-            cand.kind === 'you' &&
-            (missedLand || playedTappedLand) &&
-            (meta.id === 'ruthless' || meta.id === 'vindictive')
-              ? 3 + (briefing.manaWeaknesses.length > 0 ? 2 : 0)
+            candStumbled && (meta.id === 'ruthless' || meta.id === 'vindictive')
+              ? 3 + (cand.kind === 'you' && briefing.manaWeaknesses.length > 0 ? 1.5 : 0)
               : 0;
 
           const ggufTargetRaw = (ggufDirective?.priorityTarget || '').trim().toLowerCase();
           const ggufTargetMatch =
             ggufTargetRaw &&
             (cand.name.trim().toLowerCase() === ggufTargetRaw ||
-              (ggufTargetRaw === 'table-leader' &&
-                cand.boardPower + cand.engineCount * 4 >=
-                  Math.max(...candidates.map((c) => c.boardPower + c.engineCount * 4))));
+              (ggufTargetRaw === 'table-leader' && isTableLeader));
           const candHasGgufThreat =
             Boolean(ggufThreatLower) &&
             (getCandBoard(cand).some((p) => p.name.toLowerCase().includes(ggufThreatLower)) ||
@@ -7794,19 +7845,22 @@ function runClientSimulationCore(params: {
               ? 5
               : 0;
           const ggufDirectiveBias =
-            (ggufTargetMatch ? 12 : 0) +
+            (ggufTargetMatch ? (ggufTargetRaw === 'you' && candidates.length >= 2 ? 6 : 11) : 0) +
             (candHasGgufThreat ? 9 : 0) +
             ggufVectorBias +
             (ggufDirective?.posture === 'aggressive' ? 4 : 0);
 
-          const tieBreaker = ((r + idx + cand.name.length) % 3) * 0.4 + Math.random() * 1.4;
+          const tieBreaker = ((r + idx + cand.name.length) % 3) * 0.4 + Math.random() * 2.2;
           const score =
             lethalBonus +
             evasionPressureScore +
             threatScore +
             vulnerabilityScore +
             grudgeScore +
+            learnedRivalScore +
             clockMomentum +
+            leaderBounty -
+            antiDogpilePenalty +
             indignanceBias +
             ggufDirectiveBias +
             stumbleExploit +
@@ -7818,7 +7872,16 @@ function runClientSimulationCore(params: {
         scored.sort((a, b) => b.score - a.score);
         chosenTarget = scored[0].cand;
         chosenEndgameEval = scored[0].postEval;
+        if (ctx.lastTargetName === chosenTarget.name) {
+          ctx.consecutiveTargetTurns = (ctx.consecutiveTargetTurns || 1) + 1;
+        } else {
+          ctx.consecutiveTargetTurns = 1;
+        }
         ctx.lastTargetName = chosenTarget.name;
+        targetedCountThisRound.set(
+          chosenTarget.name,
+          (targetedCountThisRound.get(chosenTarget.name) || 0) + 1
+        );
 
         // If all-in guarantees lethal on the selected endgame target, upgrade candidateAttackers to all ready attackers
         if (!chosenEndgameEval.isLethal && scored[0].allInEval?.isLethal) {
@@ -7860,43 +7923,69 @@ function runClientSimulationCore(params: {
         creativeNotes.push(`endgame lethal line targeted ${chosenTarget.name}`);
       }
 
-      // Spot removal against chosen target's strongest creature OR runaway noncreature engine!
+      // Spot removal evaluates the ENTIRE table (You + all rival bots) to snipe the biggest threat!
       let creaturesRemovedOnTarget = 0;
-      if (!boardWipeCast && chosenTarget && castRemovalCard) {
-        const targetBoard =
-          chosenTarget.kind === 'you'
-            ? playerBattlefield
-            : chosenTarget.botRef?.battlefield;
-        const targetEngines =
-          chosenTarget.kind === 'you'
-            ? playerEngines
-            : chosenTarget.botRef?.engines;
-        const targetTaxMap =
-          chosenTarget.kind === 'you'
-            ? playerCmdTaxMap
-            : chosenTarget.botRef?.cmdTaxMap;
-        const targetGy =
-          chosenTarget.kind === 'you'
-            ? playerGraveyard
-            : chosenTarget.botRef?.graveyard;
+      if (!boardWipeCast && castRemovalCard && candidates.length > 0) {
+        const removalPool = candidates
+          .filter((c) => {
+            const b = c.kind === 'you' ? playerBattlefield : c.botRef?.battlefield || [];
+            const e = c.kind === 'you' ? playerEngines : c.botRef?.engines || [];
+            return b.length > 0 || e.length > 0;
+          })
+          .map((c) => {
+            const gr = ctx.grudgeByAttacker.get(c.name) || 0;
+            const remScore =
+              c.boardPower * 1.35 +
+              c.engineCount * 5 +
+              (c.commanderActive ? 7 : 0) +
+              gr * 0.35 +
+              (c === chosenTarget ? 3.5 : 0) +
+              (c.kind === 'you' && meta.id === 'vindictive' ? 4 : 0);
+            return { c, remScore };
+          })
+          .sort((a, b) => b.remScore - a.remScore);
 
-        if (targetBoard && targetEngines && targetTaxMap && targetGy) {
-          const remRes = applyTargetedRemovalToBoard({
-            targetBoard,
-            targetEngines,
-            targetCmdTaxMap: targetTaxMap,
-            targetGraveyard: targetGy,
-            defenderBotCtx: chosenTarget.botRef,
-            isDefenderYou: chosenTarget.kind === 'you',
-          });
-          creaturesRemovedOnTarget += remRes.removedCount;
-          if (remRes.protectedName) {
-            creativeNotes.push(`${targetName} protected ${remRes.protectedName}`);
-          } else if (remRes.removedCount > 0 && chosenTarget.botRef) {
-            chosenTarget.botRef.grudgeByAttacker.set(
-              opp.name,
-              (chosenTarget.botRef.grudgeByAttacker.get(opp.name) || 0) + 5
-            );
+        const removalTarget = removalPool[0]?.c || chosenTarget;
+        if (removalTarget) {
+          const targetBoard =
+            removalTarget.kind === 'you'
+              ? playerBattlefield
+              : removalTarget.botRef?.battlefield;
+          const targetEngines =
+            removalTarget.kind === 'you'
+              ? playerEngines
+              : removalTarget.botRef?.engines;
+          const targetTaxMap =
+            removalTarget.kind === 'you'
+              ? playerCmdTaxMap
+              : removalTarget.botRef?.cmdTaxMap;
+          const targetGy =
+            removalTarget.kind === 'you'
+              ? playerGraveyard
+              : removalTarget.botRef?.graveyard;
+
+          if (targetBoard && targetEngines && targetTaxMap && targetGy) {
+            const remRes = applyTargetedRemovalToBoard({
+              targetBoard,
+              targetEngines,
+              targetCmdTaxMap: targetTaxMap,
+              targetGraveyard: targetGy,
+              defenderBotCtx: removalTarget.botRef,
+              isDefenderYou: removalTarget.kind === 'you',
+            });
+            if (removalTarget === chosenTarget) {
+              creaturesRemovedOnTarget += remRes.removedCount;
+            } else if (remRes.removedCount > 0) {
+              creativeNotes.push(`sniped threat on ${removalTarget.name}`);
+            }
+            if (remRes.protectedName) {
+              creativeNotes.push(`${removalTarget.name} protected ${remRes.protectedName}`);
+            } else if (remRes.removedCount > 0 && removalTarget.botRef) {
+              removalTarget.botRef.grudgeByAttacker.set(
+                opp.name,
+                (removalTarget.botRef.grudgeByAttacker.get(opp.name) || 0) + 8
+              );
+            }
           }
         }
       }
@@ -8112,6 +8201,15 @@ function runClientSimulationCore(params: {
               otherBot.libraryRemaining - eachOpponentMill
             );
           }
+          const drainGrudge =
+            3 +
+            Math.max(0, -eachOpponentLifeDelta) +
+            eachOpponentPoison * 2 +
+            Math.ceil(eachOpponentMill / 3);
+          otherBot.grudgeByAttacker.set(
+            opp.name,
+            (otherBot.grudgeByAttacker.get(opp.name) || 0) + drainGrudge
+          );
           const otherElim = checkLiveElimination(
             otherBot.life,
             otherBot.poison,

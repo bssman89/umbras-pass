@@ -21,13 +21,22 @@ export interface ExportDeckEntry {
   zone: 'Commander' | 'Companion' | 'Main' | 'Sideboard';
   isLand: boolean;
   setCode?: string;
+  collectorNumber?: string;
   meta?: CardMetadata | null;
 }
+
+export type ExportPlatform = 'standard' | 'moxfield' | 'archidekt' | 'raw';
+export type ExportFileExtension = 'txt' | 'csv';
 
 export interface ComputedOptimizedDeck {
   exportText: string;
   deckOnlyExportText: string;
+  rawListText: string;
   exportCsv: string;
+  moxfieldText: string;
+  moxfieldCsv: string;
+  archidektText: string;
+  archidektCsv: string;
   totalMainCount: number;
   resultingLandCount: number;
   commanderNames: string[];
@@ -42,6 +51,178 @@ function escapeCsvField(value: string | number | undefined | null): string {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
+}
+
+function getEntrySetCode(entry: ExportDeckEntry): string {
+  return (entry.setCode || entry.meta?.setCode || '').trim();
+}
+
+function getEntryCollectorNumber(entry: ExportDeckEntry): string {
+  return (entry.collectorNumber || entry.meta?.collectorNumber || '').trim();
+}
+
+function inferArchidektCategory(entry: ExportDeckEntry): string {
+  if (entry.zone === 'Commander') return 'Commander';
+  if (entry.zone === 'Companion') return 'Companion';
+  if (entry.zone === 'Sideboard') return 'Sideboard';
+  if (entry.isLand || entry.meta?.isLand) return 'Land';
+  if (entry.meta?.isRamp) return 'Ramp';
+  if (entry.meta?.isDraw) return 'Card Draw';
+  if (entry.meta?.isBoardWipe) return 'Board Wipe';
+  if (entry.meta?.isRemoval) return 'Removal';
+  if (entry.meta?.isProtection) return 'Protection';
+
+  const typeLine = (entry.meta?.typeLine || '').toLowerCase();
+  if (typeLine.includes('creature')) return 'Creature';
+  if (typeLine.includes('planeswalker')) return 'Planeswalker';
+  if (typeLine.includes('instant')) return 'Instant';
+  if (typeLine.includes('sorcery')) return 'Sorcery';
+  if (typeLine.includes('artifact')) return 'Artifact';
+  if (typeLine.includes('enchantment')) return 'Enchantment';
+  if (typeLine.includes('battle')) return 'Battle';
+  return 'Mainboard';
+}
+
+function formatMoxfieldLine(entry: ExportDeckEntry): string {
+  const setCode = getEntrySetCode(entry).toUpperCase();
+  const collectorNumber = getEntryCollectorNumber(entry);
+  if (setCode && collectorNumber) {
+    return `${entry.qty} ${entry.name} (${setCode}) ${collectorNumber}`;
+  }
+  if (setCode) {
+    return `${entry.qty} ${entry.name} (${setCode})`;
+  }
+  return `${entry.qty} ${entry.name}`;
+}
+
+function formatArchidektLine(entry: ExportDeckEntry): string {
+  const setCode = getEntrySetCode(entry).toLowerCase();
+  const collectorNumber = getEntryCollectorNumber(entry);
+  const category = inferArchidektCategory(entry);
+  const categoryTag =
+    entry.zone === 'Commander' ? '[Commander{top}]' : `[${category}]`;
+
+  if (setCode && collectorNumber) {
+    return `${entry.qty}x ${entry.name} (${setCode}) ${collectorNumber} ${categoryTag}`;
+  }
+  if (setCode) {
+    return `${entry.qty}x ${entry.name} (${setCode}) ${categoryTag}`;
+  }
+  return `${entry.qty}x ${entry.name} ${categoryTag}`;
+}
+
+function buildMoxfieldTextExport(
+  commanders: ExportDeckEntry[],
+  companions: ExportDeckEntry[],
+  mainEntries: ExportDeckEntry[],
+  sideboard: ExportDeckEntry[]
+): string {
+  const lines: string[] = [];
+
+  for (const entry of mainEntries) {
+    lines.push(formatMoxfieldLine(entry));
+  }
+
+  if (sideboard.length > 0) {
+    if (lines.length > 0) lines.push('');
+    lines.push('SIDEBOARD:');
+    for (const s of sideboard) {
+      lines.push(formatMoxfieldLine(s));
+    }
+  }
+
+  if (companions.length > 0) {
+    if (lines.length > 0) lines.push('');
+    lines.push('COMPANION:');
+    for (const c of companions) {
+      lines.push(formatMoxfieldLine(c));
+    }
+  }
+
+  if (commanders.length > 0) {
+    if (lines.length > 0) lines.push('');
+    lines.push('COMMANDER:');
+    for (const c of commanders) {
+      lines.push(formatMoxfieldLine(c));
+    }
+  }
+
+  return lines.join('\n');
+}
+
+function buildMoxfieldCsvExport(allEntries: ExportDeckEntry[]): string {
+  const header =
+    'Count,Tradelist Count,Name,Edition,Condition,Language,Foil,Tags,Last Modified,Collector Number,Alter,Proxy,Purchase Price';
+  const rows = allEntries.map((entry) => {
+    const edition = getEntrySetCode(entry).toLowerCase();
+    const collectorNumber = getEntryCollectorNumber(entry);
+    const tag =
+      entry.zone === 'Main' ? inferArchidektCategory(entry) : entry.zone;
+    const price =
+      typeof entry.meta?.priceUsd === 'number' && Number.isFinite(entry.meta.priceUsd)
+        ? entry.meta.priceUsd.toFixed(2)
+        : '';
+
+    return [
+      escapeCsvField(entry.qty),
+      escapeCsvField(0),
+      escapeCsvField(entry.name),
+      escapeCsvField(edition),
+      escapeCsvField('Near Mint'),
+      escapeCsvField('English'),
+      escapeCsvField(''),
+      escapeCsvField(tag),
+      escapeCsvField(''),
+      escapeCsvField(collectorNumber),
+      escapeCsvField('False'),
+      escapeCsvField('False'),
+      escapeCsvField(price),
+    ].join(',');
+  });
+
+  return [header, ...rows].join('\n');
+}
+
+function buildArchidektTextExport(
+  commanders: ExportDeckEntry[],
+  companions: ExportDeckEntry[],
+  mainEntries: ExportDeckEntry[],
+  sideboard: ExportDeckEntry[]
+): string {
+  const orderedEntries = [...commanders, ...companions, ...mainEntries, ...sideboard];
+  return orderedEntries.map(formatArchidektLine).join('\n');
+}
+
+function buildArchidektCsvExport(allEntries: ExportDeckEntry[]): string {
+  const header =
+    'Quantity,Name,Edition Code,Collector Number,Categories,Condition,Foil';
+  const rows = allEntries.map((entry) => {
+    const edition = getEntrySetCode(entry).toLowerCase();
+    const collectorNumber = getEntryCollectorNumber(entry);
+    const category = inferArchidektCategory(entry);
+
+    return [
+      escapeCsvField(entry.qty),
+      escapeCsvField(entry.name),
+      escapeCsvField(edition),
+      escapeCsvField(collectorNumber),
+      escapeCsvField(category),
+      escapeCsvField('NM'),
+      escapeCsvField('Normal'),
+    ].join(',');
+  });
+
+  return [header, ...rows].join('\n');
+}
+
+function buildRawListExport(
+  commanders: ExportDeckEntry[],
+  companions: ExportDeckEntry[],
+  mainEntries: ExportDeckEntry[],
+  sideboard: ExportDeckEntry[]
+): string {
+  const orderedEntries = [...commanders, ...companions, ...mainEntries, ...sideboard];
+  return orderedEntries.map((entry) => `${entry.qty} ${entry.name}`).join('\n');
 }
 
 export interface ExtraSwapSpec {
@@ -228,13 +409,17 @@ export function buildOptimizedDeckExport(
   const cmdAndCompCounts = new Map<string, number>();
 
   for (const card of consolidatedCards) {
+    const resolvedSetCode = card.setCode || card.card?.setCode;
+    const resolvedCollectorNumber = card.collectorNumber || card.card?.collectorNumber;
+
     if (card.zone === 'commander') {
       commanders.push({
         name: card.name,
         qty: card.quantity,
         zone: 'Commander',
         isLand: Boolean(card.card?.isLand),
-        setCode: card.setCode,
+        setCode: resolvedSetCode,
+        collectorNumber: resolvedCollectorNumber,
         meta: card.card,
       });
       addMapCardCount(cmdAndCompCounts, card.name, card.quantity);
@@ -244,7 +429,8 @@ export function buildOptimizedDeckExport(
         qty: card.quantity,
         zone: 'Companion',
         isLand: Boolean(card.card?.isLand),
-        setCode: card.setCode,
+        setCode: resolvedSetCode,
+        collectorNumber: resolvedCollectorNumber,
         meta: card.card,
       });
       addMapCardCount(cmdAndCompCounts, card.name, card.quantity);
@@ -260,7 +446,8 @@ export function buildOptimizedDeckExport(
             qty: card.quantity,
             zone: 'Sideboard',
             isLand: Boolean(card.card?.isLand),
-            setCode: card.setCode,
+            setCode: resolvedSetCode,
+            collectorNumber: resolvedCollectorNumber,
             meta: card.card,
           });
         }
@@ -271,6 +458,10 @@ export function buildOptimizedDeckExport(
         const existing = mainMap.get(existingKey)!;
         existing.qty += card.quantity;
         if (!existing.meta && card.card) existing.meta = card.card;
+        if (!existing.setCode && resolvedSetCode) existing.setCode = resolvedSetCode;
+        if (!existing.collectorNumber && resolvedCollectorNumber) {
+          existing.collectorNumber = resolvedCollectorNumber;
+        }
       } else {
         const key = normalizeDeckCardKey(card.name);
         if (key) {
@@ -279,7 +470,8 @@ export function buildOptimizedDeckExport(
             qty: card.quantity,
             zone: 'Main',
             isLand: Boolean(card.card?.isLand),
-            setCode: card.setCode,
+            setCode: resolvedSetCode,
+            collectorNumber: resolvedCollectorNumber,
             meta: card.card,
           });
         }
@@ -330,6 +522,10 @@ export function buildOptimizedDeckExport(
     if (existing) {
       existing.qty += appliedDelta;
       if (!existing.meta && metaHint) existing.meta = metaHint;
+      if (!existing.setCode && metaHint?.setCode) existing.setCode = metaHint.setCode;
+      if (!existing.collectorNumber && metaHint?.collectorNumber) {
+        existing.collectorNumber = metaHint.collectorNumber;
+      }
       if (!existing.isLand && isLandHint) existing.isLand = true;
     } else {
       const key = normalizeDeckCardKey(name);
@@ -339,6 +535,8 @@ export function buildOptimizedDeckExport(
         qty: appliedDelta,
         zone: 'Main',
         isLand: isLandHint || Boolean(metaHint?.isLand),
+        setCode: metaHint?.setCode,
+        collectorNumber: metaHint?.collectorNumber,
         meta: metaHint ?? null,
       });
     }
@@ -530,10 +728,36 @@ export function buildOptimizedDeckExport(
   const mainCount = mainEntries.reduce((sum, e) => sum + e.qty, 0);
   const landCount = mainEntries.filter((e) => e.isLand).reduce((sum, e) => sum + e.qty, 0);
 
+  const rawListText = buildRawListExport(
+    commanders,
+    companions,
+    mainEntries,
+    sideboard
+  );
+  const moxfieldText = buildMoxfieldTextExport(
+    commanders,
+    companions,
+    mainEntries,
+    sideboard
+  );
+  const moxfieldCsv = buildMoxfieldCsvExport(allEntries);
+  const archidektText = buildArchidektTextExport(
+    commanders,
+    companions,
+    mainEntries,
+    sideboard
+  );
+  const archidektCsv = buildArchidektCsvExport(allEntries);
+
   return {
     exportText: textLines.join('\n'),
     deckOnlyExportText,
+    rawListText,
     exportCsv: csvRows.join('\n'),
+    moxfieldText,
+    moxfieldCsv,
+    archidektText,
+    archidektCsv,
     totalMainCount: cmdCount + mainCount,
     resultingLandCount: landCount,
     commanderNames: commanders.map((c) => c.name),
@@ -546,7 +770,8 @@ export function buildOptimizedDeckExport(
 export function downloadDeckFile(
   content: string,
   deckName: string,
-  extension: 'txt' | 'csv'
+  extension: 'txt' | 'csv',
+  suffix?: string
 ): void {
   const mimeType =
     extension === 'csv'
@@ -559,8 +784,42 @@ export function downloadDeckFile(
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '');
+  const safeSuffix = suffix
+    ? `-${suffix.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`
+    : '';
   a.href = url;
-  a.download = `${safeName || 'optimized-deck'}.${extension}`;
+  a.download = `${safeName || 'optimized-deck'}${safeSuffix}.${extension}`;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+export async function copyTextToClipboard(text: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fallback below when Clipboard API is blocked (e.g., iframe permissions)
+    }
+  }
+
+  if (typeof document === 'undefined') return false;
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-9999px';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return ok;
+  } catch {
+    return false;
+  }
 }

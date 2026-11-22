@@ -20,6 +20,7 @@ interface CardChangesPanelProps {
   onToggleAdd: (id: string) => void;
   onSelectAllChanges: (selectAll: boolean) => void;
   onInspectCard: (name: string, meta?: CardMetadata | null) => void;
+  embedded?: boolean;
 }
 
 export const CardChangesPanel: React.FC<CardChangesPanelProps> = ({
@@ -34,6 +35,7 @@ export const CardChangesPanel: React.FC<CardChangesPanelProps> = ({
   onToggleAdd,
   onSelectAllChanges,
   onInspectCard,
+  embedded = false,
 }) => {
   const safeSwaps = Array.isArray(swaps) ? swaps : [];
   const safeCuts = Array.isArray(cuts) ? cuts : [];
@@ -41,34 +43,33 @@ export const CardChangesPanel: React.FC<CardChangesPanelProps> = ({
   const totalOptions = safeSwaps.length + safeCuts.length + safeAdditions.length;
   const totalSelected = selectedSwapIds.size + selectedCutIds.size + selectedAddIds.size;
 
+  const Wrapper: React.ElementType = embedded ? 'div' : 'section';
+
   return (
-    <section id="changes-section" className="space-y-6 scroll-mt-20">
+    <Wrapper id={embedded ? undefined : 'changes-section'} className={embedded ? 'space-y-5' : 'space-y-6 scroll-mt-20'}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="font-display text-xl font-bold text-zinc-900">
-            06. Card Swaps, Cuts &amp; Additions
-          </h2>
-          <p className="mt-0.5 text-sm text-zinc-600">
-            <span className="font-mono font-semibold tabular-nums text-zinc-800">{safeSwaps.length}</span>{' '}
-            swap{safeSwaps.length === 1 ? '' : 's'} ·{' '}
-            <span className="font-mono font-semibold tabular-nums text-zinc-800">{safeCuts.length}</span>{' '}
-            cut{safeCuts.length === 1 ? '' : 's'} ·{' '}
-            <span className="font-mono font-semibold tabular-nums text-zinc-800">{safeAdditions.length}</span>{' '}
-            addition{safeAdditions.length === 1 ? '' : 's'} — check items to update your export.
+          {!embedded && (
+            <h2 className="font-display text-xl font-bold text-zinc-900">
+              Suggested Changes
+            </h2>
+          )}
+          <p className={embedded ? 'text-sm text-zinc-600' : 'mt-0.5 text-sm text-zinc-600'}>
+            Review recommended swaps, cuts, and additions, then check the ones you want applied to your updated decklist.
           </p>
         </div>
 
         {totalOptions > 0 && (
           <div className="flex items-center gap-3 text-xs">
             <span className="font-mono tabular-nums text-zinc-500">
-              {totalSelected} of {totalOptions} active
+              {totalSelected} of {totalOptions} selected
             </span>
             <button
               type="button"
               onClick={() => onSelectAllChanges(totalSelected < totalOptions)}
               className="font-semibold text-sky-700 hover:text-sky-800 cursor-pointer whitespace-nowrap shrink-0"
             >
-              {totalSelected < totalOptions ? 'Apply All' : 'Uncheck All'}
+              {totalSelected < totalOptions ? 'Select All' : 'Clear All'}
             </button>
           </div>
         )}
@@ -78,10 +79,10 @@ export const CardChangesPanel: React.FC<CardChangesPanelProps> = ({
       <div className="rounded-xl border border-zinc-200 bg-white p-6">
         <div className="border-b border-zinc-100 pb-4">
           <h3 className="font-display text-base font-semibold text-zinc-900">
-            Direct Replacements
+            One-for-One Swaps
           </h3>
           <p className="mt-0.5 text-xs text-zinc-500">
-            1-for-1 upgrades that keep deck size unchanged.
+            Direct upgrades that keep your total deck size the same.
           </p>
         </div>
 
@@ -149,10 +150,10 @@ export const CardChangesPanel: React.FC<CardChangesPanelProps> = ({
 
                       <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-zinc-600 md:grid-cols-2">
                         <div>
-                          <span className="font-medium text-red-800">Why take out:</span> {swap.cutReason}
+                          <span className="font-medium text-red-800">Why cut:</span> {swap.cutReason}
                         </div>
                         <div>
-                          <span className="font-medium text-emerald-800">Why put in:</span> {swap.addReason}
+                          <span className="font-medium text-emerald-800">Why add:</span> {swap.addReason}
                         </div>
                       </div>
                     </div>
@@ -170,10 +171,10 @@ export const CardChangesPanel: React.FC<CardChangesPanelProps> = ({
         <div className="rounded-xl border border-zinc-200 bg-white p-6">
           <div className="border-b border-zinc-100 pb-4">
             <h3 className="font-display text-base font-semibold text-zinc-900">
-              Standalone Cuts
+              Cards to Cut
             </h3>
             <p className="mt-0.5 text-xs text-zinc-500">
-              Trim excess lands or off-plan cards.
+              Trim extra lands or cards that slow down your game plan.
             </p>
           </div>
 
@@ -230,10 +231,10 @@ export const CardChangesPanel: React.FC<CardChangesPanelProps> = ({
         <div className="rounded-xl border border-zinc-200 bg-white p-6">
           <div className="border-b border-zinc-100 pb-4">
             <h3 className="font-display text-base font-semibold text-zinc-900">
-              Standalone Additions
+              Cards to Add
             </h3>
             <p className="mt-0.5 text-xs text-zinc-500">
-              Fill open slots with draw, ramp, or interaction.
+              Fill open slots with card draw, ramp, or interaction.
             </p>
           </div>
 
@@ -289,6 +290,6 @@ export const CardChangesPanel: React.FC<CardChangesPanelProps> = ({
           )}
         </div>
       </div>
-    </section>
+    </Wrapper>
   );
 };

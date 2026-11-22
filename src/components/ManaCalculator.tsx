@@ -23,6 +23,11 @@ import {
   type DrawnHandReport,
 } from '../utils/manaCalculator';
 import { CardLink } from './CardInspectorModal';
+import {
+  buildHoverRect,
+  hideGlobalCardHover,
+  showGlobalCardHover,
+} from './CardHoverZoomOverlay';
 
 interface ManaCalculatorProps {
   deckName: string;
@@ -194,10 +199,10 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="font-display text-xl font-bold text-zinc-900">
-            04. Opening Hand &amp; Mana Simulator
+            Opening Hands
           </h2>
           <p className="mt-0.5 text-sm text-zinc-600">
-            Draw sample 7-card hands and check Turn 1–4 castability across 2,000 simulated games.
+            Deal practice opening hands, test mulligans, and check your odds of casting key spells on turns 1 through 4.
           </p>
         </div>
 
@@ -214,11 +219,11 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
             {isPlaytestManaSynced ? (
               <>
                 <Check className="h-3.5 w-3.5 text-sky-700" />
-                <span>Mana Synced · Jump to Playtest</span>
+                <span>Mana Synced · Open Playtest</span>
               </>
             ) : (
               <>
-                <span>Test Optimized Mana in Playtest</span>
+                <span>Test Updated Mana in Playtest</span>
                 <ArrowRight className="h-3.5 w-3.5 text-sky-700" />
               </>
             )}
@@ -374,11 +379,33 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                 ? 'text-amber-700'
                 : 'text-zinc-500';
 
+              const statusTooltip = card.statusLabel.startsWith('Blocked T')
+                ? `Cannot cast on ${card.statusLabel.replace('Blocked ', 'Turn ')} with the lands drawn so far (missing untapped mana or required colors)`
+                : card.statusLabel.startsWith('Castable T')
+                ? `Castable on ${card.statusLabel.replace('Castable ', 'Turn ')} with the lands drawn so far`
+                : card.statusLabel === 'Enters Tapped'
+                ? 'This land enters the battlefield tapped'
+                : card.statusLabel === 'Untapped'
+                ? 'This land enters untapped and can produce mana immediately'
+                : undefined;
+
               return (
                 <button
                   key={`${card.id}-${idx}`}
                   type="button"
-                  onClick={() => onInspectCard(card.name, card.meta)}
+                  onMouseEnter={(e) =>
+                    showGlobalCardHover({
+                      name: card.name,
+                      meta: card.meta,
+                      rect: buildHoverRect(e.currentTarget),
+                      statusTags: card.statusLabel ? [card.statusLabel] : undefined,
+                    })
+                  }
+                  onMouseLeave={hideGlobalCardHover}
+                  onClick={() => {
+                    hideGlobalCardHover();
+                    onInspectCard(card.name, card.meta);
+                  }}
                   className="group flex flex-col text-left rounded-lg border border-zinc-200 bg-white p-2 hover:border-sky-600 transition-colors cursor-pointer"
                 >
                   <div className="relative aspect-[5/7] w-full overflow-hidden rounded-md bg-zinc-100">
@@ -413,7 +440,7 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                       {card.name}
                     </div>
                     <div className="flex items-center justify-between gap-1 text-[11px] font-mono tabular-nums">
-                      <span className={`font-medium ${statusColor}`}>
+                      <span className={`font-medium ${statusColor}`} title={statusTooltip}>
                         {card.statusLabel}
                       </span>
                       {!card.isLand && card.manaCost && (

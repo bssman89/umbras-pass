@@ -121,10 +121,10 @@ export const DeckBudgetComparison: React.FC<DeckBudgetComparisonProps> = ({
           <DollarSign className="h-5 w-5 text-sky-700 shrink-0" />
           <div>
             <h3 className="font-display text-base font-semibold text-zinc-900">
-              Market Value Comparison
+              Deck Cost Comparison
             </h3>
             <p className="mt-0.5 text-xs text-zinc-500">
-              Live USD total before and after your checked changes
+              Estimated USD value before and after your selected card changes.
             </p>
           </div>
         </div>
@@ -136,27 +136,27 @@ export const DeckBudgetComparison: React.FC<DeckBudgetComparisonProps> = ({
 
       <div className="grid grid-cols-1 divide-y divide-zinc-100 sm:grid-cols-3 sm:divide-y-0 sm:divide-x">
         <div className="py-2 sm:pr-6">
-          <div className="text-xs font-medium text-zinc-500">Current List</div>
+          <div className="text-xs font-medium text-zinc-500">Original Deck</div>
           <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-zinc-900">
             ${currentTotalUsd.toFixed(2)}
           </div>
           <div className="mt-0.5 text-xs text-zinc-500">
-            Original submitted list
+            Imported list value
           </div>
         </div>
 
         <div className="py-2 sm:px-6">
-          <div className="text-xs font-medium text-zinc-500">With Selected Changes</div>
+          <div className="text-xs font-medium text-zinc-500">Updated Deck</div>
           <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-zinc-900">
             ${optimizedTotalUsd.toFixed(2)}
           </div>
           <div className="mt-0.5 text-xs text-zinc-500">
-            Includes checked swaps &amp; fixes
+            Includes checked swaps and fixes
           </div>
         </div>
 
         <div className="py-2 sm:pl-6">
-          <div className="text-xs font-medium text-zinc-500">Net Difference</div>
+          <div className="text-xs font-medium text-zinc-500">Cost Difference</div>
           <div
             className={`mt-1 font-mono text-2xl font-bold tabular-nums flex items-center gap-1 ${
               isMoreExpensive

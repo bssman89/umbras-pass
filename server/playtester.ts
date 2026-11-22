@@ -1008,8 +1008,10 @@ CRITICAL MTG RULES, CREATIVE PILOTING & TELEMETRY INSTRUCTIONS:
      * creaturesOnBoard, landsInPlay, manaAvailable, handSize
    - When targetParticipant is ANOTHER BOT, NEVER copy single-target combat damage dealt to that bot into lifeChangeToYou!
    - Use ACTUAL printed Power/Toughness for BOTH Player and Bot creatures/commanders, re-trigger combat abilities on surviving creatures, and follow Infect/Toxic/Proliferate/Commander Damage rules faithfully.
-5. MULTIPLAYER POD STRATEGY, INTER-BOT ATTACKS & ELIMINATIONS:
-   - Evaluate threats across ALL living players (You + rival bots): consider creature board power, noncreature draw/mana engines, Commander threat, near-lethal Poison/Mill/Commander clocks, untapped blockers, open interaction mana, and retaliation grudge. Bots eliminate weakened threats and can lose or be eliminated themselves.
+5. MULTIPLAYER POD STRATEGY, INTER-BOT ATTACKS & ANTI-DOGPILE POLITICS:
+   - In 1v2 and 1v3 pods, this is a true free-for-all — NEVER default to dogpiling "You" when rival bots are open, ahead on board/mana, or holding dangerous Commanders/engines!
+   - Evaluate threats symmetrically across ALL living players (You + every rival bot): weigh creature board power, noncreature draw/mana engines, active Commanders, near-lethal Poison/Mill/Commander clocks, open blockers, and retaliation grudges from prior attacks, removal, or board wipes.
+   - Bots on Low (Forgiving), Moderate (Measured), and High (Ruthless) MUST actively attack, remove threats from, and eliminate rival bots whenever a rival bot is leading, open, retaliated against, or in lethal range; spread early pressure across seats so all bots do not blindly pile onto "You" on the same round unless "You" are the clear archenemy or the bot is Maximum (Vindictive).
 6. Track playerStats (including targetBot), ensure lifeTotals stay mathematically consistent, note mana/tempo issues + 1-2 roundChanges per round, and write sharp, deck-specific "keyTakeaways" and "botLearnings".`;
 
   const systemInstruction =
@@ -1177,9 +1179,15 @@ CRITICAL MTG RULES, CREATIVE PILOTING & TELEMETRY INSTRUCTIONS:
             trainingSummaryStr = `bot_training.json (${agg.movesRecorded} moves, ${agg.wins}W-${agg.losses}L): Postures[${postureParts}]${bestMove ? ` | WinMove: ${bestMove}` : ''}${avoidMove ? ` | AvoidMove: ${avoidMove}` : ''}`;
           }
 
+          const rivalThreatEntries = Object.entries(brf.rivalThreatByName || {})
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([rName, score]) => `${rName}(${Math.round(score)})`)
+            .join(', ');
+
           return [
             `- "${opp.name}" | Cmdr: ${cmd} | OwnPlan: ${plan} | Temperament: ${opp.indignanceMeta.label} | Memory: ${recordStr}`,
-            `  KnownThreats: ${knownThreatsStr}${weaknessStr ? ` | ExploitableWeakness: ${weaknessStr}` : ''}`,
+            `  KnownThreats: ${knownThreatsStr}${weaknessStr ? ` | ExploitableWeakness: ${weaknessStr}` : ''}${rivalThreatEntries ? ` | LearnedRivalThreats: ${rivalThreatEntries}` : ''}`,
             priorDirStr ? `  PriorDirectives: ${priorDirStr}` : '',
             coachStr ? `  UserCoaching: ${coachStr}` : '',
             lossStr ? `  LossLesson: ${lossStr}` : '',
@@ -1190,15 +1198,17 @@ CRITICAL MTG RULES, CREATIVE PILOTING & TELEMETRY INSTRUCTIONS:
         })
         .join('\n');
 
+      const podRivalNames = activeOpponents.map((o) => o.name).join(', ');
       const planPrompt = `/no_think
-Use each bot's historical memory, bot_training.json move outcomes, loss lessons, and user coaching to set adaptive tactical directives for this ${format} ${mode} playtest against Player "${deckName}" (Cmdr: ${commanderNames.join(', ') || 'None'}, Plan: ${playerBlueprint.primaryPlan}, KeyCards: ${playerThreatPreview.join(', ') || 'Standard'}).
+Use each bot's historical memory, bot_training.json move outcomes, loss lessons, learned rival-bot threats, and user coaching to set adaptive tactical directives for this ${format} ${mode} playtest.
+Table seats: Player "${deckName}" (Cmdr: ${commanderNames.join(', ') || 'None'}, Plan: ${playerBlueprint.primaryPlan}, KeyCards: ${playerThreatPreview.join(', ') || 'Standard'}) AND Bots [${podRivalNames}].
 BOT DOSSIERS:
 ${oppBriefs}
 
 Rules:
 - Adapt based on each bot's Memory/TrainingLog/UserCoaching/LossLesson (e.g., favor postures with higher win rates in TrainingLog, avoid losing move patterns, or shift posture/hold-interaction if defeated previously).
-- priorityTarget: "You", "table-leader", or a rival bot's exact name.
-- keyThreatToAnswer: single most dangerous card name from KnownThreats or KeyCards.
+- priorityTarget: In 1v2/1v3 pods, treat rival bots as genuine threats! Prefer "table-leader" or a dangerous rival bot's exact name (especially from LearnedRivalThreats or matching aggressive/combo rival archetypes) rather than automatically picking "You" for every bot unless the bot is Maximum (Vindictive) or specifically coached to focus You.
+- keyThreatToAnswer: single most dangerous card/commander name from KnownThreats, KeyCards, or a rival bot's Cmdr.
 - focusTag: <= 10 word tactical rule.
 - appliedMemoryReason: <= 12 words summarizing what past lesson/coaching is being applied (or "Baseline matchup calibration").
 Return JSON object matching botDirectives schema.`;

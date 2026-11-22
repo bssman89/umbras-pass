@@ -136,7 +136,7 @@ export const DeckRadarChart: React.FC<DeckRadarChartProps> = memo(({
               Deck Balance Profile
             </h3>
             <p className="mt-0.5 text-xs text-zinc-500">
-              Six core deck pillars scored 0–100 against {metrics.detectedFormat} benchmarks
+              Scores your deck from 0 to 100 across six core fundamentals for {metrics.detectedFormat}.
             </p>
           </div>
         </div>

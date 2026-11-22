@@ -64,6 +64,21 @@ export function buildHoverRect(el: HTMLElement): HoveredCardPreview['rect'] {
   };
 }
 
+type GlobalHoverListener = (preview: HoveredCardPreview | null) => void;
+const globalHoverListeners = new Set<GlobalHoverListener>();
+let currentGlobalHoverPreview: HoveredCardPreview | null = null;
+
+export function showGlobalCardHover(preview: HoveredCardPreview): void {
+  currentGlobalHoverPreview = preview;
+  globalHoverListeners.forEach((listener) => listener(preview));
+}
+
+export function hideGlobalCardHover(): void {
+  if (currentGlobalHoverPreview === null) return;
+  currentGlobalHoverPreview = null;
+  globalHoverListeners.forEach((listener) => listener(null));
+}
+
 interface CardHoverZoomOverlayProps {
   preview: HoveredCardPreview | null;
   enabled: boolean;
@@ -189,7 +204,9 @@ export const CardHoverZoomOverlay: React.FC<CardHoverZoomOverlayProps> = ({
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const showSidecar = vw >= 920 && Boolean(activeOracle || activeTypeLine || statusTags.length > 0);
-  const artWidth = vw >= 640 ? 276 : 228;
+  const targetArtWidth = vw >= 1200 ? 336 : vw >= 640 ? 300 : 236;
+  const maxArtByHeight = Math.max(180, Math.floor((vh - 76) * (488 / 680)));
+  const artWidth = Math.min(targetArtWidth, maxArtByHeight);
   const artHeight = Math.round(artWidth * (680 / 488));
   const panelWidth = showSidecar ? artWidth + 244 + 20 : artWidth + 16;
   const estimatedHeight = artHeight + 34;
@@ -221,7 +238,7 @@ export const CardHoverZoomOverlay: React.FC<CardHoverZoomOverlayProps> = ({
         top: `${Math.round(top)}px`,
         width: `${panelWidth}px`,
       }}
-      className="fixed z-[75] pointer-events-none rounded-xl border border-zinc-700/90 bg-zinc-950/95 p-2 shadow-2xl backdrop-blur-md transition-[opacity,transform] duration-100"
+      className="fixed z-[95] pointer-events-none rounded-xl border border-zinc-700/90 bg-zinc-950/95 p-2 shadow-2xl backdrop-blur-md transition-[opacity,transform] duration-100"
     >
       <div className="flex items-stretch gap-3">
         {/* Large High-Res Card Artwork */}
@@ -323,5 +340,29 @@ export const CardHoverZoomOverlay: React.FC<CardHoverZoomOverlayProps> = ({
       </div>
     </div>,
     document.body
+  );
+};
+
+export const GlobalCardHoverPortal: React.FC = () => {
+  const [preview, setPreview] = useState<HoveredCardPreview | null>(
+    () => currentGlobalHoverPreview
+  );
+
+  useEffect(() => {
+    const listener: GlobalHoverListener = (nextPreview) => {
+      setPreview(nextPreview);
+    };
+    globalHoverListeners.add(listener);
+    return () => {
+      globalHoverListeners.delete(listener);
+    };
+  }, []);
+
+  return (
+    <CardHoverZoomOverlay
+      preview={preview}
+      enabled={true}
+      onDismiss={hideGlobalCardHover}
+    />
   );
 };

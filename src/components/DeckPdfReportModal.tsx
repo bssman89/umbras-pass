@@ -10,6 +10,11 @@ import {
   type ExtraSwapSpec,
 } from '../utils/deckExport';
 import { runSynergyAndColorAudit } from '../utils/synergyAudit';
+import {
+  buildHoverRect,
+  hideGlobalCardHover,
+  showGlobalCardHover,
+} from './CardHoverZoomOverlay';
 
 interface DeckPdfReportModalProps {
   isOpen: boolean;
@@ -170,7 +175,7 @@ export const DeckPdfReportModal: React.FC<DeckPdfReportModalProps> = ({
           {/* Section 1: Executive Verdict & Stats */}
           <div className="space-y-3">
             <h2 className="font-display text-base font-bold text-zinc-900 border-b border-zinc-200 pb-1.5">
-              01. Executive Diagnosis & Key Metrics
+              Executive Diagnosis & Key Metrics
             </h2>
             <div className="rounded-xl border border-zinc-200 bg-white p-5 space-y-3">
               <p className="font-semibold text-zinc-900">{analysis.verdictHeadline}</p>
@@ -208,7 +213,7 @@ export const DeckPdfReportModal: React.FC<DeckPdfReportModalProps> = ({
           {/* Section 2: Recommended Card Changes & Swaps */}
           <div className="space-y-3">
             <h2 className="font-display text-base font-bold text-zinc-900 border-b border-zinc-200 pb-1.5">
-              02. Actionable Card Swaps, Cuts & Additions
+              Actionable Card Swaps, Cuts & Additions
             </h2>
             <div className="rounded-xl border border-zinc-200 bg-white p-5 space-y-4">
               {analysis.swaps.length === 0 && analysis.cuts.length === 0 && analysis.additions.length === 0 ? (
@@ -255,14 +260,25 @@ export const DeckPdfReportModal: React.FC<DeckPdfReportModalProps> = ({
           {cardsWithImages.length > 0 && (
             <div className="space-y-3">
               <h2 className="font-display text-base font-bold text-zinc-900 border-b border-zinc-200 pb-1.5">
-                03. Key Deck Cards & Artwork Showcase
+                Key Deck Cards & Artwork Showcase
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                 {Array.isArray(cardsWithImages) && cardsWithImages.slice(0, 18).map((rc, idx) => {
                   const card = rc.card;
                   if (!card) return null;
                   return (
-                    <div key={`${card.name}-${idx}`} className="rounded-lg border border-zinc-200 bg-white p-2 space-y-1.5 text-center">
+                    <div
+                      key={`${card.name}-${idx}`}
+                      onMouseEnter={(e) =>
+                        showGlobalCardHover({
+                          name: card.name,
+                          meta: card,
+                          rect: buildHoverRect(e.currentTarget),
+                        })
+                      }
+                      onMouseLeave={hideGlobalCardHover}
+                      className="rounded-lg border border-zinc-200 bg-white p-2 space-y-1.5 text-center transition-colors hover:border-sky-600 cursor-zoom-in"
+                    >
                       <div className="aspect-[488/680] w-full overflow-hidden rounded bg-zinc-100">
                         <img
                           src={card.imageUri}
@@ -288,7 +304,7 @@ export const DeckPdfReportModal: React.FC<DeckPdfReportModalProps> = ({
           {simStatEntries.length > 0 && (
             <div className="space-y-3">
               <h2 className="font-display text-base font-bold text-zinc-900 border-b border-zinc-200 pb-1.5">
-                04. Bot Match &amp; Live Simulation Stats
+                Bot Match &amp; Live Simulation Stats
               </h2>
               <div className="rounded-xl border border-zinc-200 bg-white p-5">
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-xs">
@@ -306,7 +322,7 @@ export const DeckPdfReportModal: React.FC<DeckPdfReportModalProps> = ({
           {/* Optimized Full Decklist */}
           <div className="space-y-3">
             <h2 className="font-display text-base font-bold text-zinc-900 border-b border-zinc-200 pb-1.5">
-              {simStatEntries.length > 0 ? '05' : '04'}. Resulting Optimized Decklist
+              Resulting Optimized Decklist
             </h2>
             <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 font-mono text-xs leading-relaxed text-zinc-800 whitespace-pre-line">
               {optimizedExport.exportText}
