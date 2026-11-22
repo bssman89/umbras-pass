@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Coins,
+  Cpu,
   Crown,
   Droplets,
   Flame,
@@ -728,6 +729,11 @@ interface LiveTabletopArenaProps {
     targetAttackerUid?: string,
     targetPlayerCreatureUid?: string
   ) => void;
+  activeAiModelLabel?: string;
+  effectiveAiEngine?: 'local-gguf' | 'cloud-gemini' | 'deterministic';
+  thinkingBotName?: string | null;
+  liveAiTurnReasoning?: boolean;
+  onToggleLiveAiTurnReasoning?: () => void;
 }
 
 const MANA_BUTTONS: Array<{ color: ManaColor; chipClass: string }> = [
@@ -838,6 +844,11 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
   onResolveStackTop,
   onResolveStackAll,
   onCastCombatInstant,
+  activeAiModelLabel,
+  effectiveAiEngine = 'deterministic',
+  thinkingBotName = null,
+  liveAiTurnReasoning = true,
+  onToggleLiveAiTurnReasoning,
 }) => {
   const [hoverZoomEnabled, setHoverZoomEnabled] = useState<boolean>(() =>
     loadHoverZoomPreference()
@@ -1079,10 +1090,42 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
             </span>
             <span className="text-emerald-300/40" aria-hidden="true">·</span>
             <span className="font-semibold text-sky-200">
-              {botsAreActing && activeBotIdx !== null && liveBots[activeBotIdx]
+              {thinkingBotName
+                ? `${thinkingBotName} thinking with ${activeAiModelLabel || 'AI'}...`
+                : botsAreActing && activeBotIdx !== null && liveBots[activeBotIdx]
                 ? `Seat ${activeBotIdx + 2}: ${liveBots[activeBotIdx].name}'s Turn`
                 : `Your Turn · ${activePhase} (${phaseIdx + 1}/${phases.length})`}
             </span>
+            {activeAiModelLabel && (
+              <>
+                <span className="text-emerald-300/40" aria-hidden="true">·</span>
+                {effectiveAiEngine !== 'deterministic' && onToggleLiveAiTurnReasoning ? (
+                  <button
+                    type="button"
+                    onClick={onToggleLiveAiTurnReasoning}
+                    title={
+                      liveAiTurnReasoning
+                        ? `Live Per-Turn AI Thinking ON (${activeAiModelLabel}). Click to use fast turn rules while keeping pre-match & post-match AI learning.`
+                        : `Live Per-Turn AI Thinking OFF (pre-match & post-match learning still use ${activeAiModelLabel}). Click to enable per-turn AI reasoning.`
+                    }
+                    className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                      liveAiTurnReasoning
+                        ? 'border-sky-300/60 bg-sky-950/60 text-sky-100 hover:bg-sky-900/70'
+                        : 'border-emerald-300/35 bg-[#0F4C3A] text-emerald-200/80 hover:bg-[#145D47]'
+                    }`}
+                  >
+                    <Cpu className="h-3 w-3 text-sky-300" />
+                    {activeAiModelLabel}
+                    {liveAiTurnReasoning ? '' : ' (Fast)'}
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-1 font-mono text-[10px] text-emerald-200/85">
+                    <Cpu className="h-3 w-3 text-emerald-300" />
+                    {activeAiModelLabel}
+                  </span>
+                )}
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -1618,7 +1661,20 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                         </span>
                       )}
                     </div>
-                    {bot.liveMemory?.lastAdaptationNote && (
+                    {bot.liveMemory?.lastAiThought && (
+                      <div
+                        className="truncate text-[10px] text-amber-200/95"
+                        title={bot.liveMemory.lastAiThought}
+                      >
+                        <strong className="text-amber-300">
+                          {bot.liveMemory.aiEngineLabel ? `${bot.liveMemory.aiEngineLabel}:` : 'AI Plan:'}
+                        </strong>{' '}
+                        {bot.liveMemory.lastAiThought}
+                      </div>
+                    )}
+                    {bot.liveMemory?.lastAdaptationNote &&
+                      (!bot.liveMemory.lastAiThought ||
+                        !bot.liveMemory.lastAdaptationNote.includes(bot.liveMemory.lastAiThought)) && (
                       <div
                         className="truncate text-[10px] text-sky-200/90"
                         title={bot.liveMemory.lastAdaptationNote}

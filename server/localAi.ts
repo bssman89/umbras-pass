@@ -353,6 +353,17 @@ export function getDesktopAiStatus() {
 
   const activePathInfo = getActiveGgufPath(config);
   const trainingData = loadBotTrainingData();
+  const effectiveEngine: AiEngineMode = shouldUseLocalGguf()
+    ? 'local-gguf'
+    : shouldUseCloudGemini()
+    ? 'cloud-gemini'
+    : 'deterministic';
+  const activeModelLabel =
+    effectiveEngine === 'local-gguf'
+      ? getActiveLocalModelLabel() || 'Local GGUF Model'
+      : effectiveEngine === 'cloud-gemini'
+      ? 'Cloud Gemini AI'
+      : 'Deterministic MTG Rules';
 
   return {
     isDesktop: isDesktopEnvironment(),
@@ -363,6 +374,8 @@ export function getDesktopAiStatus() {
     botTrainingMoveCount: trainingData.totalMovesRecorded,
     hardware,
     activeEngine: config.activeEngine,
+    effectiveEngine,
+    activeModelLabel,
     computeMode: config.computeMode,
     cpuThreads: config.cpuThreads,
     autoLearnFromMatches: config.autoLearnFromMatches !== false,
@@ -956,12 +969,23 @@ function extractJsonObjectFromText(rawText: string | undefined | null): string {
 export function getActiveLocalModelLabel(): string | null {
   const config = loadDesktopAiConfig();
   const active = getActiveGgufPath(config);
-  if (!active.modelId) return null;
-  const catalog = RECOMMENDED_HF_MODELS.find((m) => m.id === active.modelId);
+  if (!active.modelId && !active.filePath) return null;
+  const catalog = active.modelId
+    ? RECOMMENDED_HF_MODELS.find((m) => m.id === active.modelId)
+    : undefined;
   const modeSuffix = config.computeMode === 'auto' ? 'Auto GPU/CPU' : 'CPU';
   if (catalog) return `${catalog.shortName} (${modeSuffix})`;
-  const rec = config.installedModels?.[active.modelId];
-  return rec?.label ? `${rec.label} (${modeSuffix})` : `Local GGUF (${modeSuffix})`;
+  if (active.modelId === 'custom-file' && active.filePath) {
+    const customName = path.basename(active.filePath).replace(/\.gguf$/i, '').trim().slice(0, 40);
+    return `${customName || 'Custom GGUF'} (${modeSuffix})`;
+  }
+  const rec = active.modelId ? config.installedModels?.[active.modelId] : undefined;
+  if (rec?.label) return `${rec.label} (${modeSuffix})`;
+  if (active.filePath) {
+    const fileLabel = path.basename(active.filePath).replace(/\.gguf$/i, '').trim().slice(0, 40);
+    return `${fileLabel || 'Local GGUF'} (${modeSuffix})`;
+  }
+  return `Local GGUF (${modeSuffix})`;
 }
 
 async function withSerializedInference<T>(task: () => Promise<T>): Promise<T> {

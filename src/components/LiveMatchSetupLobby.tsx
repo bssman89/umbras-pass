@@ -4,6 +4,7 @@ import {
   Bot,
   Brain,
   Copy,
+  Cpu,
   Dices,
   FastForward,
   Flame,
@@ -107,6 +108,10 @@ interface LiveMatchSetupLobbyProps {
   onUpdateOpponents: (nextOpponents: BotOpponentConfig[]) => void;
   onStartLiveGame: (resolvedFirstSeatIndex: number, diceSummary?: string) => void;
   onResumeLiveGame?: () => void;
+  activeAiModelLabel?: string;
+  effectiveAiEngine?: 'local-gguf' | 'cloud-gemini' | 'deterministic';
+  liveAiTurnReasoning?: boolean;
+  onChangeLiveAiTurnReasoning?: (enabled: boolean) => void;
 }
 
 type BotDeckSourceTab = 'archetype' | 'preset' | 'custom';
@@ -144,6 +149,10 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
   onUpdateOpponents,
   onStartLiveGame,
   onResumeLiveGame,
+  activeAiModelLabel = 'Deterministic MTG Rules',
+  effectiveAiEngine = 'deterministic',
+  liveAiTurnReasoning = true,
+  onChangeLiveAiTurnReasoning,
 }) => {
   const targetBotCount = mode === '1v1' ? 1 : mode === '1v2' ? 2 : 3;
 
@@ -310,6 +319,38 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
             Start Live Game
           </button>
         </div>
+      </div>
+
+      {/* Active AI Logic & Learning Backbone Strip */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200/80 bg-sky-50/50 px-3.5 py-2.5 text-xs">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <Cpu className="h-4 w-4 text-sky-700 shrink-0" />
+          <span className="font-semibold text-zinc-900">
+            Active AI Backbone:
+          </span>
+          <span className="font-mono font-bold text-sky-800">
+            {activeAiModelLabel}
+          </span>
+          <span className="text-zinc-500">
+            {effectiveAiEngine === 'local-gguf'
+              ? '— Powers live turn strategy, MTG mechanics & persistent bot learning (configured in Settings → AI Engine).'
+              : effectiveAiEngine === 'cloud-gemini'
+              ? '— Powers live turn strategy, MTG mechanics & persistent bot learning via Cloud Gemini.'
+              : '— Instant built-in MTG rules AI (select a Qwen or custom .gguf model in Settings → AI Engine to enable LLM reasoning).'}
+          </span>
+        </div>
+
+        {effectiveAiEngine !== 'deterministic' && onChangeLiveAiTurnReasoning && (
+          <label className="inline-flex items-center gap-2 text-xs font-semibold text-zinc-800 cursor-pointer select-none shrink-0">
+            <input
+              type="checkbox"
+              checked={liveAiTurnReasoning}
+              onChange={(e) => onChangeLiveAiTurnReasoning(e.target.checked)}
+              className="h-4 w-4 rounded border-zinc-300 text-sky-700 focus:ring-sky-600"
+            />
+            <span>Live Per-Turn AI Thinking</span>
+          </label>
+        )}
       </div>
 
       {/* Section 1: Table Format, Starting Life, Turn Order & Priority Rules */}

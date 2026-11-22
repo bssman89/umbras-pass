@@ -289,6 +289,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
   >({});
   const [localAiEngineInfo, setLocalAiEngineInfo] = useState<{
     isGgufActive: boolean;
+    effectiveEngine: 'local-gguf' | 'cloud-gemini' | 'deterministic';
     modelLabel: string | null;
     computeLabel: string;
   } | null>(null);
@@ -305,6 +306,8 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
         if (!res.ok || cancelled) return;
         const payload = (await res.json()) as {
           activeEngine?: string;
+          effectiveEngine?: 'local-gguf' | 'cloud-gemini' | 'deterministic';
+          activeModelLabel?: string;
           computeMode?: string;
           autoLearnFromMatches?: boolean;
           selectedModelId?: string | null;
@@ -321,14 +324,24 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
           hasModel &&
           payload.activeEngine !== 'deterministic' &&
           payload.activeEngine !== 'cloud-gemini';
+        const effectiveEngine: 'local-gguf' | 'cloud-gemini' | 'deterministic' =
+          payload.effectiveEngine ||
+          (isGgufActive
+            ? 'local-gguf'
+            : payload.activeEngine === 'cloud-gemini'
+              ? 'cloud-gemini'
+              : 'deterministic');
         const matchedCatalog = payload.catalog?.find(
           (item) => item.id === payload.selectedModelId
         );
-        const modelLabel = hasModel
-          ? matchedCatalog?.shortName || 'Custom .gguf'
-          : null;
+        const modelLabel =
+          effectiveEngine === 'local-gguf'
+            ? payload.activeModelLabel || matchedCatalog?.shortName || 'Custom .gguf'
+            : effectiveEngine === 'cloud-gemini'
+              ? payload.activeModelLabel || 'Cloud Gemini'
+              : null;
         const computeLabel = payload.computeMode === 'auto' ? 'Auto GPU/CPU' : 'CPU';
-        setLocalAiEngineInfo({ isGgufActive, modelLabel, computeLabel });
+        setLocalAiEngineInfo({ isGgufActive, effectiveEngine, modelLabel, computeLabel });
       } catch {
         // Ignore transient status fetch issues
       }
@@ -1224,15 +1237,17 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
               type="button"
               onClick={() => window.dispatchEvent(new Event('umbras:open-desktop-modal'))}
               className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                localAiEngineInfo.isGgufActive
+                localAiEngineInfo.effectiveEngine !== 'deterministic'
                   ? 'border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100'
                   : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'
               }`}
             >
               <Cpu className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-              {localAiEngineInfo.isGgufActive
+              {localAiEngineInfo.effectiveEngine === 'local-gguf'
                 ? `${localAiEngineInfo.modelLabel} (.gguf · ${localAiEngineInfo.computeLabel}) · ${autoLearnEnabled ? 'Auto-Learn On' : 'Manual Coaching Only'}`
-                : `Configure Local .gguf AI Model${!autoLearnEnabled ? ' (Auto-Learn Off)' : ''}`}
+                : localAiEngineInfo.effectiveEngine === 'cloud-gemini'
+                  ? `${localAiEngineInfo.modelLabel} · ${autoLearnEnabled ? 'Auto-Learn On' : 'Manual Coaching Only'}`
+                  : `Configure Local .gguf AI Model${!autoLearnEnabled ? ' (Auto-Learn Off)' : ''}`}
             </button>
           )}
         </div>

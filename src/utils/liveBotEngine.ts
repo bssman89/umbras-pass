@@ -5,6 +5,8 @@ import type {
   BotOpponentConfig,
   CardMetadata,
   DeckFormat,
+  LiveBotAiDirective,
+  LiveBotAiTurnDecision,
   ResolvedDeckCard,
 } from '../types/deck';
 import { getBotIntelligenceMeta } from './botIntelligence';
@@ -172,6 +174,11 @@ export interface BotLiveMemoryState {
   biggestRivalThreatName: string;
   spellsCastCount: number;
   creaturesPlayedCount: number;
+  aiDirective?: LiveBotAiDirective;
+  aiEngineLabel?: string;
+  lastAiThought?: string;
+  lastPosture?: 'aggressive' | 'balanced' | 'defensive';
+  lastAttackPlan?: 'all-out' | 'safe-evasion' | 'hold-blockers';
 }
 
 export interface LiveBotZoneCard {
@@ -873,6 +880,48 @@ export function createInitialLiveBots(
   });
 }
 
+export function applyAiDirectivesToLiveBots(
+  bots: LiveBotState[],
+  directivesByBot: Record<string, LiveBotAiDirective>,
+  aiEngineLabel?: string
+): LiveBotState[] {
+  return bots.map((bot) => {
+    const dir =
+      directivesByBot[bot.name] ||
+      directivesByBot[bot.name.trim().toLowerCase()];
+    if (!dir && !aiEngineLabel) return bot;
+    const nextNote =
+      dir?.openingStrategy ||
+      dir?.appliedMemoryReason ||
+      bot.liveMemory.lastAdaptationNote;
+    return {
+      ...bot,
+      liveMemory: {
+        ...bot.liveMemory,
+        aiDirective: dir || bot.liveMemory.aiDirective,
+        aiEngineLabel: aiEngineLabel || bot.liveMemory.aiEngineLabel,
+        lastPosture: dir?.posture || bot.liveMemory.lastPosture,
+        defensivePosture:
+          dir?.posture === 'defensive' ? true : bot.liveMemory.defensivePosture,
+        holdManaForInteraction:
+          dir?.manaPlan === 'hold-interaction'
+            ? true
+            : dir?.manaPlan === 'tap-out-pressure'
+            ? false
+            : bot.liveMemory.holdManaForInteraction,
+        observedUserThreats:
+          dir?.keyThreatToAnswer &&
+          !bot.liveMemory.observedUserThreats.some(
+            (t) => t.toLowerCase() === dir.keyThreatToAnswer!.toLowerCase()
+          )
+            ? [dir.keyThreatToAnswer, ...bot.liveMemory.observedUserThreats].slice(0, 12)
+            : bot.liveMemory.observedUserThreats,
+        lastAdaptationNote: nextNote,
+      },
+    };
+  });
+}
+
 /**
  * Called in real time whenever the user performs an action during a Live Game.
  * Updates every surviving bot's live memory, threat priority, grudge score, and
@@ -1366,7 +1415,8 @@ function rankBotTargets(
   bot: LiveBotState,
   allBots: LiveBotState[],
   player: PlayerBoardSnapshot,
-  targetsHitThisRound: Record<string, number> = {}
+  targetsHitThisRound: Record<string, number> = {},
+  aiTurnDecision?: LiveBotAiTurnDecision
 ): ScoredBotTarget[] {
   const rivals = allBots.filter((b) => b.id !== bot.id && !b.eliminated);
   const playerAlive =
@@ -1541,20 +1591,37 @@ function rankBotTargets(
       }
     }
 
+    // 8. Active AI model target directive (turn decision overrides opening directive)
+    const desiredTarget = (
+      aiTurnDecision?.priorityTarget ||
+      bot.liveMemory.aiDirective?.priorityTarget ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+    let aiTargetBonus = 0;
+    if (desiredTarget === 'table-leader' && isTableLeader) {
+      aiTargetBonus = 11;
+    } else if (desiredTarget && seat.seatKey.toLowerCase() === desiredTarget) {
+      aiTargetBonus = 15;
+    }
+
     const total =
       lethalBonus +
       threatScore +
       openLaneScore +
       grudgeScore +
       clockScore +
-      leaderBounty -
+      leaderBounty +
+      aiTargetBonus -
       antiDogpilePenalty -
       antiTunnelPenalty +
       indignanceModifier +
-      Math.random() * 2.8;
+      Math.random() * 2.4;
 
     let reason = `Evaluated ${seat.seatKey} as highest-value target`;
     if (canLethal) reason = `Spotted lethal knockout line on ${seat.seatKey}`;
+    else if (aiTargetBonus >= 14) reason = `AI prioritized ${seat.seatKey} based on board assessment`;
     else if (seat.grudge >= 18) reason = `Retaliating against ${seat.seatKey} (grudge ${Math.round(seat.grudge)})`;
     else if (isTableLeader) reason = `Contesting table leader ${seat.seatKey}`;
     else if (seat.untappedBlockers === 0) reason = `Exploiting open blockers on ${seat.seatKey}`;
@@ -1587,7 +1654,8 @@ function selectSmartBotAttackers(
   defenderLife: number,
   defenderPoison: number,
   commanderDmgAlreadyDealt: number,
-  incomingCrackbackPower: number
+  incomingCrackbackPower: number,
+  aiAttackPlan?: 'all-out' | 'safe-evasion' | 'hold-blockers'
 ): { attackers: LiveBotCreature[]; heldBackCount: number; reasoning: string } {
   if (eligible.length === 0) {
     return { attackers: [], heldBackCount: 0, reasoning: '' };
@@ -1618,8 +1686,10 @@ function selectSmartBotAttackers(
 
   // Determine how many non-vigilance blockers bot should hold if threatened by crackback
   const threatenedByCrackback =
-    bot.liveMemory.defensivePosture ||
-    incomingCrackbackPower >= Math.max(6, Math.round(bot.life * 0.55));
+    aiAttackPlan === 'hold-blockers' ||
+    (aiAttackPlan !== 'all-out' &&
+      (bot.liveMemory.defensivePosture ||
+        incomingCrackbackPower >= Math.max(6, Math.round(bot.life * 0.55))));
 
   const chosen: LiveBotCreature[] = [];
   const heldBack: LiveBotCreature[] = [];
@@ -1661,12 +1731,17 @@ function selectSmartBotAttackers(
     if (
       !blockerKillsAtk ||
       pushesCommanderLethal ||
+      aiAttackPlan === 'all-out' ||
       (atk.vigilance && isFavorableOrEvenTrade) ||
       (isGoingWide && isFavorableOrEvenTrade) ||
       (atk.trample && atk.power >= strongestBlocker.toughness + 2) ||
       (isFavorableOrEvenTrade && (aggressiveMood || bot.liveMemory.userTookUnblockedCount >= 2))
     ) {
-      chosen.push(atk);
+      if (aiAttackPlan === 'hold-blockers' && !atk.vigilance && !atk.flying && !pushesCommanderLethal && blockerKillsAtk) {
+        heldBack.push(atk);
+      } else {
+        chosen.push(atk);
+      }
     } else {
       heldBack.push(atk);
     }
@@ -1699,7 +1774,8 @@ export function executeBotTurn(
   player: PlayerBoardSnapshot,
   turnNumber: number,
   findMeta: (name: string) => CardMetadata | null,
-  targetsHitThisRound: Record<string, number> = {}
+  targetsHitThisRound: Record<string, number> = {},
+  aiTurnDecision?: LiveBotAiTurnDecision
 ): BotTurnResolution {
   const nextBots = bots.map((b) => ({
     ...b,
@@ -1821,8 +1897,33 @@ export function executeBotTurn(
     summary: `Untapped all · Drew ${bot.customHand.length > 0 ? 'card' : drawnCardName} · ${landNote}`,
   });
 
+  if (aiTurnDecision && !aiTurnDecision.fallback) {
+    if (aiTurnDecision.modelLabel) {
+      bot.liveMemory.aiEngineLabel = aiTurnDecision.modelLabel;
+    }
+    if (aiTurnDecision.posture) {
+      bot.liveMemory.lastPosture = aiTurnDecision.posture;
+      bot.liveMemory.defensivePosture = aiTurnDecision.posture === 'defensive';
+    }
+    if (aiTurnDecision.attackPlan) {
+      bot.liveMemory.lastAttackPlan = aiTurnDecision.attackPlan;
+    }
+    if (aiTurnDecision.strategyThought) {
+      bot.liveMemory.lastAiThought = aiTurnDecision.strategyThought;
+      const aiPrefix = aiTurnDecision.modelLabel ? `[${aiTurnDecision.modelLabel}] ` : '[AI] ';
+      const thoughtNote = `${aiPrefix}${aiTurnDecision.strategyThought}`;
+      bot.liveMemory.lastAdaptationNote = thoughtNote;
+      bot.liveMemory.adaptationHistory = pushUniqueBounded(
+        bot.liveMemory.adaptationHistory,
+        thoughtNote,
+        12
+      );
+      logs.push(`${aiPrefix}${bot.name} plan: ${aiTurnDecision.strategyThought}`);
+    }
+  }
+
   let availableMana = Math.max(0, bot.landsInPlay - bot.tappedLands + bot.manaBonusFromRamp);
-  const rankedTargets = rankBotTargets(bot, nextBots, player, targetsHitThisRound);
+  const rankedTargets = rankBotTargets(bot, nextBots, player, targetsHitThisRound, aiTurnDecision);
   const primaryScored = rankedTargets[0] || {
     ref: { kind: 'player' as const, label: 'You' },
     score: 0,
@@ -1838,7 +1939,7 @@ export function executeBotTurn(
   }
   bot.lastTargetName = targetLabel;
 
-  if (target.kind === 'bot' && primaryScored.reason) {
+  if (!aiTurnDecision?.strategyThought && target.kind === 'bot' && primaryScored.reason) {
     bot.liveMemory.lastAdaptationNote = `${primaryScored.reason}.`;
   }
 
@@ -1903,13 +2004,24 @@ export function executeBotTurn(
     const pool: Candidate[] = [];
     const primaryBonus = 3.5;
 
+    const aiRecommendedCreatureLower = (
+      aiTurnDecision?.removalTargetCreatureName || ''
+    )
+      .trim()
+      .toLowerCase();
+
     for (const pc of activePlayerCreatures) {
       const base = scoreEnemyCreatureThreat(pc, bot);
       if (base < minScore) continue;
+      const aiCreatureBoost =
+        aiRecommendedCreatureLower && pc.name.toLowerCase() === aiRecommendedCreatureLower
+          ? 24
+          : 0;
       const seatBonus =
         (target.kind === 'player' ? primaryBonus : 0) +
         (bot.indignance === 'vindictive' ? 4 : 0) +
-        bot.liveMemory.grudgeScore * 0.08;
+        bot.liveMemory.grudgeScore * 0.08 +
+        aiCreatureBoost;
       pool.push({ kind: 'player', creature: pc, score: base + seatBonus });
     }
 
@@ -1921,10 +2033,15 @@ export function executeBotTurn(
       for (const rc of r.creatures) {
         const base = scoreEnemyCreatureThreat(rc, bot);
         if (base < minScore) continue;
+        const aiCreatureBoost =
+          aiRecommendedCreatureLower && rc.name.toLowerCase() === aiRecommendedCreatureLower
+            ? 24
+            : 0;
         const seatBonus =
           (target.kind === 'bot' && target.targetBotId === r.id ? primaryBonus : 0) +
           rGrudge * 0.1 +
-          rPrior * 0.12;
+          rPrior * 0.12 +
+          aiCreatureBoost;
         pool.push({ kind: 'bot', rival: r, creature: rc, score: base + seatBonus });
       }
     }
@@ -1949,20 +2066,25 @@ export function executeBotTurn(
   );
 
   const botIntel = getBotIntelligenceMeta(bot.intelligence);
+  const aiSaysHold = aiTurnDecision?.holdManaForInteraction;
   const wantsToHoldCounterMana =
-    botIntel.holdsInteractionMana &&
-    (bot.bias.usesControl ||
-      bot.customHand.some((c) => c.isCounterspell) ||
-      bot.liveMemory.holdManaForInteraction ||
-      botIntel.id === 'mastermind') &&
     availableMana >= botIntel.minManaToHold &&
     bot.handCount >= 2 &&
     bot.liveMemory.countersUsedThisGame < botIntel.maxPresetCounters &&
-    (playerHasCommanderReadySoon ||
-      rivalHasCommanderReadySoon ||
-      bot.liveMemory.observedUserThreats.length > 0 ||
-      botIntel.id === 'competitive' ||
-      botIntel.id === 'mastermind');
+    (aiSaysHold === true
+      ? true
+      : aiSaysHold === false
+      ? false
+      : botIntel.holdsInteractionMana &&
+        (bot.bias.usesControl ||
+          bot.customHand.some((c) => c.isCounterspell) ||
+          bot.liveMemory.holdManaForInteraction ||
+          botIntel.id === 'mastermind') &&
+        (playerHasCommanderReadySoon ||
+          rivalHasCommanderReadySoon ||
+          bot.liveMemory.observedUserThreats.length > 0 ||
+          botIntel.id === 'competitive' ||
+          botIntel.id === 'mastermind'));
 
   const reserveMana = wantsToHoldCounterMana ? 2 : 0;
   let mainPhaseActions: string[] = [];
@@ -2084,17 +2206,20 @@ export function executeBotTurn(
       notifyRivalsOfBotPlay(4, `${bot.name} deployed Commander ${bot.commanderName}`);
     }
 
-    // Score castable custom cards accurately
+    // Score castable custom cards accurately (honoring AI-recommended spell in hand)
+    const recommendedSpellLower = (aiTurnDecision?.recommendedSpellName || '').trim().toLowerCase();
     const castable = bot.customHand
       .filter((c) => !c.isLand && !c.isCounterspell && c.cmc <= spendable())
       .sort((a, b) => {
         const scoreCard = (c: LiveBotDeckCard) => {
-          if (c.isRamp && turnNumber <= 4) return 90 - c.cmc;
-          if (c.isBoardWipe) return 85;
-          if (c.isRemoval) return 75;
-          if (c.drawCount > 0 && bot.handCount <= 3) return 70;
-          if (c.isCreature) return 50 + c.cmc * 4 + c.power * 2;
-          return 30 + c.cmc * 3;
+          const aiPickBonus =
+            recommendedSpellLower && c.name.trim().toLowerCase() === recommendedSpellLower ? 120 : 0;
+          if (c.isRamp && turnNumber <= 4) return 90 - c.cmc + aiPickBonus;
+          if (c.isBoardWipe) return 85 + aiPickBonus;
+          if (c.isRemoval) return 75 + aiPickBonus;
+          if (c.drawCount > 0 && bot.handCount <= 3) return 70 + aiPickBonus;
+          if (c.isCreature) return 50 + c.cmc * 4 + c.power * 2 + aiPickBonus;
+          return 30 + c.cmc * 3 + aiPickBonus;
         };
         return scoreCard(b) - scoreCard(a);
       });
@@ -3098,6 +3223,7 @@ export function executeBotTurn(
         reasoning: string;
       };
 
+      const effectiveAttackPlan = aiTurnDecision?.attackPlan || bot.liveMemory.lastAttackPlan;
       if (candidateRef.kind === 'bot') {
         const rival = nextBots.find((b) => b.id === candidateRef.targetBotId);
         if (!rival || rival.eliminated) continue;
@@ -3109,7 +3235,8 @@ export function executeBotTurn(
           rival.life,
           rival.poison,
           rivalCmdTaken,
-          rival.creatures.reduce((s, c) => s + c.power, 0)
+          rival.creatures.reduce((s, c) => s + c.power, 0),
+          effectiveAttackPlan
         );
       } else {
         evalSel = selectSmartBotAttackers(
@@ -3119,7 +3246,8 @@ export function executeBotTurn(
           player.life,
           player.poison,
           bot.commanderDamageDealtToYou,
-          incomingPlayerCrackback
+          incomingPlayerCrackback,
+          effectiveAttackPlan
         );
       }
 
@@ -3512,6 +3640,7 @@ export function executeBotPostStackCombat(
         reasoning: string;
       };
 
+      const effectiveAttackPlan = bot.liveMemory.lastAttackPlan;
       if (candidateRef.kind === 'bot') {
         const rival = nextBots.find((b) => b.id === candidateRef.targetBotId);
         if (!rival || rival.eliminated) continue;
@@ -3523,7 +3652,8 @@ export function executeBotPostStackCombat(
           rival.life,
           rival.poison,
           rivalCmdTaken,
-          rival.creatures.reduce((s, c) => s + c.power, 0)
+          rival.creatures.reduce((s, c) => s + c.power, 0),
+          effectiveAttackPlan
         );
       } else {
         evalSel = selectSmartBotAttackers(
@@ -3533,7 +3663,8 @@ export function executeBotPostStackCombat(
           player.life,
           player.poison,
           bot.commanderDamageDealtToYou,
-          incomingPlayerCrackback
+          incomingPlayerCrackback,
+          effectiveAttackPlan
         );
       }
 

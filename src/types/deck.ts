@@ -444,6 +444,32 @@ export interface BotLearningProfile {
   recentMatchHistory?: BotMatchTelemetryRecord[];
 }
 
+export interface LiveBotAiDirective {
+  botName: string;
+  priorityTarget?: string;
+  posture?: 'aggressive' | 'balanced' | 'defensive';
+  manaPlan?: 'hold-interaction' | 'tap-out-pressure';
+  winVectorFocus?: 'auto' | 'life' | 'poison' | 'commander' | 'mill';
+  keyThreatToAnswer?: string;
+  focusTag?: string;
+  appliedMemoryReason?: string;
+  openingStrategy?: string;
+}
+
+export interface LiveBotAiTurnDecision {
+  engineUsed: 'local-gguf' | 'cloud-gemini' | 'deterministic';
+  modelLabel?: string;
+  fallback?: boolean;
+  posture?: 'aggressive' | 'balanced' | 'defensive';
+  priorityTarget?: string;
+  holdManaForInteraction?: boolean;
+  recommendedSpellName?: string;
+  removalTargetSeat?: string;
+  removalTargetCreatureName?: string;
+  attackPlan?: 'all-out' | 'safe-evasion' | 'hold-blockers';
+  strategyThought?: string;
+}
+
 export interface UserBotFeedbackInput {
   botKey: string;
   botName: string;

@@ -946,6 +946,83 @@ export function applyLiveGameLearningsToBotProfiles(params: {
   return { updatedMemory: nextMemory, updatedProfiles };
 }
 
+export function mergeAiLearningsIntoLiveProfiles(params: {
+  existingMemory: Record<string, BotLearningProfile>;
+  opponents: BotOpponentConfig[];
+  aiLearnings: BotMatchLearningInsight[];
+  aiModelLabel?: string;
+}): {
+  updatedMemory: Record<string, BotLearningProfile>;
+  updatedProfiles: BotLearningProfile[];
+} {
+  const { existingMemory, opponents, aiLearnings, aiModelLabel } = params;
+  if (!Array.isArray(aiLearnings) || aiLearnings.length === 0) {
+    return { updatedMemory: existingMemory, updatedProfiles: [] };
+  }
+
+  const nextMemory: Record<string, BotLearningProfile> = { ...existingMemory };
+  const updatedProfiles: BotLearningProfile[] = [];
+  const engineTag = aiModelLabel ? `[${aiModelLabel}] ` : '[AI] ';
+
+  for (const opp of opponents) {
+    const botKey = resolveBotLearningKey(opp);
+    const current = nextMemory[botKey];
+    if (!current) continue;
+    const oppLower = (opp.name || '').trim().toLowerCase();
+    const insight = aiLearnings.find(
+      (b) => (b?.botName || '').trim().toLowerCase() === oppLower
+    );
+    if (!insight) continue;
+
+    const newFaced = insight.lessonFromPlayerDeck
+      ? [clampNote(`${engineTag}${insight.lessonFromPlayerDeck}`)]
+      : [];
+    const newOwn = insight.lessonFromOwnDeck
+      ? [clampNote(`${engineTag}${insight.lessonFromOwnDeck}`)]
+      : [];
+    const newDirectives = [
+      ...(insight.tacticalAdjustment
+        ? [clampNote(`${engineTag}${insight.tacticalAdjustment}`)]
+        : []),
+      ...(insight.adaptationSummary
+        ? [clampNote(`${engineTag}${insight.adaptationSummary}`)]
+        : []),
+    ];
+    const newThreats = Array.isArray(insight.identifiedThreats)
+      ? insight.identifiedThreats.filter(
+          (t): t is string => typeof t === 'string' && t.trim().length > 0
+        )
+      : [];
+    const newWeaknesses = insight.observedWeakness
+      ? [clampNote(insight.observedWeakness, 160)]
+      : [];
+
+    const enriched: BotLearningProfile = {
+      ...current,
+      botIqScore: Math.min(2000, (current.botIqScore || 100) + 4),
+      learnedFromFacedDecks: mergeUniqueBounded(current.learnedFromFacedDecks, newFaced),
+      learnedFromOwnDecks: mergeUniqueBounded(current.learnedFromOwnDecks, newOwn),
+      tacticalDirectives: mergeUniqueBounded(current.tacticalDirectives, newDirectives),
+      knownPlayerThreats: mergeUniqueBounded(
+        current.knownPlayerThreats || [],
+        newThreats,
+        15
+      ),
+      observedPlayerWeaknesses: mergeUniqueBounded(
+        current.observedPlayerWeaknesses || [],
+        newWeaknesses,
+        10
+      ),
+      updatedAtIso: new Date().toISOString(),
+    };
+
+    nextMemory[botKey] = enriched;
+    updatedProfiles.push(enriched);
+  }
+
+  return { updatedMemory: nextMemory, updatedProfiles };
+}
+
 function isBotSessionOnlyMode(): boolean {
   try {
     return window.localStorage.getItem('umbras_pass_auth_persistence_v1') === 'session';

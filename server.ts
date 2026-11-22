@@ -17,6 +17,14 @@ import { analyzeDeckWithGemini } from './server/analyzer.ts';
 import { getAllPrintingsForCard, searchMtgDatabase } from './server/marketplace.ts';
 import { runBotPlaytest } from './server/playtester.ts';
 import {
+  decideLiveBotTurn,
+  planLiveBotMatch,
+  synthesizeLiveBotLearnings,
+  type LiveBotLearnRequest,
+  type LiveBotPlanRequest,
+  type LiveBotTurnRequest,
+} from './server/liveBotAi.ts';
+import {
   clearBotTrainingData,
   loadBotTrainingData,
   loadDesktopWorkspace,
@@ -512,6 +520,92 @@ async function startServer() {
       } else {
         sendGeminiRouteError(res, err, 'Playtest simulation', 'Failed to run bot playtest.');
       }
+    }
+  });
+
+  app.post('/api/live-bot/plan', async (req, res) => {
+    try {
+      const body = req.body as Partial<LiveBotPlanRequest> | undefined;
+      if (!body || !Array.isArray(body.opponents) || !body.playerDeck) {
+        res.status(400).json({ error: 'opponents and playerDeck are required.' });
+        return;
+      }
+      const result = await planLiveBotMatch({
+        format: typeof body.format === 'string' ? body.format : 'commander',
+        mode: body.mode === '1v1' || body.mode === '1v2' || body.mode === '1v3' ? body.mode : '1v3',
+        playerDeck: body.playerDeck,
+        opponents: body.opponents,
+        botMemoryProfiles: Array.isArray(body.botMemoryProfiles) ? body.botMemoryProfiles : [],
+      });
+      res.json(result);
+    } catch (err) {
+      console.warn('[LiveBotAi] /api/live-bot/plan error:', err);
+      res.json({
+        engineUsed: 'deterministic',
+        modelLabel: 'Deterministic MTG Rules',
+        directivesByBot: {},
+      });
+    }
+  });
+
+  app.post('/api/live-bot/turn', async (req, res) => {
+    try {
+      const body = req.body as Partial<LiveBotTurnRequest> | undefined;
+      if (!body || !body.activeBot || !body.playerBoard) {
+        res.status(400).json({ error: 'activeBot and playerBoard are required.' });
+        return;
+      }
+      const decision = await decideLiveBotTurn({
+        turnNumber: typeof body.turnNumber === 'number' ? body.turnNumber : 1,
+        format: typeof body.format === 'string' ? body.format : 'commander',
+        mode: body.mode === '1v1' || body.mode === '1v2' || body.mode === '1v3' ? body.mode : '1v3',
+        activeBot: body.activeBot,
+        playerBoard: body.playerBoard,
+        rivalBots: Array.isArray(body.rivalBots) ? body.rivalBots : [],
+      });
+      res.json(decision);
+    } catch (err) {
+      console.warn('[LiveBotAi] /api/live-bot/turn error:', err);
+      res.json({
+        engineUsed: 'deterministic',
+        modelLabel: 'Deterministic MTG Rules',
+        fallback: true,
+      });
+    }
+  });
+
+  app.post('/api/live-bot/learn', async (req, res) => {
+    try {
+      const body = req.body as Partial<LiveBotLearnRequest> | undefined;
+      if (!body || !Array.isArray(body.bots)) {
+        res.status(400).json({ error: 'bots array is required.' });
+        return;
+      }
+      const result = await synthesizeLiveBotLearnings({
+        format: typeof body.format === 'string' ? body.format : 'commander',
+        mode: body.mode === '1v1' || body.mode === '1v2' || body.mode === '1v3' ? body.mode : '1v3',
+        outcome:
+          body.outcome === 'victory' || body.outcome === 'defeat' || body.outcome === 'unfinished'
+            ? body.outcome
+            : 'unfinished',
+        turnsPlayed: typeof body.turnsPlayed === 'number' ? body.turnsPlayed : 1,
+        endingPlayerLife: typeof body.endingPlayerLife === 'number' ? body.endingPlayerLife : 40,
+        playerDeckLabel: typeof body.playerDeckLabel === 'string' ? body.playerDeckLabel : 'Your Deck',
+        playerArchetype: typeof body.playerArchetype === 'string' ? body.playerArchetype : 'Midrange',
+        playerCommanders: Array.isArray(body.playerCommanders) ? body.playerCommanders : [],
+        bots: body.bots,
+        opponents: Array.isArray(body.opponents) ? body.opponents : [],
+      });
+      res.json(result);
+    } catch (err) {
+      console.warn('[LiveBotAi] /api/live-bot/learn error:', err);
+      res.json({
+        engineUsed: 'deterministic',
+        modelLabel: 'Deterministic MTG Rules',
+        autoLearnEnabled: true,
+        trainingRecorded: false,
+        botLearnings: [],
+      });
     }
   });
 

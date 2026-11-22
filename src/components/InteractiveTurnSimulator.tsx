@@ -37,9 +37,12 @@ import {
 } from 'lucide-react';
 import type {
   BotLearningProfile,
+  BotMatchLearningInsight,
   BotOpponentConfig,
   CardMetadata,
   DeckAnalysisResult,
+  LiveBotAiDirective,
+  LiveBotAiTurnDecision,
   LiveSimulationExportStats,
   ManaColor,
   PlaytestMode,
@@ -50,13 +53,17 @@ import {
   autoRecognizeCommandersClientSide,
   parseDecklistClientSide,
 } from '../utils/clientFallbackAnalyzer';
-import { applyLiveGameLearningsToBotProfiles } from '../utils/botLearning';
+import {
+  applyLiveGameLearningsToBotProfiles,
+  mergeAiLearningsIntoLiveProfiles,
+} from '../utils/botLearning';
 import {
   detectArchetypeCombatBias,
   detectCardMechanics,
   getFormatSimulationRules,
 } from '../utils/playtestReconciler';
 import {
+  applyAiDirectivesToLiveBots,
   createInitialLiveBots,
   createLiveBotZoneCardFromCreature,
   evaluateBotCounterWarResponse,
@@ -620,6 +627,22 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
   const [guiView, setGuiView] = useState<'tabletop' | 'list'>('tabletop');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(false);
   const [botTurnPace, setBotTurnPace] = useState<'normal' | 'step' | 'fast'>('normal');
+  const [liveAiTurnReasoning, setLiveAiTurnReasoning] = useState<boolean>(true);
+  const [thinkingBotName, setThinkingBotName] = useState<string | null>(null);
+  const [liveAiStatus, setLiveAiStatus] = useState<{
+    effectiveEngine: 'local-gguf' | 'cloud-gemini' | 'deterministic';
+    activeModelLabel: string;
+    autoLearnFromMatches: boolean;
+  }>({
+    effectiveEngine: 'deterministic',
+    activeModelLabel: 'Deterministic MTG Rules',
+    autoLearnFromMatches: true,
+  });
+  const liveAiStatusRef = React.useRef(liveAiStatus);
+  liveAiStatusRef.current = liveAiStatus;
+  const liveAiTurnReasoningRef = React.useRef(liveAiTurnReasoning);
+  liveAiTurnReasoningRef.current = liveAiTurnReasoning;
+  const liveMatchEpochRef = React.useRef<number>(1);
   const [isShufflingDeck, setIsShufflingDeck] = useState<boolean>(false);
   const shuffleTimerRef = React.useRef<number | null>(null);
   const liveLearningsSavedRef = React.useRef<boolean>(false);
@@ -677,6 +700,40 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
       message: `Shuffled ${initialZones.library.length + initialZones.openingHand.length} main cards, drew opening 7 (${format}, ${startingLife} starting life).`,
     },
   ]);
+
+  useEffect(() => {
+    let active = true;
+    const refreshLiveAiStatus = () => {
+      fetch('/api/desktop/ai-status')
+        .then((res) => (res.ok ? res.json() : null))
+        .then(
+          (
+            data: {
+              effectiveEngine?: 'local-gguf' | 'cloud-gemini' | 'deterministic';
+              activeModelLabel?: string;
+              autoLearnFromMatches?: boolean;
+            } | null
+          ) => {
+            if (!active || !data) return;
+            setLiveAiStatus({
+              effectiveEngine: data.effectiveEngine || 'deterministic',
+              activeModelLabel: data.activeModelLabel || 'Deterministic MTG Rules',
+              autoLearnFromMatches: data.autoLearnFromMatches !== false,
+            });
+          }
+        )
+        .catch(() => {
+          // Ignore transient status fetch issues
+        });
+    };
+
+    refreshLiveAiStatus();
+    window.addEventListener('umbras:ai-status-updated', refreshLiveAiStatus);
+    return () => {
+      active = false;
+      window.removeEventListener('umbras:ai-status-updated', refreshLiveAiStatus);
+    };
+  }, [liveGamePhase]);
 
   useEffect(() => {
     return () => {
@@ -800,6 +857,9 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     setInterruptTimerHeld(false);
     liveLearningsSavedRef.current = false;
     targetsHitThisBotRoundRef.current = {};
+    liveMatchEpochRef.current += 1;
+    const matchEpoch = liveMatchEpochRef.current;
+    setThinkingBotName(null);
     const nextLiveBots = createInitialLiveBots(
       opponents,
       startingLife,
@@ -812,6 +872,59 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     const nextOpps = buildInitialOpponents();
     setOpponentTrackers(nextOpps);
     setSelectedCombatTargetId(nextOpps[0]?.id || '');
+
+    if (liveBotMode && liveAiStatusRef.current.effectiveEngine !== 'deterministic') {
+      void fetch('/api/live-bot/plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          format,
+          mode,
+          playerDeck: {
+            deckName: playerDeckContext.deckName,
+            archetype: playerDeckContext.archetype,
+            commanderNames: playerDeckContext.commanderNames,
+            keyThreats: playerDeckContext.keyThreats,
+            avgCmc: playerDeckContext.avgCmc,
+          },
+          opponents,
+          botMemoryProfiles: Object.values(botMemory || {}),
+        }),
+      })
+        .then((r) => (r.ok ? r.json() : null))
+        .then(
+          (
+            planData: {
+              engineUsed?: 'local-gguf' | 'cloud-gemini' | 'deterministic';
+              modelLabel?: string;
+              directivesByBot?: Record<string, LiveBotAiDirective>;
+            } | null
+          ) => {
+            if (!planData || liveMatchEpochRef.current !== matchEpoch) return;
+            const label = planData.modelLabel || liveAiStatusRef.current.activeModelLabel;
+            const directives = planData.directivesByBot || {};
+            if (Object.keys(directives).length === 0 && !label) return;
+            setLiveBots((prevBots) => {
+              const updated = applyAiDirectivesToLiveBots(prevBots, directives, label);
+              latestGameRef.current = {
+                ...latestGameRef.current,
+                liveBots: updated,
+              };
+              return updated;
+            });
+            if (Object.keys(directives).length > 0) {
+              appendLog(
+                `${label} calibrated pre-game tactics for ${opponents.length} bot opponent${opponents.length === 1 ? '' : 's'}.`,
+                1,
+                'Untap'
+              );
+            }
+          }
+        )
+        .catch(() => {
+          // Non-fatal fallback to built-in heuristics
+        });
+    }
 
     const firstSeatName =
       activeFirstSeat === 0
@@ -1164,30 +1277,35 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     }
     liveLearningsSavedRef.current = true;
     const oppById = new Map(opponents.map((o) => [o.id, o]));
-    const { updatedProfiles } = applyLiveGameLearningsToBotProfiles({
+    const botSummaries = liveBots.map((b) => ({
+      botId: b.id,
+      botName: b.name,
+      archetype: b.archetype,
+      customDeckText: oppById.get(b.id)?.customDeckText,
+      deckIdentitySummary: b.liveMemory.deckIdentitySummary,
+      endingBotLife: b.life,
+      eliminated: b.eliminated,
+      eliminatedReason: b.eliminatedReason,
+      observedUserThreats: b.liveMemory.observedUserThreats,
+      observedUserHabits: b.liveMemory.observedUserHabits,
+      adaptationHistory: b.liveMemory.adaptationHistory,
+      damageDealtToPlayer: b.liveMemory.damageDealtToPlayer,
+      damageTakenFromPlayer: b.liveMemory.damageTakenFromPlayer,
+      damageDealtToRivals: b.liveMemory.damageDealtToRivals,
+      damageTakenFromRivals: b.liveMemory.damageTakenFromRivals,
+      biggestRivalThreatName: b.liveMemory.biggestRivalThreatName,
+      spellsCastCount: b.liveMemory.spellsCastCount,
+      creaturesPlayedCount: b.liveMemory.creaturesPlayedCount,
+      commanderDamageDealtToYou: b.commanderDamageDealtToYou,
+      lastPosture: b.liveMemory.lastPosture,
+      lastTargetName: b.lastTargetName,
+      lastActionSummary: b.lastActionSummary,
+    }));
+
+    const { updatedMemory, updatedProfiles } = applyLiveGameLearningsToBotProfiles({
       existingMemory: botMemory || {},
       opponents,
-      liveBotSummaries: liveBots.map((b) => ({
-        botId: b.id,
-        botName: b.name,
-        archetype: b.archetype,
-        customDeckText: oppById.get(b.id)?.customDeckText,
-        deckIdentitySummary: b.liveMemory.deckIdentitySummary,
-        endingBotLife: b.life,
-        eliminated: b.eliminated,
-        eliminatedReason: b.eliminatedReason,
-        observedUserThreats: b.liveMemory.observedUserThreats,
-        observedUserHabits: b.liveMemory.observedUserHabits,
-        adaptationHistory: b.liveMemory.adaptationHistory,
-        damageDealtToPlayer: b.liveMemory.damageDealtToPlayer,
-        damageTakenFromPlayer: b.liveMemory.damageTakenFromPlayer,
-        damageDealtToRivals: b.liveMemory.damageDealtToRivals,
-        damageTakenFromRivals: b.liveMemory.damageTakenFromRivals,
-        biggestRivalThreatName: b.liveMemory.biggestRivalThreatName,
-        spellsCastCount: b.liveMemory.spellsCastCount,
-        creaturesPlayedCount: b.liveMemory.creaturesPlayedCount,
-        commanderDamageDealtToYou: b.commanderDamageDealtToYou,
-      })),
+      liveBotSummaries: botSummaries,
       playerDeckLabel: playerDeckContext.deckName,
       playerArchetype: playerDeckContext.archetype,
       playerCommanders: playerDeckContext.commanderNames,
@@ -1206,6 +1324,60 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
         activePhase
       );
     }
+
+    // Also synthesize deeper evolutionary AI lessons via active Qwen / custom .gguf / Cloud Gemini
+    // and record structured outcomes to bot_training.json
+    void fetch('/api/live-bot/learn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        format,
+        mode,
+        outcome,
+        turnsPlayed: turn,
+        endingPlayerLife: yourLife,
+        playerDeckLabel: playerDeckContext.deckName,
+        playerArchetype: playerDeckContext.archetype,
+        playerCommanders: playerDeckContext.commanderNames,
+        bots: botSummaries,
+        opponents,
+      }),
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then(
+        (
+          learnRes: {
+            engineUsed?: string;
+            modelLabel?: string;
+            trainingRecorded?: boolean;
+            botLearnings?: BotMatchLearningInsight[];
+          } | null
+        ) => {
+          if (!learnRes) return;
+          const aiLearnings = Array.isArray(learnRes.botLearnings) ? learnRes.botLearnings : [];
+          if (aiLearnings.length > 0) {
+            const merged = mergeAiLearningsIntoLiveProfiles({
+              existingMemory: updatedMemory,
+              opponents,
+              aiLearnings,
+              aiModelLabel: learnRes.modelLabel,
+            });
+            if (merged.updatedProfiles.length > 0) {
+              onSaveBotMemoryProfiles(merged.updatedProfiles);
+            }
+          }
+          if (learnRes.trainingRecorded || aiLearnings.length > 0) {
+            appendLog(
+              `${learnRes.modelLabel || 'AI Engine'} synthesized post-game lessons & updated persistent bot training memory.`,
+              turn,
+              activePhase
+            );
+          }
+        }
+      )
+      .catch(() => {
+        // Baseline learnings already saved cleanly
+      });
   };
 
   const dispatchUserActionToBots = (
@@ -1500,6 +1672,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     ) {
       if (botQueueIndices.length === 0 && !botStepAwaitingContinue && !hasActiveStack && !pendingIncomingAttack) {
         setActiveBotIdx(null);
+        setThinkingBotName(null);
       }
       return;
     }
@@ -1507,167 +1680,345 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     const nextBotIndex = botQueueIndices[0];
     setActiveBotIdx(nextBotIndex);
 
+    let cancelled = false;
+    const abortController = new AbortController();
+    const epochAtStart = liveMatchEpochRef.current;
     const leadInMs = botTurnPace === 'fast' ? 140 : 420;
+
     const timer = window.setTimeout(() => {
-      const snap = latestGameRef.current;
-      const actingBot = snap.liveBots[nextBotIndex];
-      const remaining = botQueueIndices.slice(1);
+      void (async () => {
+        const snap = latestGameRef.current;
+        const actingBot = snap.liveBots[nextBotIndex];
+        const remaining = botQueueIndices.slice(1);
 
-      if (!actingBot || actingBot.eliminated) {
-        setBotQueueIndices(remaining);
-        if (remaining.length === 0) {
-          finishBotQueueToPlayerTurn(snap.turn);
+        if (!actingBot || actingBot.eliminated) {
+          if (cancelled || liveMatchEpochRef.current !== epochAtStart) return;
+          setBotQueueIndices(remaining);
+          if (remaining.length === 0) {
+            finishBotQueueToPlayerTurn(snap.turn);
+          }
+          return;
         }
-        return;
-      }
 
-      const playerSnapshot: PlayerBoardSnapshot = {
-        life: snap.yourLife,
-        poison: snap.yourPoison,
-        libraryCount: snap.library.length,
-        handCount: snap.hand.length,
-        untappedLandsCount: snap.untappedLandsCount,
-        deckContext: playerDeckContext,
-        canRespondAtInstantSpeed: snap.canRespondAtInstantSpeed,
-        hasActivatedAbilityResponse: snap.hasActivatedAbilityResponse,
-        interruptAlertsEnabled: snap.interruptAlertsEnabled,
-        fullControlPriority: snap.fullControlPriority,
-        creatures: snap.battlefield
-          .filter((p) => p.isCreature)
-          .map((p) => {
-            const eff = getEffectivePermanentStats(p);
-            const kw = extractCreatureKeywords(p.meta);
-            return {
-              ...kw,
-              hexproof: kw.hexproof || Boolean(p.protectedUntilEot),
-              indestructible: kw.indestructible || Boolean(p.protectedUntilEot),
-              uid: p.uid,
-              name: p.name,
-              power: eff.power,
-              toughness: eff.toughness,
-              tapped: p.tapped,
-              isCommander: p.isCommander,
-              hasInfect: p.hasInfect,
-              toxicValue: p.toxicValue,
-            };
-          }),
-        landsCount: snap.battlefield.filter((p) => p.isLand).length,
-        hasCommanderInPlay: snap.battlefield.some((p) => p.isCommander),
-      };
-
-      const res = executeBotTurn(
-        nextBotIndex,
-        snap.liveBots,
-        playerSnapshot,
-        snap.turn,
-        findMeta,
-        targetsHitThisBotRoundRef.current
-      );
-
-      const actedBotAfter = res.updatedBots[nextBotIndex];
-      if (actedBotAfter?.lastTargetName) {
-        targetsHitThisBotRoundRef.current = {
-          ...targetsHitThisBotRoundRef.current,
-          [actedBotAfter.lastTargetName]:
-            (targetsHitThisBotRoundRef.current[actedBotAfter.lastTargetName] || 0) + 1,
-        };
-      }
-
-      setLiveBots(res.updatedBots);
-      latestGameRef.current = {
-        ...latestGameRef.current,
-        liveBots: res.updatedBots,
-      };
-      playTabletopSound(soundEnabled, res.pendingStackSpell ? 'alert' : 'tap');
-
-      if (res.playerLifeDelta !== 0) {
-        setYourLife((l) => Math.max(0, l + res.playerLifeDelta));
-      }
-      if (res.playerPoisonDelta !== 0) {
-        setYourPoison((p) => Math.min(20, p + res.playerPoisonDelta));
-      }
-      if (res.playerMillCount > 0) {
-        setLibrary((prevLib) => {
-          const milled = prevLib.slice(0, res.playerMillCount);
-          const rest = prevLib.slice(res.playerMillCount);
-          if (milled.length > 0) {
-            setGraveyard((prevGy) => [...milled, ...prevGy]);
-          }
-          return rest;
+        const buildPlayerSnapshot = (): PlayerBoardSnapshot => ({
+          life: snap.yourLife,
+          poison: snap.yourPoison,
+          libraryCount: snap.library.length,
+          handCount: snap.hand.length,
+          untappedLandsCount: snap.untappedLandsCount,
+          deckContext: playerDeckContext,
+          canRespondAtInstantSpeed: snap.canRespondAtInstantSpeed,
+          hasActivatedAbilityResponse: snap.hasActivatedAbilityResponse,
+          interruptAlertsEnabled: snap.interruptAlertsEnabled,
+          fullControlPriority: snap.fullControlPriority,
+          creatures: snap.battlefield
+            .filter((p) => p.isCreature)
+            .map((p) => {
+              const eff = getEffectivePermanentStats(p);
+              const kw = extractCreatureKeywords(p.meta);
+              return {
+                ...kw,
+                hexproof: kw.hexproof || Boolean(p.protectedUntilEot),
+                indestructible: kw.indestructible || Boolean(p.protectedUntilEot),
+                uid: p.uid,
+                name: p.name,
+                power: eff.power,
+                toughness: eff.toughness,
+                tapped: p.tapped,
+                isCommander: p.isCommander,
+                hasInfect: p.hasInfect,
+                toxicValue: p.toxicValue,
+              };
+            }),
+          landsCount: snap.battlefield.filter((p) => p.isLand).length,
+          hasCommanderInPlay: snap.battlefield.some((p) => p.isCommander),
         });
-      }
-      if (res.removedPlayerCreatureUids.length > 0 || (res.exiledPlayerCreatureUids?.length || 0) > 0) {
-        const removeSet = new Set(res.removedPlayerCreatureUids);
-        const exileSet = new Set(res.exiledPlayerCreatureUids || []);
-        setBattlefield((prevBf) => {
-          const staying: BattlefieldPermanent[] = [];
-          const returnedCmds: SimCardInstance[] = [];
-          const gyCards: SimCardInstance[] = [];
-          const exileCards: SimCardInstance[] = [];
-          for (const perm of prevBf) {
-            if ((removeSet.has(perm.uid) || exileSet.has(perm.uid)) && !perm.protectedUntilEot) {
-              if (perm.isToken) continue;
-              if (perm.isCommander) returnedCmds.push(perm);
-              else if (exileSet.has(perm.uid)) exileCards.push(perm);
-              else gyCards.push(perm);
-            } else {
-              staying.push(perm);
+
+        let aiTurnDecision: LiveBotAiTurnDecision | undefined;
+        const useLlmForTurn =
+          liveAiTurnReasoningRef.current &&
+          liveAiStatusRef.current.effectiveEngine !== 'deterministic' &&
+          botTurnPace !== 'fast';
+
+        if (useLlmForTurn) {
+          try {
+            setThinkingBotName(actingBot.name);
+            const playerPublicForAi = buildPlayerSnapshot();
+            const estAvailMana = Math.max(
+              0,
+              actingBot.landsInPlay + actingBot.manaBonusFromRamp + (actingBot.handCount > 0 ? 1 : 0)
+            );
+            const resAi = await fetch('/api/live-bot/turn', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              signal: abortController.signal,
+              body: JSON.stringify({
+                turnNumber: snap.turn,
+                format,
+                mode,
+                activeBot: {
+                  id: actingBot.id,
+                  name: actingBot.name,
+                  archetype: actingBot.archetype,
+                  intelligence: actingBot.intelligence,
+                  indignance: actingBot.indignance,
+                  life: actingBot.life,
+                  poison: actingBot.poison,
+                  landsInPlay: actingBot.landsInPlay,
+                  tappedLands: 0,
+                  availableMana: estAvailMana,
+                  commanderName: actingBot.commanderName,
+                  commanderCost: actingBot.commanderCmc + actingBot.commanderTax,
+                  commanderInZone: actingBot.commanderInZone && actingBot.allowsCommandZone,
+                  handCount: actingBot.handCount,
+                  handCards: actingBot.customHand.slice(0, 12).map((c) => ({
+                    name: c.name,
+                    cmc: c.cmc,
+                    category: c.isLand
+                      ? 'Land'
+                      : c.isBoardWipe
+                      ? 'BoardWipe'
+                      : c.isRemoval
+                      ? 'Removal'
+                      : c.isCounterspell
+                      ? 'Counterspell'
+                      : c.isRamp
+                      ? 'Ramp'
+                      : c.isCreature
+                      ? 'Creature'
+                      : 'Spell',
+                    power: c.isCreature ? c.power : undefined,
+                    toughness: c.isCreature ? c.toughness : undefined,
+                  })),
+                  creatures: actingBot.creatures.map((c) => ({
+                    name: c.name,
+                    power: c.power,
+                    toughness: c.toughness,
+                    tapped: c.tapped,
+                    keywords: formatCreatureKeywordTags(c),
+                  })),
+                  grudgeScore: actingBot.liveMemory.grudgeScore,
+                  observedUserThreats: actingBot.liveMemory.observedUserThreats,
+                  observedUserHabits: actingBot.liveMemory.observedUserHabits,
+                  aiDirective: actingBot.liveMemory.aiDirective,
+                },
+                playerBoard: {
+                  life: playerPublicForAi.life,
+                  poison: playerPublicForAi.poison,
+                  landsCount: playerPublicForAi.landsCount,
+                  untappedLandsCount: playerPublicForAi.untappedLandsCount ?? 0,
+                  handCount: playerPublicForAi.handCount ?? 0,
+                  hasCommanderInPlay: playerPublicForAi.hasCommanderInPlay,
+                  creatures: playerPublicForAi.creatures.map((pc) => ({
+                    name: pc.name,
+                    power: pc.power,
+                    toughness: pc.toughness,
+                    tapped: pc.tapped,
+                    isCommander: pc.isCommander,
+                    hexproof: pc.hexproof,
+                    indestructible: pc.indestructible,
+                    flying: pc.flying,
+                    reach: pc.reach,
+                  })),
+                },
+                rivalBots: snap.liveBots
+                  .filter((r) => r.id !== actingBot.id && !r.eliminated)
+                  .map((r) => ({
+                    name: r.name,
+                    life: r.life,
+                    poison: r.poison,
+                    landsInPlay: r.landsInPlay,
+                    creatures: r.creatures.map((rc) => ({
+                      name: rc.name,
+                      power: rc.power,
+                      toughness: rc.toughness,
+                      tapped: rc.tapped,
+                      isCommander: rc.isCommander,
+                      hexproof: rc.hexproof,
+                    })),
+                  })),
+              }),
+            });
+            if (resAi.ok) {
+              aiTurnDecision = (await resAi.json()) as LiveBotAiTurnDecision;
             }
+          } catch {
+            // Timeout, abort, or offline -> clean deterministic rules execution
+          } finally {
+            setThinkingBotName(null);
           }
-          if (returnedCmds.length > 0) {
-            setCommandZone((prevCz) => [...prevCz, ...returnedCmds]);
+        }
+
+        if (cancelled || liveMatchEpochRef.current !== epochAtStart) {
+          return;
+        }
+
+        const freshSnap = latestGameRef.current;
+        const freshActingBot = freshSnap.liveBots[nextBotIndex];
+        if (!freshActingBot || freshActingBot.eliminated) {
+          setBotQueueIndices(remaining);
+          if (remaining.length === 0) {
+            finishBotQueueToPlayerTurn(freshSnap.turn);
           }
-          if (gyCards.length > 0) {
-            setGraveyard((prevGy) => [...gyCards, ...prevGy]);
-          }
-          if (exileCards.length > 0) {
-            setExile((prevEx) => [...exileCards, ...prevEx]);
-          }
-          return staying;
+          return;
+        }
+
+        const playerSnapshot: PlayerBoardSnapshot = {
+          life: freshSnap.yourLife,
+          poison: freshSnap.yourPoison,
+          libraryCount: freshSnap.library.length,
+          handCount: freshSnap.hand.length,
+          untappedLandsCount: freshSnap.untappedLandsCount,
+          deckContext: playerDeckContext,
+          canRespondAtInstantSpeed: freshSnap.canRespondAtInstantSpeed,
+          hasActivatedAbilityResponse: freshSnap.hasActivatedAbilityResponse,
+          interruptAlertsEnabled: freshSnap.interruptAlertsEnabled,
+          fullControlPriority: freshSnap.fullControlPriority,
+          creatures: freshSnap.battlefield
+            .filter((p) => p.isCreature)
+            .map((p) => {
+              const eff = getEffectivePermanentStats(p);
+              const kw = extractCreatureKeywords(p.meta);
+              return {
+                ...kw,
+                hexproof: kw.hexproof || Boolean(p.protectedUntilEot),
+                indestructible: kw.indestructible || Boolean(p.protectedUntilEot),
+                uid: p.uid,
+                name: p.name,
+                power: eff.power,
+                toughness: eff.toughness,
+                tapped: p.tapped,
+                isCommander: p.isCommander,
+                hasInfect: p.hasInfect,
+                toxicValue: p.toxicValue,
+              };
+            }),
+          landsCount: freshSnap.battlefield.filter((p) => p.isLand).length,
+          hasCommanderInPlay: freshSnap.battlefield.some((p) => p.isCommander),
+        };
+
+        const res = executeBotTurn(
+          nextBotIndex,
+          freshSnap.liveBots,
+          playerSnapshot,
+          freshSnap.turn,
+          findMeta,
+          targetsHitThisBotRoundRef.current,
+          aiTurnDecision
+        );
+
+        const actedBotAfter = res.updatedBots[nextBotIndex];
+        if (actedBotAfter?.lastTargetName) {
+          targetsHitThisBotRoundRef.current = {
+            ...targetsHitThisBotRoundRef.current,
+            [actedBotAfter.lastTargetName]:
+              (targetsHitThisBotRoundRef.current[actedBotAfter.lastTargetName] || 0) + 1,
+          };
+        }
+
+        setLiveBots(res.updatedBots);
+        latestGameRef.current = {
+          ...latestGameRef.current,
+          liveBots: res.updatedBots,
+        };
+        playTabletopSound(soundEnabled, res.pendingStackSpell ? 'alert' : 'tap');
+
+        if (res.playerLifeDelta !== 0) {
+          setYourLife((l) => Math.max(0, l + res.playerLifeDelta));
+        }
+        if (res.playerPoisonDelta !== 0) {
+          setYourPoison((p) => Math.min(20, p + res.playerPoisonDelta));
+        }
+        if (res.playerMillCount > 0) {
+          setLibrary((prevLib) => {
+            const milled = prevLib.slice(0, res.playerMillCount);
+            const rest = prevLib.slice(res.playerMillCount);
+            if (milled.length > 0) {
+              setGraveyard((prevGy) => [...milled, ...prevGy]);
+            }
+            return rest;
+          });
+        }
+        if (
+          res.removedPlayerCreatureUids.length > 0 ||
+          (res.exiledPlayerCreatureUids?.length || 0) > 0
+        ) {
+          const removeSet = new Set(res.removedPlayerCreatureUids);
+          const exileSet = new Set(res.exiledPlayerCreatureUids || []);
+          setBattlefield((prevBf) => {
+            const staying: BattlefieldPermanent[] = [];
+            const returnedCmds: SimCardInstance[] = [];
+            const gyCards: SimCardInstance[] = [];
+            const exileCards: SimCardInstance[] = [];
+            for (const perm of prevBf) {
+              if ((removeSet.has(perm.uid) || exileSet.has(perm.uid)) && !perm.protectedUntilEot) {
+                if (perm.isToken) continue;
+                if (perm.isCommander) returnedCmds.push(perm);
+                else if (exileSet.has(perm.uid)) exileCards.push(perm);
+                else gyCards.push(perm);
+              } else {
+                staying.push(perm);
+              }
+            }
+            if (returnedCmds.length > 0) {
+              setCommandZone((prevCz) => [...prevCz, ...returnedCmds]);
+            }
+            if (gyCards.length > 0) {
+              setGraveyard((prevGy) => [...gyCards, ...prevGy]);
+            }
+            if (exileCards.length > 0) {
+              setExile((prevEx) => [...exileCards, ...prevEx]);
+            }
+            return staying;
+          });
+        }
+
+        const activeBotName = freshActingBot.name || 'Bot';
+        for (const msg of res.logs) {
+          appendLog(`[Seat ${nextBotIndex + 2} · ${activeBotName}] ${msg}`, freshSnap.turn, 'Combat');
+        }
+
+        const totalInRound = Math.max(botRoundTotal, botQueueIndices.length);
+        const queuePosition = Math.max(1, totalInRound - remaining.length);
+
+        setBotQueueIndices(remaining);
+
+        if (res.pendingStackSpell) {
+          setPendingBotStackContinuation(res.pendingStackSpell);
+          setStackItems([createStackItemFromBotSpell(res.pendingStackSpell)]);
+          setActiveBotTurnBanner(null);
+          setBotStepAwaitingContinue(false);
+          return;
+        }
+
+        if (res.pendingAttackOnPlayer) {
+          setPendingIncomingAttack(res.pendingAttackOnPlayer);
+          setBlockerAssignments({});
+          setCombatFogActive(false);
+          setActiveBotTurnBanner(null);
+          setBotStepAwaitingContinue(false);
+          return;
+        }
+
+        // Show this bot's completed turn summary cleanly before advancing to the next bot (or back to You)
+        setActiveBotTurnBanner({
+          botName: activeBotName,
+          seatNumber: nextBotIndex + 2,
+          queuePosition,
+          queueTotal: totalInRound,
+          phaseSteps: res.phaseSteps,
+          adaptationNote: res.adaptationNote,
+          isLastBotInRound: remaining.length === 0,
         });
-      }
-
-      const activeBotName = actingBot.name || 'Bot';
-      for (const msg of res.logs) {
-        appendLog(`[Seat ${nextBotIndex + 2} · ${activeBotName}] ${msg}`, snap.turn, 'Combat');
-      }
-
-      const totalInRound = Math.max(botRoundTotal, botQueueIndices.length);
-      const queuePosition = Math.max(1, totalInRound - remaining.length);
-
-      setBotQueueIndices(remaining);
-
-      if (res.pendingStackSpell) {
-        setPendingBotStackContinuation(res.pendingStackSpell);
-        setStackItems([createStackItemFromBotSpell(res.pendingStackSpell)]);
-        setActiveBotTurnBanner(null);
-        setBotStepAwaitingContinue(false);
-        return;
-      }
-
-      if (res.pendingAttackOnPlayer) {
-        setPendingIncomingAttack(res.pendingAttackOnPlayer);
-        setBlockerAssignments({});
-        setCombatFogActive(false);
-        setActiveBotTurnBanner(null);
-        setBotStepAwaitingContinue(false);
-        return;
-      }
-
-      // Show this bot's completed turn summary cleanly before advancing to the next bot (or back to You)
-      setActiveBotTurnBanner({
-        botName: activeBotName,
-        seatNumber: nextBotIndex + 2,
-        queuePosition,
-        queueTotal: totalInRound,
-        phaseSteps: res.phaseSteps,
-        adaptationNote: res.adaptationNote,
-        isLastBotInRound: remaining.length === 0,
-      });
-      setBotStepAwaitingContinue(true);
+        setBotStepAwaitingContinue(true);
+      })();
     }, leadInMs);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      abortController.abort();
+      window.clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveBotMode, botQueueIndices, botStepAwaitingContinue, pendingIncomingAttack, hasActiveStack, botTurnPace, liveMatchOutcome]);
 
@@ -4718,6 +5069,10 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           onResumeLiveGame={
             hasStartedLiveGameOnce ? () => setLiveGamePhase('playing') : undefined
           }
+          activeAiModelLabel={liveAiStatus.activeModelLabel}
+          effectiveAiEngine={liveAiStatus.effectiveEngine}
+          liveAiTurnReasoning={liveAiTurnReasoning}
+          onChangeLiveAiTurnReasoning={setLiveAiTurnReasoning}
         />
       ) : (
         <>
@@ -5257,6 +5612,11 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
             onResolveStackTop={() => resolveStack(false)}
             onResolveStackAll={() => resolveStack(true)}
             onCastCombatInstant={handleCastCombatInstant}
+            activeAiModelLabel={liveAiStatus.activeModelLabel}
+            effectiveAiEngine={liveAiStatus.effectiveEngine}
+            thinkingBotName={thinkingBotName}
+            liveAiTurnReasoning={liveAiTurnReasoning}
+            onToggleLiveAiTurnReasoning={() => setLiveAiTurnReasoning((prev) => !prev)}
           />
 
           {/* Compact Turn Simulation Log */}
