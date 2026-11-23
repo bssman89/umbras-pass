@@ -90,6 +90,7 @@ import {
 } from './utils/versionHistory';
 type LocalUserProfile = StoredLocalUserProfile;
 import { analyzeDeckClientSideFallback } from './utils/clientFallbackAnalyzer';
+import { buildInstantQuickPlayWorkspace } from './utils/quickPlayWorkspace';
 import { terminatePlaytestWorker } from './utils/playtestWorkerClient';
 import {
   fetchNdjsonWithProgress,
@@ -126,13 +127,31 @@ export default function App() {
     return guestSessionId;
   }, [activeLocalProfile, guestSessionId]);
 
-  const [deckText, setDeckText] = useState('');
-  const [deckName, setDeckName] = useState('');
-  const [format, setFormat] = useState<DeckFormat>('auto');
-  const [goal, setGoal] = useState<DeckGoal>('bracket-3');
+  const initialSavedWorkspace = useMemo(
+    () => loadUserActiveWorkspace(activeUserScopeKey),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
 
-  const [analysis, setAnalysis] = useState<DeckAnalysisResult | null>(null);
-  const [selection, setSelection] = useState<DeckSelectionState>(EMPTY_SELECTION);
+  const [deckText, setDeckText] = useState(
+    () => initialSavedWorkspace?.deckText || ''
+  );
+  const [deckName, setDeckName] = useState(
+    () => initialSavedWorkspace?.deckName || ''
+  );
+  const [format, setFormat] = useState<DeckFormat>(
+    () => initialSavedWorkspace?.format || 'auto'
+  );
+  const [goal, setGoal] = useState<DeckGoal>(
+    () => initialSavedWorkspace?.goal || 'bracket-3'
+  );
+
+  const [analysis, setAnalysis] = useState<DeckAnalysisResult | null>(
+    () => initialSavedWorkspace?.analysis || null
+  );
+  const [selection, setSelection] = useState<DeckSelectionState>(
+    () => initialSavedWorkspace?.selection || EMPTY_SELECTION
+  );
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState<OperationProgressState>({
     percent: 0,
@@ -154,7 +173,9 @@ export default function App() {
   const savedTimerRef = useRef<number | null>(null);
   const previousScopeRef = useRef<string>(activeUserScopeKey);
 
-  const [activeSection, setActiveSection] = useState<ActiveSection>('import');
+  const [activeSection, setActiveSection] = useState<ActiveSection>(() =>
+    initialSavedWorkspace?.analysis ? 'analysis' : 'import'
+  );
   const [inspectedCard, setInspectedCard] = useState<{
     name: string;
     meta: CardMetadata | null;
@@ -291,18 +312,16 @@ export default function App() {
     setBotMemory(loadUserBotMemory(activeUserScopeKey));
   }, [activeUserScopeKey]);
 
-  // Persist active deck workspace strictly under the signed-in profile's scope
+  // Persist active deck workspace for both guest and signed-in profile scopes so users don't have to re-analyze across sessions
   useEffect(() => {
-    if (activeUserScopeKey.startsWith('uid_')) {
-      persistUserActiveWorkspace(activeUserScopeKey, {
-        deckText,
-        deckName,
-        format,
-        goal,
-        analysis,
-        selection,
-      });
-    }
+    persistUserActiveWorkspace(activeUserScopeKey, {
+      deckText,
+      deckName,
+      format,
+      goal,
+      analysis,
+      selection,
+    });
   }, [activeUserScopeKey, deckText, deckName, format, goal, analysis, selection]);
 
   useEffect(() => {
@@ -935,6 +954,51 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const launchQuickPlaytestOrMultiplayer = (
+    openMultiplayer: boolean,
+    sampleOverride?: {
+      deckText: string;
+      deckName: string;
+      format: DeckFormat;
+      goal: DeckGoal;
+    }
+  ) => {
+    setIsImportResetModalOpen(false);
+    setError(null);
+
+    if (!analysis || sampleOverride) {
+      const quick = buildInstantQuickPlayWorkspace({
+        deckText: sampleOverride ? sampleOverride.deckText : deckText,
+        deckName: sampleOverride ? sampleOverride.deckName : deckName,
+        format: sampleOverride ? sampleOverride.format : format,
+        goal: sampleOverride ? sampleOverride.goal : goal,
+      });
+      setDeckText(quick.deckText);
+      setDeckName(quick.deckName);
+      setFormat(quick.format);
+      setGoal(quick.goal);
+      setAnalysis(quick.analysis);
+      setSelection(EMPTY_SELECTION);
+    }
+
+    setActiveSection('playtest');
+
+    const dispatchJump = () => {
+      window.dispatchEvent(
+        new CustomEvent<string>('deck-navigate-section', {
+          detail: 'playtest-section',
+        })
+      );
+      if (openMultiplayer) {
+        window.dispatchEvent(new Event('umbras:open-multiplayer-hub'));
+      }
+    };
+
+    window.requestAnimationFrame(() => {
+      window.setTimeout(dispatchJump, 60);
+    });
+  };
+
   const handleNavigate = (section: ActiveSection) => {
     if (section === 'import') {
       if (isAnalyzing && !analysis) {
@@ -942,16 +1006,20 @@ export default function App() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
       }
-      if (analysis || isAnalyzing) {
-        setIsImportResetModalOpen(true);
-        return;
-      }
+      setIsImportResetModalOpen(false);
       setActiveSection('import');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
-    if (isAnalyzing || !analysis) return;
+    if (isAnalyzing) return;
+
+    if (!analysis) {
+      if (section === 'playtest') {
+        launchQuickPlaytestOrMultiplayer(false);
+      }
+      return;
+    }
 
     setIsImportResetModalOpen(false);
     const wasInImport = activeSection === 'import';
@@ -1086,59 +1154,111 @@ export default function App() {
           )}
 
           {!isAnalyzing && (activeSection === 'import' || !analysis) && (
-            <DeckImporter
-              deckText={deckText}
-              deckName={deckName}
-              format={format}
-              goal={goal}
-              isAnalyzing={isAnalyzing}
-              error={error}
-              accountStatusNotice={accountStatusNotice}
-              onDismissAccountNotice={() => setAccountStatusNotice(null)}
-              onDeckTextChange={setDeckText}
-              onDeckNameChange={setDeckName}
-              onFormatChange={setFormat}
-              onGoalChange={setGoal}
-              onAnalyze={() => void runAnalysis(undefined, 'initial')}
-              onAnalyzeLocalFallback={() =>
-                void runAnalysis(undefined, 'initial', undefined, undefined, undefined, true)
-              }
-            />
-          )}
-
-          {!isAnalyzing && analysis && activeSection !== 'import' && (
-            <Suspense
-              fallback={
-                <div className="mx-auto max-w-[1360px] space-y-6 px-6 py-8">
-                  <div className="h-24 animate-pulse rounded-xl border border-zinc-200 bg-white" />
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    {[0, 1, 2, 3].map((i) => (
-                      <div
-                        key={i}
-                        className="h-24 animate-pulse rounded-xl border border-zinc-200 bg-white"
-                      />
-                    ))}
+            <div className="space-y-4">
+              {analysis && (
+                <div className="mx-auto max-w-[1360px] px-6 pt-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50/80 px-4 py-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-2 text-zinc-700">
+                      <span className="font-bold text-zinc-900">
+                        Active Session Ready:
+                      </span>
+                      <span className="font-semibold text-sky-900">
+                        {analysis.deckName}
+                      </span>
+                      <span className="text-zinc-400">·</span>
+                      <span className="capitalize">
+                        {analysis.metrics.detectedFormat}
+                      </span>
+                      <span className="text-zinc-400">·</span>
+                      <span className="font-mono tabular-nums font-semibold text-zinc-900">
+                        {analysis.metrics.currentMainAndCommanderCount} cards
+                      </span>
+                      <span className="text-zinc-500">
+                        (Your Playtest &amp; Multiplayer session stays active in the background — no need to re-analyze!)
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleNavigate('playtest')}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer"
+                      >
+                        <span>Resume Playtest / Multiplayer</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleNavigate('analysis')}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-white px-3 py-1.5 text-xs font-semibold text-sky-900 hover:bg-sky-100 cursor-pointer"
+                      >
+                        <span>Return to Deck Overview</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              }
-            >
-              <AnalysisDashboard
-                analysis={analysis}
-                selection={selection}
-                onSelectionChange={setSelection}
-                versionCount={totalUserDeckCount}
-                justSavedSnapshot={justSavedSnapshot}
-                onSaveSnapshot={() => handleSaveSnapshot()}
-                onOpenHistory={() => setIsHistoryOpen(true)}
-                onInspectCard={(name, meta) =>
-                  setInspectedCard({ name, meta: meta ?? null })
+              )}
+
+              <DeckImporter
+                deckText={deckText}
+                deckName={deckName}
+                format={format}
+                goal={goal}
+                isAnalyzing={isAnalyzing}
+                error={error}
+                accountStatusNotice={accountStatusNotice}
+                onDismissAccountNotice={() => setAccountStatusNotice(null)}
+                onDeckTextChange={setDeckText}
+                onDeckNameChange={setDeckName}
+                onFormatChange={setFormat}
+                onGoalChange={setGoal}
+                onAnalyze={() => void runAnalysis(undefined, 'initial')}
+                onAnalyzeLocalFallback={() =>
+                  void runAnalysis(undefined, 'initial', undefined, undefined, undefined, true)
                 }
-                onReanalyzeUpdated={handleReanalyzeUpdated}
-                botMemory={botMemory}
-                onSaveBotMemoryProfiles={handleSaveBotMemoryProfiles}
-                onResetBotMemory={handleResetBotMemory}
+                onQuickPlaytest={(sampleOverride) =>
+                  launchQuickPlaytestOrMultiplayer(false, sampleOverride)
+                }
+                onQuickMultiplayer={(sampleOverride) =>
+                  launchQuickPlaytestOrMultiplayer(true, sampleOverride)
+                }
               />
-            </Suspense>
+            </div>
+          )}
+
+          {!isAnalyzing && analysis && (
+            <div className={activeSection === 'import' ? 'hidden' : 'block'}>
+              <Suspense
+                fallback={
+                  <div className="mx-auto max-w-[1360px] space-y-6 px-6 py-8">
+                    <div className="h-24 animate-pulse rounded-xl border border-zinc-200 bg-white" />
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                      {[0, 1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          className="h-24 animate-pulse rounded-xl border border-zinc-200 bg-white"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                }
+              >
+                <AnalysisDashboard
+                  analysis={analysis}
+                  selection={selection}
+                  onSelectionChange={setSelection}
+                  versionCount={totalUserDeckCount}
+                  justSavedSnapshot={justSavedSnapshot}
+                  onSaveSnapshot={() => handleSaveSnapshot()}
+                  onOpenHistory={() => setIsHistoryOpen(true)}
+                  onInspectCard={(name, meta) =>
+                    setInspectedCard({ name, meta: meta ?? null })
+                  }
+                  onReanalyzeUpdated={handleReanalyzeUpdated}
+                  botMemory={botMemory}
+                  onSaveBotMemoryProfiles={handleSaveBotMemoryProfiles}
+                  onResetBotMemory={handleResetBotMemory}
+                />
+              </Suspense>
+            </div>
           )}
         </main>
 
@@ -1233,12 +1353,12 @@ export default function App() {
                       id="import-reset-dialog-title"
                       className="font-display text-lg font-bold text-zinc-900"
                     >
-                      Stop Bot Playtest &amp; Reset Program?
+                      Stop Playtest &amp; Reset Program?
                     </h2>
                     <p className="mt-1 text-sm text-zinc-600 leading-relaxed">
                       Clicking <span className="font-semibold text-zinc-900">Import Deck</span> will stop any active{' '}
-                      <span className="font-semibold text-zinc-900">Bot Playtest</span> or{' '}
-                      <span className="font-semibold text-zinc-900">Live Game vs AI Bots</span>, clear your current deck analysis workspace, and reset the program back to the Import Deck screen.
+                      <span className="font-semibold text-zinc-900">Playtest</span> or{' '}
+                      <span className="font-semibold text-zinc-900">Live Game</span>, clear your current deck analysis workspace, and reset the program back to the Import Deck screen.
                     </p>
                     <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 leading-snug">
                       Your saved snapshots in <span className="font-semibold text-zinc-800">My Decks</span> and adaptive{' '}

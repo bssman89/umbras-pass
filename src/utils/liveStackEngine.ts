@@ -134,6 +134,7 @@ export interface PlayerStackCardPayload {
   lifegainAmount: number;
   meta: CardMetadata | null;
   fromCommandZone?: boolean;
+  dropPos?: { x: number; y: number };
 }
 
 export interface StackItem {

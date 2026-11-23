@@ -613,7 +613,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
     { id: 'deck-tuning-section', label: 'Mana, Changes & List' },
     { id: 'mana-calculator-section', label: 'Opening Hands' },
     { id: 'gallery-section', label: 'Card Gallery' },
-    { id: 'playtest-section', label: 'Bot Playtest' },
+    { id: 'playtest-section', label: 'Playtest' },
   ];
 
   return (

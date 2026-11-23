@@ -45,6 +45,7 @@ export type ActiveSection = 'import' | 'analysis' | 'optimize' | 'playtest';
 const GITHUB_SOURCE_URL =
   (import.meta.env.VITE_GITHUB_REPO_URL as string | undefined)?.trim() ||
   'https://github.com/bssman89/umbras-pass';
+const WEBSITE_URL = 'https://umbraspass.org/';
 const SUPPORT_EMAIL = 'umbraspass.support@gmail.com';
 
 const CARD_MARKETPLACES = [
@@ -302,10 +303,10 @@ export const TopBar: React.FC<TopBarProps> = ({
     },
     {
       id: 'playtest',
-      label: 'Bot Playtest',
+      label: 'Playtest',
       shortLabel: 'Playtest',
       icon: Bot,
-      disabled: isSectionLocked,
+      disabled: isAnalyzing,
     },
   ];
 
@@ -316,11 +317,7 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button
           type="button"
           onClick={() => onNavigate('import')}
-          title={
-            hasAnalysis
-              ? 'Warning: Returning to Import Deck will stop your current Bot Playtest and reset the program'
-              : 'Return to Import Deck'
-          }
+          title="Switch to Import Deck (your active deck & playtest session stay preserved)"
           aria-label="Umbras Pass — Return to Import Deck"
           className="order-1 inline-flex min-w-0 flex-1 sm:flex-initial items-center gap-2.5 sm:gap-3 text-left cursor-pointer sm:shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600"
         >
@@ -377,8 +374,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                       ? isAnalyzing
                         ? `Deck analysis in progress — please wait until it finishes before proceeding to ${item.label}`
                         : `Import a deck first and click Analyze Deck before proceeding to ${item.label}`
-                      : (hasAnalysis || isAnalyzing) && item.id === 'import'
-                      ? 'Warning: Clicking Import Deck will stop your current analysis or Bot Playtest and reset the program'
+                      : item.id === 'playtest'
+                      ? 'Playtest live or simulate with AI Bots & Friends (LAN / Online Multiplayer)'
                       : item.label
                   }
                   className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
@@ -418,8 +415,8 @@ export const TopBar: React.FC<TopBarProps> = ({
                       ) : (
                         <span>
                           <strong className="font-bold">Import &amp; Analyze First:</strong> Import a deck below and click{' '}
-                          <strong className="font-semibold">Analyze Deck</strong> before proceeding to{' '}
-                          <strong className="font-semibold">{item.label}</strong>.
+                          <strong className="font-semibold">Analyze Deck</strong>, or click{' '}
+                          <strong className="font-semibold">Playtest</strong> to play with AI bots or friends right away without analyzing.
                         </span>
                       )}
                     </div>
@@ -432,17 +429,6 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         {/* Zone 3: Primary Action Cluster */}
         <div className="order-2 xl:order-3 ml-auto xl:ml-0 flex items-center gap-2 shrink-0">
-          {isAnalyzing && onCancelAnalysis && (
-            <button
-              type="button"
-              onClick={onCancelAnalysis}
-              title="Stop the current deck analysis"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 hover:border-red-400 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
-            >
-              <X className="h-3.5 w-3.5 text-red-600 shrink-0" />
-              <span>Cancel Analysis</span>
-            </button>
-          )}
           <button
             type="button"
             onClick={onOpenUserDecks}
@@ -758,6 +744,25 @@ export const TopBar: React.FC<TopBarProps> = ({
                         <strong className="font-semibold text-zinc-800">Why I Built It:</strong>{' '}
                         As a hobbyist developer (<strong className="font-semibold text-zinc-800">BizRoomba</strong>), I wanted to take the guesswork out of deckbuilding and make solid analytics accessible to everyone.
                       </p>
+                      <div className="pt-1">
+                        <a
+                          href={WEBSITE_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-[11px] hover:border-sky-600 transition-colors"
+                        >
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <Globe className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                            <span className="font-semibold text-zinc-800 shrink-0">
+                              Official Website:
+                            </span>
+                            <span className="font-mono font-semibold text-sky-700 truncate">
+                              {WEBSITE_URL}
+                            </span>
+                          </span>
+                          <ExternalLink className="h-3 w-3 text-sky-700 shrink-0" />
+                        </a>
+                      </div>
                     </div>
 
                     <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2">
@@ -1265,7 +1270,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               <p className="leading-snug">
                 <span className="font-bold">Warning:</span> Returning to{' '}
                 <span className="font-semibold">Import Deck</span> will stop your active{' '}
-                <span className="font-semibold">Bot Playtest / Live Game</span> and reset the program so you can import a new deck.
+                <span className="font-semibold">Playtest / Live Game</span> and reset the program so you can import a new deck.
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0">

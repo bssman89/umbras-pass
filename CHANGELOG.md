@@ -1,5 +1,40 @@
 # Changelog — Umbra's Pass
 
+## [v1.2.0] — Version 1.2.0 (2026-11-23)
+### LAN & Self-Hosted Online Multiplayer, Free-Form Drag-and-Drop Playmats, Custom Playmats, Proxies & Tokens, and UI Refinements
+
+### ✨ New Features & Major Enhancements
+
+#### 1. Multiplayer Tabletop Arena — Offline LAN & Self-Hosted Online (1–4 Players)
+- **Hybrid 1–4 Player Pods**: Create or join synchronized 1–4 seat pods combining human friends and adaptive AI bots (`Open for Friend` or `AI Bot` seats configurable before launch and inside the Lobby).
+- **Clean Multiplayer Config & Network Setup**: Streamlined the **Multiplayer Tabletop · LAN & Self-Hosted Online** menu into a compact, uncluttered two-column layout (`Host Session` / `Join Session` toggle, clean `Offline LAN` / `Self-Hosted Online` switch, pod size pills, and room scanner).
+- **Network Diagnostics & Router Port-Forwarding Helper (`NetworkSetupPanel`)**:
+  - Automatically detects and displays your host **Local IPv4 Address**, **Host LAN URL**, and secondary network adapters with one-click copy buttons.
+  - Added a live **`Test Port Reachability`** checker for verifying local LAN listeners or optional public IP / DDNS external router forwarding on TCP port `3000`.
+  - Added a collapsible **Router Port-Forwarding Guide** with copy-pasteable NAT rule values, step-by-step setup instructions, and tabbed **Windows PowerShell** / **Linux & macOS (UFW)** firewall commands.
+- **Session Security**: Protected every hosted room with a 6-character Room Code, scrypt-hashed Session Passcode, and a **Host Lobby Approval Queue** before any guest enters a tabletop seat.
+
+#### 2. Free-Form Drag-and-Drop Playmats (Playtest & Multiplayer)
+- **Drag Cards Anywhere on Your Playmat**: Replaced rigid row-locked lanes with open 2D playmat canvases in both **Playtest** and **Multiplayer** (`playmatX`, `playmatY`, `playmatZ`), allowing 60fps pointer dragging of any permanent without interfering with `Tap`, `Attack`, `GY`, `+1/+1` counter, or inspect actions.
+- **Exact Drop Coordinates & Cross-Zone Drops**: Drag cards from Hand, Command Zone, Graveyard, or Exile onto any exact point on your playmat, or drag battlefield cards directly onto Opponent Seats (to declare an attack), Hand, Command Zone, Graveyard, or Exile.
+- **Interactive Bot Playmats & Smart AI Positioning**: Reposition bot creatures on bot playmats as well, use **`Zone Guides: On/Off`** and **`Tidy Board`** (`auto-arrange-playmat`), and watch bots automatically space permanents cleanly between backline mana and frontline attackers as they enter, attack, and untap.
+
+#### 3. Custom Tabletop Playmats & Background Themes
+- Added **Playmats & Theme** customization supporting per-user seat playmats and table-wide backgrounds (built-in curated themes, artwork presets, and custom image URLs), automatically synchronized across multiplayer lobbies and active rooms.
+
+#### 4. Custom Card Images, Playtest Proxies & Custom Tokens
+- Added **Custom Art, Proxies & Tokens** support so each user can override card artwork, author full playtest proxy cards (custom title, type line, mana cost, stats, and frame borders), and create/spawn custom tokens onto the battlefield in both Playtest and Multiplayer matches.
+
+#### 5. Streamlined Playtest Tab & Merged Bot Configuration
+- Renamed the top navigation button from **Bot Playtest** to **Playtest** to reflect unified goldfishing, AI pod testing, and multiplayer play.
+- Merged and decluttered the **Playtest Setup & Live Game vs AI Bots** configuration panels for faster, clearer pod setup.
+
+### 🐛 Bug Fixes & Reliability
+- **Workspace Sync Hook Ordering Fix**: Resolved the `"Rendered more hooks than during the previous render"` error triggered when syncing private user deck data.
+- **Scryfall Card Artwork Display Fix**: Fixed card art resolution and fallback handling (`referrerPolicy="no-referrer"` + synced card metadata hydration) so card artwork displays reliably across deck lists, tabletop tiles, and hover zoom previews.
+
+---
+
 ## [v1.1.0] — Version 1.1.0 (2026-11-22)
 ### Live Stack & Trigger Queue, Analysis Lock & Cancel Flow, WotC Comprehensive Rules Engine
 

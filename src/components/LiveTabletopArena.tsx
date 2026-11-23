@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   Ban,
   BookOpen,
@@ -9,11 +9,14 @@ import {
   Crown,
   Droplets,
   Flame,
+  LayoutGrid,
   Loader2,
   Maximize2,
   Minimize2,
   Minus,
   Mountain,
+  Move,
+  Palette,
   Plus,
   RotateCcw,
   Shield,
@@ -23,6 +26,7 @@ import {
   Swords,
   Volume2,
   VolumeX,
+  Wand2,
   ZoomIn,
 } from 'lucide-react';
 import type {
@@ -70,6 +74,32 @@ import {
   type StackCastResponseOptions,
 } from './TabletopStackPanel';
 import { ZoneViewerModal } from './ZoneViewerModal';
+import {
+  loadTabletopPlaymatPreferences,
+  PLAYMAT_THEME_UPDATED_EVENT,
+  resolveSeatPlaymatSurface,
+  resolveTabletopSurface,
+  type TabletopPlaymatPreferences,
+} from '../utils/tabletopPlaymatThemes';
+import {
+  PlaymatSurfaceBackdrop,
+  TabletopPlaymatCustomizerModal,
+} from './TabletopPlaymatCustomizerModal';
+import {
+  CUSTOM_CARDS_TOKENS_UPDATED_EVENT,
+  loadCustomCardTokenPreferences,
+  resolveCardWithCustomProxy,
+  type CustomCardTokenPreferences,
+} from '../utils/customCardProxiesAndTokens';
+import { CustomCardProxyTokenModal } from './CustomCardProxyTokenModal';
+import {
+  clampPlaymatX,
+  clampPlaymatY,
+  computeOpenBotPlaymatSpot,
+  computeOpenPlayerPlaymatSpot,
+  isBacklinePlaymatCard,
+  type PlaymatDropPoint,
+} from '../utils/playmatPositioning';
 
 export type { TabletopTokenBlueprint };
 
@@ -106,6 +136,9 @@ export interface TabletopPermanent extends TabletopSimCard {
   protectedUntilEot?: boolean;
   tempPowerBoost?: number;
   tempToughnessBoost?: number;
+  playmatX?: number;
+  playmatY?: number;
+  playmatZ?: number;
 }
 
 export function getEffectivePermanentStats(perm: TabletopPermanent): {
@@ -286,12 +319,17 @@ interface TableCardTileProps {
     onClick: () => void;
   };
   onTileClick?: () => void;
+  pointerDraggable?: boolean;
+  isPointerDragging?: boolean;
+  onPointerDownCard?: (e: React.PointerEvent<HTMLDivElement>) => void;
+  suppressNextClickRef?: React.MutableRefObject<boolean>;
 }
 
 interface TabletopHoverContextValue {
   enabled: boolean;
   showPreview: (preview: HoveredCardPreview) => void;
   hidePreview: () => void;
+  customCardPrefs?: CustomCardTokenPreferences;
 }
 
 const TabletopHoverContext = createContext<TabletopHoverContextValue>({
@@ -325,9 +363,27 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
   secondaryAction,
   counterAction,
   onTileClick,
+  pointerDraggable = false,
+  isPointerDragging = false,
+  onPointerDownCard,
+  suppressNextClickRef,
 }) => {
   const [imgFailed, setImgFailed] = useState(false);
-  const { enabled: hoverZoomEnabled, showPreview, hidePreview } = useContext(TabletopHoverContext);
+  const {
+    enabled: hoverZoomEnabled,
+    showPreview,
+    hidePreview,
+    customCardPrefs,
+  } = useContext(TabletopHoverContext);
+
+  const customResolved = resolveCardWithCustomProxy(name, meta, customCardPrefs);
+  const effectiveMeta: CardMetadata | null = customResolved.meta;
+  const effectiveDisplayTitle = customResolved.displayTitle || name;
+  const customBadge = customResolved.badgeLabel || null;
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [name, effectiveMeta?.imageUri]);
 
   const widthClass = size === 'sm' ? 'w-[88px]' : 'w-[108px]';
   const artHeightClass = size === 'sm' ? 'h-[60px]' : 'h-[78px]';
@@ -342,6 +398,8 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
     ? 'border-emerald-500 ring-2 ring-emerald-400/75 shadow-sm'
     : playable === 'spell' || playable === 'commander'
     ? 'border-sky-500 ring-2 ring-sky-400/75 shadow-sm'
+    : customBadge
+    ? 'border-amber-400/90 hover:border-amber-500'
     : 'border-zinc-300 hover:border-sky-400';
 
   const cornerClass =
@@ -358,8 +416,8 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
   const resolvedPt =
     ptLabel !== undefined
       ? ptLabel
-      : meta?.power && meta?.toughness
-      ? `${meta.power}/${meta.toughness}`
+      : effectiveMeta?.power && effectiveMeta?.toughness
+      ? `${effectiveMeta.power}/${effectiveMeta.toughness}`
       : null;
 
   const btnToneClass = (tone?: 'emerald' | 'sky' | 'red' | 'zinc' | 'amber') => {
@@ -374,12 +432,13 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
     if (!hoverZoomEnabled) return;
     const tags: string[] = [];
     if (cornerTag) tags.push(cornerTag);
+    if (customBadge) tags.push(customBadge);
     if (attacking && cornerTag !== 'ATK') tags.push('Attacking');
     if (tapped) tags.push('Tapped');
     if (summoningSick && !tapped) tags.push('Summoning Sick');
     showPreview({
-      name,
-      meta,
+      name: effectiveDisplayTitle,
+      meta: effectiveMeta,
       rect: buildHoverRect(e.currentTarget),
       ptLabel: resolvedPt,
       statusTags: tags,
@@ -389,6 +448,13 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
   return (
     <div
       draggable={draggable}
+      onPointerDown={(e) => {
+        if (!pointerDraggable || !onPointerDownCard) return;
+        const targetEl = e.target as HTMLElement | null;
+        if (targetEl?.closest('button[data-card-action="true"]')) return;
+        hidePreview();
+        onPointerDownCard(e);
+      }}
       onDragStart={(e) => {
         hidePreview();
         onDragStart?.(e);
@@ -407,33 +473,38 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
           onDropOnCard(e);
         }
       }}
-      onMouseEnter={handleMouseEnter}
+      onMouseEnter={isPointerDragging ? undefined : handleMouseEnter}
       onMouseLeave={hidePreview}
-      className={`${widthClass} relative shrink-0 rounded-lg border bg-white p-1.5 flex flex-col justify-between transition-all duration-150 select-none ${frameRingClass} ${
-        tapped ? 'rotate-3 opacity-75' : ''
-      } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${
-        hoverZoomEnabled ? 'hover:z-20 hover:scale-[1.06] hover:shadow-lg' : ''
-      }`}
+      className={`${widthClass} relative shrink-0 rounded-lg border bg-white p-1.5 flex flex-col justify-between select-none ${
+        isPointerDragging ? 'ring-2 ring-amber-300 border-amber-300 shadow-2xl scale-[1.06]' : 'transition-all duration-150'
+      } ${frameRingClass} ${tapped ? 'rotate-3 opacity-80' : ''} ${
+        draggable || pointerDraggable ? 'cursor-grab active:cursor-grabbing touch-none' : ''
+      } ${hoverZoomEnabled && !isPointerDragging ? 'hover:z-20 hover:scale-[1.06] hover:shadow-lg' : ''}`}
     >
       <button
         type="button"
-        onClick={() => {
+        onClick={(e) => {
+          if (suppressNextClickRef?.current) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
           hidePreview();
           if (onTileClick) onTileClick();
-          else onInspect(name, meta);
+          else onInspect(name, effectiveMeta);
         }}
-        title={`${name}${meta?.manaCost ? ` (${meta.manaCost})` : ''} — ${
-          draggable ? 'drag to move/play or ' : ''
+        title={`${effectiveDisplayTitle}${effectiveMeta?.manaCost ? ` (${effectiveMeta.manaCost})` : ''} — ${
+          draggable || pointerDraggable ? 'drag anywhere on playmat or ' : ''
         }click to ${onTileClick ? 'select' : 'inspect'}`}
         className="w-full text-left cursor-pointer group focus:outline-none"
       >
         <div
           className={`relative ${artHeightClass} w-full overflow-hidden rounded border border-zinc-200 bg-zinc-100`}
         >
-          {meta?.imageUri && !imgFailed ? (
+          {effectiveMeta?.imageUri && !imgFailed ? (
             <img
-              src={meta.imageUri}
-              alt={name}
+              src={effectiveMeta.imageUri}
+              alt={effectiveDisplayTitle}
               draggable={false}
               referrerPolicy="no-referrer"
               onError={() => setImgFailed(true)}
@@ -443,24 +514,28 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
             <div className="h-full w-full flex flex-col items-center justify-center px-1 text-center bg-zinc-100">
               {cornerTag === 'Cmdr' ? (
                 <Crown className="h-3.5 w-3.5 text-amber-700 mb-0.5" />
-              ) : meta?.isLand || subLabel === 'Land' ? (
+              ) : effectiveMeta?.isLand || subLabel === 'Land' ? (
                 <Mountain className="h-3.5 w-3.5 text-emerald-700 mb-0.5" />
               ) : (
                 <Sparkles className="h-3.5 w-3.5 text-sky-700 mb-0.5" />
               )}
               <span className="line-clamp-2 text-[9px] font-semibold leading-tight text-zinc-700">
-                {meta?.typeLine ? meta.typeLine.split('—')[0].trim() : subLabel || 'Card'}
+                {effectiveMeta?.typeLine ? effectiveMeta.typeLine.split('—')[0].trim() : subLabel || 'Card'}
               </span>
             </div>
           )}
 
-          {cornerTag && (
+          {cornerTag ? (
             <span
               className={`absolute top-0.5 left-0.5 rounded px-1 py-0.5 font-mono text-[8px] font-bold uppercase leading-none ${cornerClass}`}
             >
               {cornerTag}
             </span>
-          )}
+          ) : customBadge ? (
+            <span className="absolute top-0.5 left-0.5 rounded bg-amber-400 px-1 py-0.5 font-mono text-[7px] font-bold uppercase leading-none text-zinc-950">
+              {customBadge}
+            </span>
+          ) : null}
 
           {tapped && (
             <span className="absolute top-0.5 right-0.5 rounded bg-zinc-900/90 px-1 py-0.5 font-mono text-[8px] font-bold uppercase leading-none text-amber-300">
@@ -483,7 +558,7 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
 
         <div className="mt-1 space-y-0.5">
           <div className="truncate text-[10px] font-bold text-zinc-900 group-hover:text-sky-700">
-            {name}
+            {effectiveDisplayTitle}
           </div>
           <div className="flex items-center justify-between gap-1 font-mono text-[9px] text-zinc-500">
             <span className="truncate">
@@ -513,6 +588,7 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
           {primaryAction && (
             <button
               type="button"
+              data-card-action="true"
               disabled={primaryAction.disabled}
               onClick={() => {
                 hidePreview();
@@ -528,6 +604,7 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
           {counterAction && (
             <button
               type="button"
+              data-card-action="true"
               onClick={() => {
                 hidePreview();
                 counterAction.onClick();
@@ -545,6 +622,7 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
           {secondaryAction && (
             <button
               type="button"
+              data-card-action="true"
               onClick={() => {
                 hidePreview();
                 secondaryAction.onClick();
@@ -560,6 +638,7 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
           {onTileClick && (
             <button
               type="button"
+              data-card-action="true"
               onClick={() => {
                 hidePreview();
                 onInspect(name, meta);
@@ -668,9 +747,9 @@ interface LiveTabletopArenaProps {
     delta: number
   ) => void;
   onDrawCard: (count?: number, incrementTurnOnDraw?: boolean) => void;
-  onPlayLand: (card: TabletopSimCard) => void;
-  onCastFromHand: (card: TabletopSimCard) => void;
-  onCastCommander: (cmd: TabletopSimCard) => void;
+  onPlayLand: (card: TabletopSimCard, dropPos?: PlaymatDropPoint) => void;
+  onCastFromHand: (card: TabletopSimCard, dropPos?: PlaymatDropPoint) => void;
+  onCastCommander: (cmd: TabletopSimCard, dropPos?: PlaymatDropPoint) => void;
   onTogglePermanentTap: (perm: TabletopPermanent) => void;
   onTapAllUntappedLands: () => void;
   onUntapAll: () => void;
@@ -695,13 +774,17 @@ interface LiveTabletopArenaProps {
   onAdjustPlayerCounter?: (label: string, delta: number) => void;
   onToggleMonarch?: () => void;
   onReorderBattlefield?: (sourceUid: string, targetUid: string) => void;
+  onMoveBattlefieldCard?: (uid: string, x: number, y: number) => void;
+  onAutoArrangePlaymat?: () => void;
+  onMoveBotCard?: (botId: string, uid: string, x: number, y: number) => void;
+  onAutoArrangeBotPlaymat?: (botId: string) => void;
   onDiscardFromHand?: (card: TabletopSimCard) => void;
   onExileFromHand?: (card: TabletopSimCard) => void;
   onMovePermanentToExile?: (perm: TabletopPermanent) => void;
   onBouncePermanentToHand?: (perm: TabletopPermanent) => void;
-  onReturnTopGraveyardToBattlefield?: () => void;
+  onReturnTopGraveyardToBattlefield?: (dropPos?: PlaymatDropPoint) => void;
   onReturnTopGraveyardToHand?: () => void;
-  onReturnTopExileToBattlefield?: () => void;
+  onReturnTopExileToBattlefield?: (dropPos?: PlaymatDropPoint) => void;
   onReturnTopExileToHand?: () => void;
   onMovePlayerZoneCard?: (
     fromZone: 'graveyard' | 'exile',
@@ -828,6 +911,10 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
   onAdjustPlayerCounter,
   onToggleMonarch,
   onReorderBattlefield,
+  onMoveBattlefieldCard,
+  onAutoArrangePlaymat,
+  onMoveBotCard,
+  onAutoArrangeBotPlaymat,
   onDiscardFromHand,
   onExileFromHand,
   onMovePermanentToExile,
@@ -874,6 +961,22 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
   const [dragSource, setDragSource] = useState<TabletopDragSource | null>(null);
   const [activeDropZone, setActiveDropZone] = useState<string | null>(null);
   const [dragOverCardUid, setDragOverCardUid] = useState<string | null>(null);
+  const [showPlaymatGuides, setShowPlaymatGuides] = useState<boolean>(true);
+  const [pointerDragState, setPointerDragState] = useState<{
+    kind: 'player' | 'bot';
+    uid: string;
+    name: string;
+    botId?: string;
+    x: number;
+    y: number;
+    isCreature: boolean;
+    isCommander: boolean;
+    tapped: boolean;
+  } | null>(null);
+  const playerPlaymatRef = useRef<HTMLDivElement | null>(null);
+  const botPlaymatRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const suppressCardClickRef = useRef<boolean>(false);
+  const pointerCleanupRef = useRef<(() => void) | null>(null);
   const [combatInstantTargetAtkUid, setCombatInstantTargetAtkUid] = useState<string>('');
   const [combatTrickTargetBlkUid, setCombatTrickTargetBlkUid] = useState<string>('');
   const [zoneModalTarget, setZoneModalTarget] = useState<{
@@ -886,6 +989,12 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
       ? totalAvailableMana
       : totalManaPool + untappedLandsCount;
   const hasCommanderOnBoard = battlefield.some((p) => p.isCommander);
+
+  useEffect(() => {
+    return () => {
+      pointerCleanupRef.current?.();
+    };
+  }, []);
 
   const handleToggleHoverZoom = () => {
     setHoverZoomEnabled((prev) => {
@@ -920,42 +1029,176 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
     }
   };
 
-  const handleDropOnCreaturesLane = (e: React.DragEvent) => {
-    e.preventDefault();
-    const src = dragSource;
-    clearDragState();
-    if (!src || botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack) return;
-
-    if (src.zone === 'hand') {
-      const card = hand.find((c) => c.uid === src.uid);
-      if (!card) return;
-      if (card.isLand) onPlayLand(card);
-      else onCastFromHand(card);
-    } else if (src.zone === 'command') {
-      const cmd = commandZone.find((c) => c.uid === src.uid);
-      if (cmd) onCastCommander(cmd);
-    } else if (src.zone === 'graveyard') {
-      onReturnTopGraveyardToBattlefield?.();
-    } else if (src.zone === 'exile') {
-      onReturnTopExileToBattlefield?.();
+  const startPlaymatPointerDrag = (
+    e: React.PointerEvent<HTMLDivElement>,
+    params: {
+      kind: 'player' | 'bot';
+      uid: string;
+      name: string;
+      botId?: string;
+      initialX: number;
+      initialY: number;
+      isCreature: boolean;
+      isCommander: boolean;
+      tapped: boolean;
     }
+  ) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (botsAreActing || Boolean(pendingIncomingAttack) || isSimulationFinished) return;
+    const container =
+      params.kind === 'player'
+        ? playerPlaymatRef.current
+        : params.botId
+        ? botPlaymatRefs.current[params.botId]
+        : null;
+    if (!container) return;
+
+    pointerCleanupRef.current?.();
+    const rect = container.getBoundingClientRect();
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    let hasMoved = false;
+    let currentX = params.initialX;
+    let currentY = params.initialY;
+    let hoveredZone: string | null = null;
+
+    const findHoverDropZone = (clientX: number, clientY: number): string | null => {
+      if (params.kind !== 'player' || typeof document.elementsFromPoint !== 'function') {
+        return null;
+      }
+      const els = document.elementsFromPoint(clientX, clientY);
+      for (const el of els) {
+        const dropKey = (el as HTMLElement).getAttribute?.('data-tabletop-drop');
+        if (!dropKey) continue;
+        if (dropKey.startsWith('opp:')) {
+          if (params.isCreature && !params.tapped) return dropKey;
+          continue;
+        }
+        if (dropKey === 'command') {
+          if (params.isCommander) return dropKey;
+          continue;
+        }
+        if (dropKey === 'graveyard' || dropKey === 'exile' || dropKey === 'hand') {
+          return dropKey;
+        }
+      }
+      return null;
+    };
+
+    const handleMove = (ev: PointerEvent) => {
+      const dx = ev.clientX - startClientX;
+      const dy = ev.clientY - startClientY;
+      if (!hasMoved) {
+        if (Math.hypot(dx, dy) < 5) return;
+        hasMoved = true;
+        suppressCardClickRef.current = true;
+        handleHidePreview();
+      }
+      const deltaXPct = (dx / Math.max(1, rect.width)) * 100;
+      const deltaYPct = (dy / Math.max(1, rect.height)) * 100;
+      currentX = clampPlaymatX(
+        params.initialX + deltaXPct,
+        params.kind === 'bot' ? 10 : 7,
+        params.kind === 'bot' ? 90 : 93
+      );
+      currentY = clampPlaymatY(
+        params.initialY + deltaYPct,
+        params.kind === 'bot' ? 16 : 12,
+        params.kind === 'bot' ? 84 : 88
+      );
+      hoveredZone = findHoverDropZone(ev.clientX, ev.clientY);
+      setActiveDropZone(hoveredZone);
+      setPointerDragState({
+        kind: params.kind,
+        uid: params.uid,
+        name: params.name,
+        botId: params.botId,
+        x: currentX,
+        y: currentY,
+        isCreature: params.isCreature,
+        isCommander: params.isCommander,
+        tapped: params.tapped,
+      });
+    };
+
+    const cleanup = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+      window.removeEventListener('pointercancel', handleUp);
+      pointerCleanupRef.current = null;
+    };
+
+    const handleUp = () => {
+      cleanup();
+      setPointerDragState(null);
+      setActiveDropZone(null);
+
+      if (!hasMoved) return;
+
+      window.setTimeout(() => {
+        suppressCardClickRef.current = false;
+      }, 90);
+
+      if (params.kind === 'player' && hoveredZone) {
+        const perm = battlefield.find((p) => p.uid === params.uid);
+        if (hoveredZone.startsWith('opp:') && !hasActiveStack) {
+          onDragAttackOpponent?.(params.uid, hoveredZone.slice(4));
+          return;
+        }
+        if (hoveredZone === 'graveyard' && perm && !hasActiveStack) {
+          onMovePermanentToGy(perm);
+          return;
+        }
+        if (hoveredZone === 'exile' && perm && !hasActiveStack) {
+          onMovePermanentToExile?.(perm);
+          return;
+        }
+        if (hoveredZone === 'hand' && perm && !hasActiveStack) {
+          onBouncePermanentToHand?.(perm);
+          return;
+        }
+        if (hoveredZone === 'command' && perm && perm.isCommander && !hasActiveStack) {
+          onReturnCommanderToZone(perm);
+          return;
+        }
+      }
+
+      if (params.kind === 'player') {
+        onMoveBattlefieldCard?.(params.uid, currentX, currentY);
+      } else if (params.kind === 'bot' && params.botId) {
+        onMoveBotCard?.(params.botId, params.uid, currentX, currentY);
+      }
+    };
+
+    pointerCleanupRef.current = cleanup;
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+    window.addEventListener('pointercancel', handleUp);
   };
 
-  const handleDropOnLandsLane = (e: React.DragEvent) => {
+  const handleDropOnPlaymatCanvas = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const src = dragSource;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dropPos: PlaymatDropPoint = {
+      x: clampPlaymatX(((e.clientX - rect.left) / Math.max(1, rect.width)) * 100),
+      y: clampPlaymatY(((e.clientY - rect.top) / Math.max(1, rect.height)) * 100),
+    };
     clearDragState();
     if (!src || botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack) return;
 
     if (src.zone === 'hand') {
       const card = hand.find((c) => c.uid === src.uid);
       if (!card) return;
-      if (card.isLand) onPlayLand(card);
-      else onCastFromHand(card);
+      if (card.isLand) onPlayLand(card, dropPos);
+      else onCastFromHand(card, dropPos);
+    } else if (src.zone === 'command') {
+      const cmd = commandZone.find((c) => c.uid === src.uid);
+      if (cmd) onCastCommander(cmd, dropPos);
     } else if (src.zone === 'graveyard') {
-      onReturnTopGraveyardToBattlefield?.();
+      onReturnTopGraveyardToBattlefield?.(dropPos);
     } else if (src.zone === 'exile') {
-      onReturnTopExileToBattlefield?.();
+      onReturnTopExileToBattlefield?.(dropPos);
     }
   };
 
@@ -1074,10 +1317,53 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
       ? '3-Player Pod (1v2)'
       : '4-Player Pod (1v3)';
 
+  const [playmatPrefs, setPlaymatPrefs] = useState<TabletopPlaymatPreferences>(() =>
+    loadTabletopPlaymatPreferences()
+  );
+  const [showPlaymatCustomizer, setShowPlaymatCustomizer] = useState(false);
+
+  const [customCardPrefs, setCustomCardPrefs] = useState<CustomCardTokenPreferences>(() =>
+    loadCustomCardTokenPreferences()
+  );
+  const [showCustomCardStudio, setShowCustomCardStudio] = useState(false);
+
+  useEffect(() => {
+    const handleSync = () => {
+      setPlaymatPrefs(loadTabletopPlaymatPreferences());
+    };
+    window.addEventListener(PLAYMAT_THEME_UPDATED_EVENT, handleSync);
+    return () => window.removeEventListener(PLAYMAT_THEME_UPDATED_EVENT, handleSync);
+  }, []);
+
+  useEffect(() => {
+    const handleCustomCardSync = () => {
+      setCustomCardPrefs(loadCustomCardTokenPreferences());
+    };
+    window.addEventListener(CUSTOM_CARDS_TOKENS_UPDATED_EVENT, handleCustomCardSync);
+    return () => window.removeEventListener(CUSTOM_CARDS_TOKENS_UPDATED_EVENT, handleCustomCardSync);
+  }, []);
+
+  const tabletopSurface = resolveTabletopSurface(playmatPrefs);
+  const yourPlaymatSurface = resolveSeatPlaymatSurface(playmatPrefs, 1, {
+    isYourSeat: true,
+  });
+
   const playerKO =
     yourLife <= 0 ||
     yourPoison >= 10 ||
     (usesCommanderDamage21 && maxCmdrFromBots >= 21);
+
+  const allTableCardNames = Array.from(
+    new Set(
+      [
+        ...commandZone.map((c) => c.name),
+        ...battlefield.map((c) => c.name),
+        ...hand.map((c) => c.name),
+        ...library.map((c) => c.name),
+        ...graveyard.map((c) => c.name),
+      ].filter(Boolean)
+    )
+  );
 
   return (
     <TabletopHoverContext.Provider
@@ -1085,14 +1371,16 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
         enabled: hoverZoomEnabled,
         showPreview: handleShowPreview,
         hidePreview: handleHidePreview,
+        customCardPrefs,
       }}
     >
     <div
       aria-label="Interactive 2/3/4 Player Card Tabletop"
-      className="rounded-xl border-2 border-[#186A52] bg-[#0F4C3A] text-white shadow-inner overflow-hidden"
+      className={`relative rounded-xl border-2 text-white shadow-inner overflow-hidden transition-colors ${tabletopSurface.outerClass}`}
     >
+      <PlaymatSurfaceBackdrop surface={tabletopSurface} variant="table" />
       {/* 1. Turn Order Seat Track & Tabletop Top Bar */}
-      <div className="border-b border-[#1A7158] bg-[#0B392C] px-4 py-3 space-y-2.5">
+      <div className={`relative z-10 border-b px-4 py-3 space-y-2.5 ${tabletopSurface.hudClass}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-2.5 text-xs">
             <span className="font-display font-bold text-white tracking-tight">
@@ -1174,6 +1462,29 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 }`}
               />
               {hoverZoomEnabled ? 'Hover Zoom On' : 'Hover Zoom Off'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCustomCardStudio(true)}
+              title="Configure custom card art, playtest proxies, and custom token visuals"
+              className="inline-flex items-center gap-1.5 rounded-md border border-amber-400/55 bg-amber-950/60 px-2.5 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-900/70 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+            >
+              <Wand2 className="h-3.5 w-3.5 text-amber-300" />
+              <span>Proxies &amp; Custom Art</span>
+              {Object.keys(customCardPrefs.cardProxies).length > 0 && (
+                <span className="rounded bg-amber-400/20 px-1 py-0.2 font-mono text-[9px] font-bold text-amber-200 tabular-nums">
+                  {Object.keys(customCardPrefs.cardProxies).length}
+                </span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPlaymatCustomizer(true)}
+              title="Customize tabletop background and per-seat TCG playmats"
+              className="inline-flex items-center gap-1.5 rounded-md border border-emerald-400/50 bg-emerald-950/60 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 hover:bg-emerald-900/70 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+            >
+              <Palette className="h-3.5 w-3.5 text-emerald-300" />
+              <span>Playmats &amp; Theme</span>
             </button>
             <button
               type="button"
@@ -1387,17 +1698,20 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
       </div>
 
       {/* 2. Top Opponent Pod Felt Area (1v1 Centered Duel, 1v2 Split, 1v3 3-Seat Arc) */}
-      <div className="p-4 sm:p-5 space-y-4">
+      <div className="relative z-10 p-4 sm:p-5 space-y-4">
         {liveBotMode ? (
           <div className={`grid gap-3.5 ${podSeatGridClass}`}>
             {liveBots.map((bot, idx) => {
               const isSelectedTarget = selectedCombatTargetId === bot.id;
               const isActing = activeBotIdx === idx;
               const untappedLands = Math.max(0, bot.landsInPlay - bot.tappedLands);
+              const botSeatNum = Math.min(4, idx + 2) as 2 | 3 | 4;
+              const botSeatSurface = resolveSeatPlaymatSurface(playmatPrefs, botSeatNum);
 
               return (
                 <div
                   key={bot.id}
+                  data-tabletop-drop={`opp:${bot.id}`}
                   onClick={() => {
                     if (!bot.eliminated) onSelectCombatTarget(bot.id);
                   }}
@@ -1418,20 +1732,21 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                   onDrop={(e) => {
                     if (!bot.eliminated) handleDropOnOpponentSeat(e, bot.id);
                   }}
-                  className={`rounded-xl border p-3.5 space-y-3 transition-colors cursor-pointer ${
+                  className={`relative overflow-hidden rounded-xl border p-3.5 space-y-3 transition-colors cursor-pointer ${
                     bot.eliminated
                       ? 'border-red-400/45 bg-[#2A171C]/80 opacity-70'
                       : activeDropZone === `opp:${bot.id}`
                       ? 'border-red-400 bg-red-950/55 ring-2 ring-red-400'
                       : isActing
-                      ? 'border-amber-400 bg-[#124F3D] ring-1 ring-amber-400/60'
+                      ? botSeatSurface.seatActiveClass
                       : isSelectedTarget
-                      ? 'border-sky-400 bg-[#114B3A] ring-1 ring-sky-400/50'
-                      : 'border-[#1E6E56] bg-[#0B392C]/85 hover:border-emerald-400/60'
+                      ? botSeatSurface.seatActiveClass
+                      : botSeatSurface.seatClass
                   }`}
                 >
+                  <PlaymatSurfaceBackdrop surface={botSeatSurface} variant="seat" />
                   {/* Bot Seat Header */}
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="relative z-10 flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="font-mono text-[10px] font-bold text-emerald-300">
@@ -1579,84 +1894,188 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     </div>
                   </div>
 
-                  {/* Visual Bot Board: Command Zone + Creatures */}
+                  {/* Free-Form Bot Playmat Canvas (bots auto-position & move attackers, players can also drag bot cards) */}
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    className="flex items-start gap-2.5 overflow-x-auto pb-1 min-h-[110px]"
+                    className="space-y-1.5"
                   >
-                    {allowsCommandZone && bot.commanderInZone && bot.commanderName && (
-                      <TableCardTile
-                        name={bot.commanderName}
-                        meta={bot.commanderMeta}
-                        onInspect={onInspectCard}
-                        size="sm"
-                        cornerTag="Cmdr Zone"
-                        cornerTone="amber"
-                        ptLabel={
-                          bot.commanderPower > 0
-                            ? `${bot.commanderPower}/${bot.commanderToughness}`
-                            : null
-                        }
-                        subLabel={`MV ${bot.commanderCmc + bot.commanderTax}`}
-                      />
-                    )}
+                    <div className="flex items-center justify-between gap-2 text-[10px]">
+                      <span className="font-mono uppercase tracking-wider text-emerald-200/75 inline-flex items-center gap-1">
+                        <Move className="h-2.5 w-2.5 text-emerald-300" />
+                        Bot Playmat ({bot.creatures.length} cr · {bot.landsInPlay} lands)
+                      </span>
+                      {bot.creatures.length > 1 && onAutoArrangeBotPlaymat && (
+                        <button
+                          type="button"
+                          onClick={() => onAutoArrangeBotPlaymat(bot.id)}
+                          className="inline-flex items-center gap-1 rounded border border-[#287D64] bg-[#0B392C]/85 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-100 hover:bg-[#17614B] cursor-pointer whitespace-nowrap shrink-0"
+                        >
+                          <LayoutGrid className="h-2.5 w-2.5" />
+                          Tidy
+                        </button>
+                      )}
+                    </div>
 
-                    {bot.creatures.length === 0 ? (
-                      <div className="flex-1 flex flex-col justify-center rounded-lg border border-dashed border-[#247059] px-3 py-4 text-center text-[11px] text-emerald-200/70">
-                        <span>No creatures on battlefield</span>
-                        {bot.landsInPlay > 0 && (
-                          <div className="mt-1.5 flex flex-wrap justify-center gap-1">
-                            {Array.from({ length: Math.min(10, bot.landsInPlay) }).map((_, li) => (
-                              <span
-                                key={li}
-                                className={`inline-block h-3 w-2.5 rounded-[2px] border ${
-                                  li < bot.tappedLands
-                                    ? 'border-emerald-400/30 bg-emerald-950/60 rotate-12 opacity-60'
-                                    : 'border-emerald-300/60 bg-emerald-700/50'
-                                }`}
-                              />
-                            ))}
-                          </div>
+                    <div
+                      ref={(el) => {
+                        botPlaymatRefs.current[bot.id] = el;
+                      }}
+                      className={`relative rounded-lg border border-[#247059]/80 bg-[#082B21]/65 overflow-hidden ${
+                        bot.creatures.length > 0 ? 'min-h-[215px]' : 'min-h-[116px]'
+                      }`}
+                    >
+                      {/* Backline Lands Strip */}
+                      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-emerald-400/20 bg-black/20 px-2.5 py-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-[9px] font-semibold uppercase text-emerald-200/70">
+                            Lands:
+                          </span>
+                          {bot.landsInPlay === 0 ? (
+                            <span className="text-[9px] text-emerald-200/50">None</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {Array.from({ length: Math.min(12, bot.landsInPlay) }).map((_, li) => (
+                                <span
+                                  key={li}
+                                  className={`inline-block h-3 w-2.5 rounded-[2px] border transition-transform ${
+                                    li < bot.tappedLands
+                                      ? 'border-amber-300/45 bg-amber-950/60 rotate-12 opacity-65'
+                                      : 'border-emerald-300/65 bg-emerald-700/55'
+                                  }`}
+                                />
+                              ))}
+                              {bot.landsInPlay > 12 && (
+                                <span className="font-mono text-[9px] text-emerald-200">
+                                  +{bot.landsInPlay - 12}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {allowsCommandZone && bot.commanderInZone && bot.commanderName && (
+                          <button
+                            type="button"
+                            onClick={() => onInspectCard(bot.commanderName, bot.commanderMeta)}
+                            className="inline-flex items-center gap-1 rounded border border-amber-400/60 bg-amber-950/60 px-1.5 py-0.5 text-[9px] font-semibold text-amber-200 hover:bg-amber-900/70 cursor-pointer whitespace-nowrap"
+                          >
+                            <Crown className="h-2.5 w-2.5 text-amber-300" />
+                            <span>
+                              CmdZ: {bot.commanderName} (MV {bot.commanderCmc + bot.commanderTax})
+                            </span>
+                          </button>
                         )}
                       </div>
-                    ) : (
-                      bot.creatures.map((cr: LiveBotCreature) => {
-                        const kwTags = formatCreatureKeywordTags(cr);
-                        return (
-                          <TableCardTile
-                            key={cr.uid}
-                            name={cr.name}
-                            meta={cr.meta}
-                            onInspect={onInspectCard}
-                            size="sm"
-                            tapped={cr.tapped}
-                            summoningSick={cr.summoningSick}
-                            cornerTag={
-                              cr.isCommander
-                                ? 'Cmdr'
-                                : cr.hasInfect
-                                ? 'Infect'
-                                : cr.flying
-                                ? 'Fly'
-                                : cr.deathtouch
-                                ? 'DT'
-                                : cr.trample
-                                ? 'Trample'
-                                : undefined
-                            }
-                            cornerTone={
-                              cr.isCommander
-                                ? 'amber'
-                                : cr.hasInfect
-                                ? 'emerald'
-                                : 'sky'
-                            }
-                            ptLabel={`${cr.power}/${cr.toughness}`}
-                            subLabel={kwTags.length > 0 ? kwTags.slice(0, 2).join(' · ') : 'Creature'}
-                          />
-                        );
-                      })
-                    )}
+
+                      {/* Subtle Combat Frontline Marker */}
+                      <div className="pointer-events-none absolute inset-x-3 bottom-2 border-b border-dashed border-red-400/25 flex justify-end">
+                        <span className="font-mono text-[8px] uppercase tracking-wider text-red-200/45 pr-1">
+                          Combat Frontline
+                        </span>
+                      </div>
+
+                      {bot.creatures.length === 0 ? (
+                        <div className="flex h-[82px] items-center justify-center px-3 text-center text-[11px] text-emerald-200/65">
+                          No creatures on battlefield
+                        </div>
+                      ) : (
+                        bot.creatures.map((cr: LiveBotCreature, crIdx: number) => {
+                          const kwTags = formatCreatureKeywordTags(cr);
+                          const isDraggingThis =
+                            pointerDragState?.kind === 'bot' &&
+                            pointerDragState.botId === bot.id &&
+                            pointerDragState.uid === cr.uid;
+                          const fallbackSpot = computeOpenBotPlaymatSpot(
+                            bot.creatures.slice(0, crIdx),
+                            { preferFront: false }
+                          );
+                          const posX = isDraggingThis
+                            ? pointerDragState.x
+                            : typeof cr.playmatX === 'number'
+                            ? cr.playmatX
+                            : fallbackSpot.x;
+                          const posY = isDraggingThis
+                            ? pointerDragState.y
+                            : typeof cr.playmatY === 'number'
+                            ? cr.playmatY
+                            : fallbackSpot.y;
+                          const posZ = isDraggingThis
+                            ? 60
+                            : cr.playmatZ ?? crIdx + 2;
+
+                          return (
+                            <div
+                              key={cr.uid}
+                              style={{
+                                left: `${posX}%`,
+                                top: `${posY}%`,
+                                zIndex: posZ,
+                                transform: 'translate(-50%, -50%)',
+                              }}
+                              className={`absolute ${
+                                isDraggingThis
+                                  ? 'transition-none'
+                                  : 'transition-[left,top] duration-200 ease-out'
+                              }`}
+                            >
+                              <TableCardTile
+                                name={cr.name}
+                                meta={cr.meta}
+                                onInspect={onInspectCard}
+                                size="sm"
+                                tapped={cr.tapped}
+                                summoningSick={cr.summoningSick}
+                                pointerDraggable={
+                                  !botsAreActing &&
+                                  !pendingIncomingAttack &&
+                                  !isSimulationFinished &&
+                                  Boolean(onMoveBotCard)
+                                }
+                                isPointerDragging={isDraggingThis}
+                                suppressNextClickRef={suppressCardClickRef}
+                                onPointerDownCard={(ev) =>
+                                  startPlaymatPointerDrag(ev, {
+                                    kind: 'bot',
+                                    botId: bot.id,
+                                    uid: cr.uid,
+                                    name: cr.name,
+                                    initialX: posX,
+                                    initialY: posY,
+                                    isCreature: true,
+                                    isCommander: cr.isCommander,
+                                    tapped: cr.tapped,
+                                  })
+                                }
+                                cornerTag={
+                                  cr.isCommander
+                                    ? 'Cmdr'
+                                    : cr.hasInfect
+                                    ? 'Infect'
+                                    : cr.flying
+                                    ? 'Fly'
+                                    : cr.deathtouch
+                                    ? 'DT'
+                                    : cr.trample
+                                    ? 'Trample'
+                                    : undefined
+                                }
+                                cornerTone={
+                                  cr.isCommander
+                                    ? 'amber'
+                                    : cr.hasInfect
+                                    ? 'emerald'
+                                    : 'sky'
+                                }
+                                ptLabel={`${cr.power}/${cr.toughness}`}
+                                subLabel={
+                                  kwTags.length > 0 ? kwTags.slice(0, 2).join(' · ') : 'Creature'
+                                }
+                              />
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
 
                   {/* Last Action Summary & Real-Time Adaptation Read */}
@@ -1711,10 +2130,13 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 opp.life <= 0 ||
                 opp.poison >= 10 ||
                 (usesCommanderDamage21 && opp.commanderDamageTakenFromYou >= 21);
+              const oppSeatNum = Math.min(4, idx + 2) as 2 | 3 | 4;
+              const oppSeatSurface = resolveSeatPlaymatSurface(playmatPrefs, oppSeatNum);
 
               return (
                 <div
                   key={opp.id}
+                  data-tabletop-drop={`opp:${opp.id}`}
                   onClick={() => onSelectCombatTarget(opp.id)}
                   onDragOver={(e) => {
                     if (
@@ -1730,17 +2152,18 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     if (activeDropZone === `opp:${opp.id}`) setActiveDropZone(null);
                   }}
                   onDrop={(e) => handleDropOnOpponentSeat(e, opp.id)}
-                  className={`rounded-xl border p-3.5 space-y-2.5 transition-colors cursor-pointer ${
+                  className={`relative overflow-hidden rounded-xl border p-3.5 space-y-2.5 transition-colors cursor-pointer ${
                     isKO
                       ? 'border-red-400/45 bg-[#2A171C]/80 opacity-75'
                       : activeDropZone === `opp:${opp.id}`
                       ? 'border-red-400 bg-red-950/55 ring-2 ring-red-400'
                       : isSelected
-                      ? 'border-sky-400 bg-[#114B3A] ring-1 ring-sky-400/50'
-                      : 'border-[#1E6E56] bg-[#0B392C]/85 hover:border-emerald-400/60'
+                      ? oppSeatSurface.seatActiveClass
+                      : oppSeatSurface.seatClass
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <PlaymatSurfaceBackdrop surface={oppSeatSurface} variant="seat" />
+                  <div className="relative z-10 flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="font-mono text-[10px] font-bold text-emerald-300">
@@ -2451,9 +2874,14 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
         )}
 
         {/* 4. Bottom Player Playmat (Your Seat + Battlefield + Command/Library + Hand) */}
-        <div className="rounded-xl border border-emerald-400/35 bg-[#125541]/90 p-3.5 sm:p-4 space-y-3.5">
+        <div
+          className={`relative overflow-hidden rounded-xl border p-3.5 sm:p-4 space-y-3.5 transition-colors ${yourPlaymatSurface.seatClass}`}
+        >
+          <PlaymatSurfaceBackdrop surface={yourPlaymatSurface} variant="seat" />
           {/* Your Seat Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#20765C] pb-3">
+          <div
+            className={`relative z-10 flex flex-wrap items-center justify-between gap-3 border-b pb-3 ${yourPlaymatSurface.dividerBorderClass}`}
+          >
             <div className="flex flex-wrap items-center gap-2.5">
               <Shield className="h-4 w-4 text-sky-300 shrink-0" />
               <div>
@@ -2627,21 +3055,27 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
           )}
 
           {/* Live Drag Guidance Bar (only visible while dragging a card) */}
-          {dragSource && (
+          {(dragSource || pointerDragState) && (
             <div className="rounded-lg border border-amber-300/70 bg-amber-950/60 px-3 py-1.5 text-[11px] font-medium text-amber-100 flex flex-wrap items-center justify-between gap-2">
               <span>
-                Dragging <strong className="text-white">{dragSource.name}</strong> —{' '}
-                {dragSource.zone === 'hand'
-                  ? 'drop onto Battlefield to play/cast, Graveyard to discard, or Exile.'
-                  : dragSource.zone === 'command'
-                  ? 'drop onto Battlefield to cast your Commander.'
-                  : dragSource.zone === 'graveyard'
-                  ? 'drop onto Battlefield to reanimate, Hand to return, or Exile.'
-                  : dragSource.zone === 'exile'
-                  ? 'drop onto Battlefield to cast/return, Hand to return, or Graveyard.'
-                  : dragSource.isCreature && !dragSource.tapped
-                  ? 'drop onto another card to reorder, an Opponent Seat to attack, Hand to bounce, Graveyard, or Exile.'
-                  : 'drop onto another card to reorder, Hand to bounce, Command Zone, Graveyard, or Exile.'}
+                Dragging{' '}
+                <strong className="text-white">
+                  {pointerDragState ? pointerDragState.name : dragSource?.name}
+                </strong>{' '}
+                —{' '}
+                {pointerDragState?.kind === 'bot'
+                  ? 'move anywhere on the bot playmat to reposition.'
+                  : pointerDragState?.kind === 'player'
+                  ? pointerDragState.isCreature && !pointerDragState.tapped
+                    ? 'slide anywhere on your playmat, or drop onto an Opponent Seat to attack, Hand, Graveyard, or Exile.'
+                    : 'slide anywhere on your playmat, or drop onto Hand, Command Zone, Graveyard, or Exile.'
+                  : dragSource?.zone === 'hand'
+                  ? 'drop anywhere onto your Playmat to play/cast at that exact spot, or Graveyard/Exile.'
+                  : dragSource?.zone === 'command'
+                  ? 'drop anywhere onto your Playmat to cast your Commander at that exact spot.'
+                  : dragSource?.zone === 'graveyard'
+                  ? 'drop onto your Playmat to reanimate, Hand to return, or Exile.'
+                  : 'drop onto your Playmat to cast/return, Hand to return, or Graveyard.'}
               </span>
             </div>
           )}
@@ -2713,6 +3147,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
+                  data-tabletop-drop="graveyard"
                   draggable={Boolean(graveyard[0]) && !botsAreActing && !pendingIncomingAttack}
                   onDragStart={(e) => {
                     if (graveyard[0]) {
@@ -2781,6 +3216,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
 
                 <button
                   type="button"
+                  data-tabletop-drop="exile"
                   draggable={Boolean(exile[0]) && !botsAreActing && !pendingIncomingAttack}
                   onDragStart={(e) => {
                     if (exile[0]) {
@@ -2849,10 +3285,12 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               </div>
 
               {/* Command Zone Cards (also acts as drop target to return Commander) */}
-              {allowsCommandZone &&
+              {(allowsCommandZone &&
                 (commandZone.length > 0 ||
-                  (dragSource?.zone === 'battlefield' && dragSource.isCommander)) && (
+                  (pointerDragState?.kind === 'player' && pointerDragState.isCommander) ||
+                  (dragSource?.zone === 'battlefield' && dragSource.isCommander))) && (
                 <div
+                  data-tabletop-drop="command"
                   onDragOver={(e) => {
                     if (dragSource?.zone === 'battlefield' && dragSource.isCommander) {
                       e.preventDefault();
@@ -2913,10 +3351,49 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               )}
             </div>
 
-            {/* Right Lanes: Creatures/Permanents Front Row + Lands/Rocks Back Row */}
-            <div className="space-y-3 min-w-0">
-              {/* Front Row: Creatures & Nonland Permanents */}
+            {/* Unified Free-Form Playmat Canvas: Drag & Place Any Card Anywhere */}
+            <div className="space-y-2.5 min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-100">
+                    <Move className="h-3.5 w-3.5 text-emerald-300 shrink-0" />
+                    <span>
+                      Playmat Surface ({creaturesAndOther.length} permanents · {landsAndRocks.length} lands/mana)
+                    </span>
+                  </span>
+                  <span className="font-mono text-[10px] tabular-nums text-emerald-200/90">
+                    · {untappedLandsCount}/{totalLandsInPlay} untapped lands ({totalAvailableMana} mana ready)
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowPlaymatGuides((v) => !v)}
+                    className={`rounded border px-2 py-0.5 font-sans text-[10px] font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                      showPlaymatGuides
+                        ? 'border-emerald-300/60 bg-emerald-900/60 text-emerald-100'
+                        : 'border-[#287D64] bg-[#0B392C] text-emerald-200/75 hover:text-white'
+                    }`}
+                  >
+                    {showPlaymatGuides ? 'Zone Guides: On' : 'Zone Guides: Off'}
+                  </button>
+                  {onAutoArrangePlaymat && battlefield.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={onAutoArrangePlaymat}
+                      disabled={botsAreActing || Boolean(pendingIncomingAttack)}
+                      className="inline-flex items-center gap-1 rounded border border-sky-300/50 bg-[#0F2C38]/80 px-2 py-0.5 font-sans text-[10px] font-semibold text-sky-100 hover:bg-sky-900/60 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                    >
+                      <LayoutGrid className="h-3 w-3 shrink-0" />
+                      <span>Tidy Board</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div
+                ref={playerPlaymatRef}
                 onDragOver={(e) => {
                   if (
                     dragSource &&
@@ -2932,113 +3409,139 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 onDragLeave={() => {
                   if (activeDropZone === 'creatures') setActiveDropZone(null);
                 }}
-                onDrop={handleDropOnCreaturesLane}
-                className={`rounded-lg border p-2.5 space-y-2 transition-colors ${
+                onDrop={handleDropOnPlaymatCanvas}
+                className={`relative rounded-xl border min-h-[410px] sm:min-h-[440px] overflow-hidden transition-colors ${
                   activeDropZone === 'creatures'
-                    ? 'border-sky-400 bg-sky-950/45 ring-2 ring-sky-400/75'
-                    : 'border-[#247059] bg-[#0B392C]/75'
+                    ? 'border-sky-400 bg-sky-950/35 ring-2 ring-sky-400/80'
+                    : 'border-[#247059] bg-[#082E23]/60'
                 }`}
               >
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                  <span className="font-semibold text-emerald-100">
-                    Creatures &amp; Nonland Permanents ({creaturesAndOther.length})
-                  </span>
-                  <div className="flex items-center gap-2">
-                    {activePhase === 'Combat' ? (
-                      <span className="font-mono text-[10px] text-red-300">
-                        Click Attack or drag a creature onto an opponent seat
-                      </span>
-                    ) : (
-                      <span className="font-mono text-[10px] text-emerald-200/75">
-                        Drag cards here to cast · drag between cards to reorder
-                      </span>
-                    )}
-                  </div>
-                </div>
+                {/* Optional Frontline / Backline Felt Divider */}
+                {showPlaymatGuides && (
+                  <>
+                    <div className="pointer-events-none absolute inset-x-4 top-2.5 flex items-center justify-between text-[9px] font-mono uppercase tracking-wider text-emerald-200/45">
+                      <span>Frontline · Creatures &amp; Nonland Permanents</span>
+                      <span>Drag any card freely anywhere</span>
+                    </div>
+                    <div className="pointer-events-none absolute inset-x-4 top-[56%] border-t border-dashed border-emerald-300/20 pt-1 flex items-center justify-between text-[9px] font-mono uppercase tracking-wider text-emerald-200/40">
+                      <span>Backline · Lands &amp; Mana Sources</span>
+                      {activePhase === 'Combat' && (
+                        <span className="text-red-300/75">
+                          Drag creatures onto an opponent seat to attack
+                        </span>
+                      )}
+                    </div>
+                  </>
+                )}
 
-                {creaturesAndOther.length === 0 ? (
-                  <div className="py-3 text-center text-[11px] text-emerald-200/70">
-                    {activeDropZone === 'creatures'
-                      ? 'Drop card here to put onto the Battlefield!'
-                      : 'Drag a spell from your hand here, cast from hand, or click + Token above.'}
+                {battlefield.length === 0 ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center pointer-events-none">
+                    <Move className="h-6 w-6 text-emerald-300/50 mb-2" />
+                    <p className="text-xs font-semibold text-emerald-100/85">
+                      {activeDropZone === 'creatures'
+                        ? 'Release to place card right here on your Playmat!'
+                        : 'Free-Form Tabletop Playmat'}
+                    </p>
+                    <p className="mt-1 max-w-md text-[11px] text-emerald-200/65">
+                      Drag cards from your Hand, Command Zone, Graveyard, or Exile onto any spot, or drag permanents anywhere on the mat to arrange your board.
+                    </p>
                   </div>
                 ) : (
-                  <div className="flex items-start gap-2.5 overflow-x-auto pb-1">
-                    {creaturesAndOther.map((perm) => {
-                      const stats = getEffectivePermanentStats(perm);
-                      const counterChips = formatPermanentCounterChips(perm);
-                      const permKw = extractCreatureKeywords(perm.meta);
-                      const kwTags = perm.isCreature
-                        ? formatCreatureKeywordTags({
-                            ...permKw,
-                            hasInfect: perm.hasInfect,
-                            toxicValue: perm.toxicValue,
-                          })
-                        : [];
+                  battlefield.map((perm, idx) => {
+                    const isLandOrRock = isBacklinePlaymatCard(perm);
+                    const isDraggingThis =
+                      pointerDragState?.kind === 'player' &&
+                      pointerDragState.uid === perm.uid;
+                    const fallbackSpot = computeOpenPlayerPlaymatSpot(
+                      battlefield.slice(0, idx),
+                      isLandOrRock
+                    );
+                    const posX = isDraggingThis
+                      ? pointerDragState.x
+                      : typeof perm.playmatX === 'number'
+                      ? perm.playmatX
+                      : fallbackSpot.x;
+                    const posY = isDraggingThis
+                      ? pointerDragState.y
+                      : typeof perm.playmatY === 'number'
+                      ? perm.playmatY
+                      : fallbackSpot.y;
+                    const posZ = isDraggingThis ? 90 : perm.playmatZ ?? idx + 2;
 
-                      const tokenPrimary =
-                        perm.tokenAbility === 'treasure'
-                          ? {
-                              label: 'Sac +1 Mana',
-                              onClick: () => onActivateTokenAbility?.(perm),
-                              tone: 'amber' as const,
-                            }
-                          : perm.tokenAbility === 'food'
-                          ? {
-                              label: 'Sac +3 HP',
-                              onClick: () => onActivateTokenAbility?.(perm),
-                              tone: 'emerald' as const,
-                            }
-                          : perm.tokenAbility === 'clue' || perm.tokenAbility === 'blood'
-                          ? {
-                              label: 'Sac Draw',
-                              onClick: () => onActivateTokenAbility?.(perm),
-                              tone: 'sky' as const,
-                            }
-                          : null;
+                    const stats = getEffectivePermanentStats(perm);
+                    const counterChips = formatPermanentCounterChips(perm);
+                    const permKw = extractCreatureKeywords(perm.meta);
+                    const kwTags = perm.isCreature
+                      ? formatCreatureKeywordTags({
+                          ...permKw,
+                          hasInfect: perm.hasInfect,
+                          toxicValue: perm.toxicValue,
+                        })
+                      : [];
 
-                      return (
+                    const tokenPrimary =
+                      perm.tokenAbility === 'treasure'
+                        ? {
+                            label: 'Sac +1 Mana',
+                            onClick: () => onActivateTokenAbility?.(perm),
+                            tone: 'amber' as const,
+                          }
+                        : perm.tokenAbility === 'food'
+                        ? {
+                            label: 'Sac +3 HP',
+                            onClick: () => onActivateTokenAbility?.(perm),
+                            tone: 'emerald' as const,
+                          }
+                        : perm.tokenAbility === 'clue' || perm.tokenAbility === 'blood'
+                        ? {
+                            label: 'Sac Draw',
+                            onClick: () => onActivateTokenAbility?.(perm),
+                            tone: 'sky' as const,
+                          }
+                        : null;
+
+                    return (
+                      <div
+                        key={perm.uid}
+                        style={{
+                          left: `${posX}%`,
+                          top: `${posY}%`,
+                          zIndex: posZ,
+                          transform: 'translate(-50%, -50%)',
+                        }}
+                        className={`absolute ${
+                          isDraggingThis
+                            ? 'transition-none'
+                            : 'transition-[left,top] duration-150 ease-out'
+                        }`}
+                      >
                         <TableCardTile
-                          key={perm.uid}
                           name={perm.name}
                           meta={perm.meta}
                           onInspect={onInspectCard}
-                          size="md"
+                          size={isLandOrRock ? 'sm' : 'md'}
                           tapped={perm.tapped}
                           attacking={perm.attacking}
                           summoningSick={perm.summoningSick}
-                          draggable={!botsAreActing && !pendingIncomingAttack && !isSimulationFinished}
-                          isDragTarget={dragOverCardUid === perm.uid}
-                          onDragStart={(e) =>
-                            beginDrag(e, {
-                              zone: 'battlefield',
+                          pointerDraggable={
+                            !botsAreActing &&
+                            !pendingIncomingAttack &&
+                            !isSimulationFinished
+                          }
+                          isPointerDragging={isDraggingThis}
+                          suppressNextClickRef={suppressCardClickRef}
+                          onPointerDownCard={(ev) =>
+                            startPlaymatPointerDrag(ev, {
+                              kind: 'player',
                               uid: perm.uid,
                               name: perm.name,
-                              lane: 'creatures',
+                              initialX: posX,
+                              initialY: posY,
                               isCreature: perm.isCreature,
                               isCommander: perm.isCommander,
-                              isToken: perm.isToken,
                               tapped: perm.tapped,
                             })
                           }
-                          onDragEnd={clearDragState}
-                          onDragOverCard={() => {
-                            if (
-                              dragSource?.zone === 'battlefield' &&
-                              dragSource.uid !== perm.uid
-                            ) {
-                              setDragOverCardUid(perm.uid);
-                            }
-                          }}
-                          onDropOnCard={() => {
-                            if (
-                              dragSource?.zone === 'battlefield' &&
-                              dragSource.uid !== perm.uid
-                            ) {
-                              onReorderBattlefield?.(dragSource.uid, perm.uid);
-                            }
-                            clearDragState();
-                          }}
                           cornerTag={
                             perm.attacking
                               ? 'ATK'
@@ -3053,7 +3556,9 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                           }
                           ptLabel={perm.isCreature ? `${stats.power}/${stats.toughness}` : null}
                           subLabel={
-                            kwTags.length > 0
+                            isLandOrRock
+                              ? perm.producedMana.slice(0, 2).join('/') || 'Mana'
+                              : kwTags.length > 0
                               ? kwTags.slice(0, 2).join(' · ')
                               : perm.isToken
                               ? perm.isCreature
@@ -3062,9 +3567,20 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                               : undefined
                           }
                           counterChips={counterChips}
+                          onTileClick={
+                            isLandOrRock ? () => onTogglePermanentTap(perm) : undefined
+                          }
                           primaryAction={
                             tokenPrimary
                               ? tokenPrimary
+                              : isLandOrRock
+                              ? {
+                                  label: perm.tapped
+                                    ? 'Untap'
+                                    : `+${perm.producedMana[0] || 'C'}`,
+                                  onClick: () => onTogglePermanentTap(perm),
+                                  tone: perm.tapped ? 'zinc' : 'emerald',
+                                }
                               : activePhase === 'Combat' &&
                                 perm.isCreature &&
                                 !perm.tapped &&
@@ -3102,126 +3618,13 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                               : {
                                   label: perm.isToken ? 'Del' : 'GY',
                                   onClick: () => onMovePermanentToGy(perm),
-                                  tone: 'red',
+                                  tone: isLandOrRock ? 'zinc' : 'red',
                                 }
                           }
                         />
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Back Row: Lands & Mana Rocks */}
-              <div
-                onDragOver={(e) => {
-                  if (
-                    dragSource &&
-                    (dragSource.zone === 'hand' ||
-                      dragSource.zone === 'graveyard' ||
-                      dragSource.zone === 'exile')
-                  ) {
-                    e.preventDefault();
-                    setActiveDropZone('lands');
-                  }
-                }}
-                onDragLeave={() => {
-                  if (activeDropZone === 'lands') setActiveDropZone(null);
-                }}
-                onDrop={handleDropOnLandsLane}
-                className={`rounded-lg border p-2.5 space-y-2 transition-colors ${
-                  activeDropZone === 'lands'
-                    ? 'border-emerald-400 bg-emerald-950/45 ring-2 ring-emerald-400/75'
-                    : 'border-[#247059] bg-[#0B392C]/75'
-                }`}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                  <span className="font-semibold text-emerald-100">
-                    Lands &amp; Mana Sources ({landsAndRocks.length})
-                  </span>
-                  <span className="font-mono text-[10px] tabular-nums text-emerald-200">
-                    {untappedLandsCount}/{totalLandsInPlay} untapped lands · {totalAvailableMana} total mana ready
-                  </span>
-                </div>
-
-                {landsAndRocks.length === 0 ? (
-                  <div className="py-2.5 text-center text-[11px] text-emerald-200/70">
-                    {activeDropZone === 'lands'
-                      ? 'Drop land or mana rock here!'
-                      : 'Drag a land from your hand here or click Play Land below.'}
-                  </div>
-                ) : (
-                  <div className="flex items-start gap-2 overflow-x-auto pb-1">
-                    {landsAndRocks.map((perm) => {
-                      const counterChips = formatPermanentCounterChips(perm);
-                      return (
-                        <TableCardTile
-                          key={perm.uid}
-                          name={perm.name}
-                          meta={perm.meta}
-                          onInspect={onInspectCard}
-                          size="sm"
-                          tapped={perm.tapped}
-                          draggable={!botsAreActing && !pendingIncomingAttack && !isSimulationFinished}
-                          isDragTarget={dragOverCardUid === perm.uid}
-                          onDragStart={(e) =>
-                            beginDrag(e, {
-                              zone: 'battlefield',
-                              uid: perm.uid,
-                              name: perm.name,
-                              lane: 'lands',
-                              isCreature: perm.isCreature,
-                              isCommander: perm.isCommander,
-                              isToken: perm.isToken,
-                              tapped: perm.tapped,
-                            })
-                          }
-                          onDragEnd={clearDragState}
-                          onDragOverCard={() => {
-                            if (
-                              dragSource?.zone === 'battlefield' &&
-                              dragSource.uid !== perm.uid
-                            ) {
-                              setDragOverCardUid(perm.uid);
-                            }
-                          }}
-                          onDropOnCard={() => {
-                            if (
-                              dragSource?.zone === 'battlefield' &&
-                              dragSource.uid !== perm.uid
-                            ) {
-                              onReorderBattlefield?.(dragSource.uid, perm.uid);
-                            }
-                            clearDragState();
-                          }}
-                          subLabel={perm.producedMana.slice(0, 2).join('/')}
-                          counterChips={counterChips}
-                          onTileClick={() => onTogglePermanentTap(perm)}
-                          primaryAction={{
-                            label: perm.tapped ? 'Untap' : `+${perm.producedMana[0] || 'C'}`,
-                            onClick: () => onTogglePermanentTap(perm),
-                            tone: perm.tapped ? 'zinc' : 'emerald',
-                          }}
-                          counterAction={
-                            onAdjustPermanentCounter
-                              ? {
-                                  active: editingCounterUid === perm.uid,
-                                  onClick: () =>
-                                    setEditingCounterUid((cur) =>
-                                      cur === perm.uid ? null : perm.uid
-                                    ),
-                                }
-                              : undefined
-                          }
-                          secondaryAction={{
-                            label: 'GY',
-                            onClick: () => onMovePermanentToGy(perm),
-                            tone: 'zinc',
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -3229,6 +3632,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
 
           {/* 5. Bottom Hand Tray (also acts as drop target to bounce permanents or return from GY) */}
           <div
+            data-tabletop-drop="hand"
             onDragOver={(e) => {
               if (
                 dragSource &&
@@ -3382,6 +3786,46 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
       preview={hoveredCard}
       enabled={hoverZoomEnabled}
       onDismiss={handleHidePreview}
+    />
+    <TabletopPlaymatCustomizerModal
+      isOpen={showPlaymatCustomizer}
+      onClose={() => setShowPlaymatCustomizer(false)}
+      preferences={playmatPrefs}
+      onChangePreferences={setPlaymatPrefs}
+      seatLabels={[
+        `Seat 1 (You · ${deckName || 'Your Deck'})`,
+        liveBotMode
+          ? liveBots[0]?.name && `Seat 2 (${liveBots[0].name})`
+          : opponentTrackers[0]?.name && `Seat 2 (${opponentTrackers[0].name})`,
+        liveBotMode
+          ? liveBots[1]?.name && `Seat 3 (${liveBots[1].name})`
+          : opponentTrackers[1]?.name && `Seat 3 (${opponentTrackers[1].name})`,
+        liveBotMode
+          ? liveBots[2]?.name && `Seat 4 (${liveBots[2].name})`
+          : opponentTrackers[2]?.name && `Seat 4 (${opponentTrackers[2].name})`,
+      ]}
+    />
+    <CustomCardProxyTokenModal
+      isOpen={showCustomCardStudio}
+      onClose={() => setShowCustomCardStudio(false)}
+      preferences={customCardPrefs}
+      onChangePreferences={setCustomCardPrefs}
+      deckCardNames={allTableCardNames}
+      onSpawnTokenOnBattlefield={
+        onCreateToken && !isSimulationFinished
+          ? (token) => {
+              onCreateToken({
+                name: token.name,
+                kind: token.kind,
+                power: token.power,
+                toughness: token.toughness,
+                quantity: token.quantity,
+                keywords: token.keywords,
+                tokenAbility: token.tokenAbility,
+              });
+            }
+          : undefined
+      }
     />
     </TabletopHoverContext.Provider>
   );

@@ -10,6 +10,10 @@ import {
   hideGlobalCardHover,
   showGlobalCardHover,
 } from './CardHoverZoomOverlay';
+import {
+  getScryfallFallbackImageUri,
+  resolveCardWithCustomProxy,
+} from '../utils/customCardProxiesAndTokens';
 
 interface CardGalleryPanelProps {
   analysis: DeckAnalysisResult;
@@ -226,7 +230,11 @@ export const CardGalleryPanel: React.FC<CardGalleryPanelProps> = memo(({
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {visibleItems.map((item) => {
-              const imgUri = item.meta?.imageUri || '';
+              const resolved = resolveCardWithCustomProxy(item.name, item.meta || null);
+              const imgUri =
+                resolved.meta?.imageUri ||
+                item.meta?.imageUri ||
+                getScryfallFallbackImageUri(item.name);
               const isBroken = !imgUri || failedImages.has(item.id);
 
               return (

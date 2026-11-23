@@ -16,6 +16,10 @@ import {
   hideGlobalCardHover,
   showGlobalCardHover,
 } from './CardHoverZoomOverlay';
+import {
+  getScryfallFallbackImageUri,
+  resolveCardWithCustomProxy,
+} from '../utils/customCardProxiesAndTokens';
 
 export interface ZoneViewerCardItem {
   uid: string;
@@ -347,8 +351,12 @@ export const ZoneViewerModal: React.FC<ZoneViewerModalProps> = ({
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {filteredCards.map((card, index) => {
-                const imgUri = card.meta?.imageUri;
-                const manaCost = card.meta?.manaCost;
+                const resolved = resolveCardWithCustomProxy(card.name, card.meta || null);
+                const imgUri =
+                  resolved.meta?.imageUri ||
+                  card.meta?.imageUri ||
+                  getScryfallFallbackImageUri(card.name);
+                const manaCost = resolved.meta?.manaCost || card.meta?.manaCost;
                 return (
                   <div
                     key={`${card.uid}-${index}`}

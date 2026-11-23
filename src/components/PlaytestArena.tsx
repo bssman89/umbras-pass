@@ -23,17 +23,20 @@ import {
   RefreshCw,
   RotateCcw,
   Shuffle,
+  Sliders,
   Sparkles,
   Swords,
   ThumbsDown,
   ThumbsUp,
   Trash2,
   Trophy,
+  Users,
   Wrench,
   X,
 } from 'lucide-react';
 import type {
   BotIndignanceLevel,
+  BotIntelligenceLevel,
   BotLearningProfile,
   BotOpponentConfig,
   CardMetadata,
@@ -50,6 +53,10 @@ import {
   BOT_INDIGNANCE_OPTIONS,
   getBotIndignanceMeta,
 } from '../utils/botIndignance';
+import {
+  BOT_INTELLIGENCE_OPTIONS,
+  getBotIntelligenceMeta,
+} from '../utils/botIntelligence';
 import {
   applyUserCoachingToBotProfile,
   createDefaultBotProfile,
@@ -100,6 +107,7 @@ import {
   type TutorialStepId,
 } from './PlaytestTutorialModal';
 import { TurnSummaryModal } from './TurnSummaryModal';
+import { MultiplayerSessionHub } from './MultiplayerSessionHub';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
 const InteractiveTurnSimulator = lazyWithRetry(() =>
   import('./InteractiveTurnSimulator').then((m) => ({
@@ -250,6 +258,8 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
   const [opponentsByMode, setOpponentsByMode] = useState<
     Record<PlaytestMode, BotOpponentConfig[]>
   >(DEFAULT_OPPONENTS_BY_MODE);
+  const [isMultiplayerHubOpen, setIsMultiplayerHubOpen] = useState(false);
+  const [isSetupExpanded, setIsSetupExpanded] = useState(true);
 
   const [expandedBrainKey, setExpandedBrainKey] = useState<string | null>(null);
   const [inlineCoachTextByKey, setInlineCoachTextByKey] = useState<Record<string, string>>({});
@@ -284,6 +294,15 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
   useEffect(() => {
     onPlaytestResultChange?.(result);
   }, [result, onPlaytestResultChange]);
+
+  useEffect(() => {
+    const handleOpenMultiplayer = () => {
+      setIsMultiplayerHubOpen(true);
+    };
+    window.addEventListener('umbras:open-multiplayer-hub', handleOpenMultiplayer);
+    return () =>
+      window.removeEventListener('umbras:open-multiplayer-hub', handleOpenMultiplayer);
+  }, []);
   const [manaTagsByRound, setManaTagsByRound] = useState<
     Record<number, ManaIssueTag | undefined>
   >({});
@@ -443,11 +462,26 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
 
   useEffect(() => {
     const uncachedNames = new Set<string>();
+    const needsFullScryfallResolve = (name: string) => {
+      const existing = findMetaFromMap(cardMetaLookup, name);
+      if (!existing) return true;
+      if (!existing.imageUri || existing.imageUri.includes('api.scryfall.com/cards/named')) {
+        return true;
+      }
+      return false;
+    };
+
+    for (const rc of analysis.resolvedCards ?? []) {
+      if (needsFullScryfallResolve(rc.name)) {
+        uncachedNames.add(rc.name);
+      }
+    }
+
     const collectFromText = (raw: string) => {
       if (!raw || !raw.trim()) return;
       const parsed = parseDecklistClientSide(raw);
       for (const c of parsed.cards.slice(0, 115)) {
-        if (!findMetaFromMap(cardMetaLookup, c.name)) {
+        if (needsFullScryfallResolve(c.name)) {
           uncachedNames.add(c.name);
         }
       }
@@ -465,14 +499,14 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
         const bias = detectArchetypeCombatBias(opp, [], detectedFormat);
         if (
           bias.defaultCommanderName &&
-          !findMetaFromMap(cardMetaLookup, bias.defaultCommanderName)
+          needsFullScryfallResolve(bias.defaultCommanderName)
         ) {
           uncachedNames.add(bias.defaultCommanderName);
         }
       }
     }
     for (const presetName of getPresetBotCardNames(presetArchetypes)) {
-      if (!findMetaFromMap(cardMetaLookup, presetName)) {
+      if (needsFullScryfallResolve(presetName)) {
         uncachedNames.add(presetName);
       }
     }
@@ -518,14 +552,14 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [botCustomTextsKey, playerCustomDeckText, detectedFormat]);
+  }, [analysis, botCustomTextsKey, playerCustomDeckText, detectedFormat]);
 
   const buildResolvedListForPlaytest = (
     overrideRawText?: string
   ): ResolvedDeckCard[] => {
     const baseCards: ResolvedDeckCard[] = (analysis.resolvedCards ?? []).map((c) => ({
       ...c,
-      card: c.card || findMetaFromMap(cardMetaLookup, c.name) || null,
+      card: findMetaFromMap(cardMetaLookup, c.name) || c.card || null,
     }));
     const explicitOriginalCmds = new Set(
       baseCards
@@ -758,10 +792,23 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
     }));
   };
 
+  const setAllModeBotsIntelligence = (level: BotIntelligenceLevel) => {
+    setOpponentsByMode((prev) => ({
+      ...prev,
+      [mode]: prev[mode].map((opp) => ({ ...opp, intelligence: level })),
+    }));
+  };
+
   const sharedModeIndignance: BotIndignanceLevel | 'mixed' = visibleOpponents.every(
     (opp) => (opp.indignance || 'measured') === (visibleOpponents[0]?.indignance || 'measured')
   )
     ? visibleOpponents[0]?.indignance || 'measured'
+    : 'mixed';
+
+  const sharedModeIntelligence: BotIntelligenceLevel | 'mixed' = visibleOpponents.every(
+    (opp) => (opp.intelligence || 'tactical') === (visibleOpponents[0]?.intelligence || 'tactical')
+  )
+    ? visibleOpponents[0]?.intelligence || 'tactical'
     : 'mixed';
 
   const handleCopyLoadedDeck = async () => {
@@ -1211,16 +1258,14 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
   const activeRound = result?.rounds[activeRoundIdx] || null;
 
   return (
-    <section id="playtest-section" className="space-y-6 scroll-mt-20">
+    <section id="playtest-section" className="space-y-5 scroll-mt-20">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 className="font-display text-xl font-bold text-zinc-900">
-            Bot Playtest
+            Playtest &amp; Tabletop Arena
           </h2>
-          <p className="mt-0.5 text-sm text-zinc-600">
-            {autoLearnEnabled
-              ? `Play live 2–4 player ${detectedFormat} games or run quick simulations against adaptive AI bots.`
-              : `Play live 2–4 player ${detectedFormat} games or run simulations using your saved bot coaching.`}
+          <p className="mt-0.5 text-xs text-zinc-600">
+            Configure your {detectedFormat} pod below to play live on the tabletop with AI bots or friends (LAN / Online), or auto-simulate matches.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -1230,7 +1275,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
             className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 hover:text-zinc-900 whitespace-nowrap shrink-0 cursor-pointer"
           >
             <BookOpen className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-            Playtest &amp; Bot Guide
+            Playtest Guide
           </button>
           {localAiEngineInfo && (
             <button
@@ -1244,92 +1289,104 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
             >
               <Cpu className="h-3.5 w-3.5 text-sky-700 shrink-0" />
               {localAiEngineInfo.effectiveEngine === 'local-gguf'
-                ? `${localAiEngineInfo.modelLabel} (.gguf · ${localAiEngineInfo.computeLabel}) · ${autoLearnEnabled ? 'Auto-Learn On' : 'Manual Coaching Only'}`
+                ? `${localAiEngineInfo.modelLabel} (.gguf)`
                 : localAiEngineInfo.effectiveEngine === 'cloud-gemini'
-                  ? `${localAiEngineInfo.modelLabel} · ${autoLearnEnabled ? 'Auto-Learn On' : 'Manual Coaching Only'}`
-                  : `Configure Local .gguf AI Model${!autoLearnEnabled ? ' (Auto-Learn Off)' : ''}`}
+                  ? `${localAiEngineInfo.modelLabel}`
+                  : 'Local AI Engine'}
             </button>
           )}
         </div>
       </div>
 
-      {/* Match Configuration Panel */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-6 space-y-5">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-100 pb-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div>
-              <div className="text-xs font-medium text-zinc-500 mb-1.5">Table Size</div>
-              <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
-                {(['1v1', '1v2', '1v3'] as PlaytestMode[]).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setMode(m)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                      mode === m
-                        ? 'bg-white text-zinc-900 shadow-sm'
-                        : 'text-zinc-600 hover:text-zinc-900'
-                    }`}
-                  >
-                    {m === '1v1' ? '1v1 (2 Players)' : m === '1v2' ? '1v2 (3 Players)' : '1v3 (4-Player Pod)'}
-                  </button>
-                ))}
-              </div>
+      {/* Unified Pod, Deck & AI Bot Setup Card */}
+      <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Table Size */}
+            <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
+              {(['1v1', '1v2', '1v3'] as PlaytestMode[]).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMode(m)}
+                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    mode === m
+                      ? 'bg-white text-zinc-900 shadow-sm'
+                      : 'text-zinc-600 hover:text-zinc-900'
+                  }`}
+                >
+                  {m === '1v1' ? '1v1 Duel' : m === '1v2' ? '1v2 (3P)' : '1v3 Pod (4P)'}
+                </button>
+              ))}
             </div>
 
-            <div>
-              <div className="text-xs font-medium text-zinc-500 mb-1.5">Your Deck Version</div>
-              <div className="inline-flex flex-wrap items-center gap-1 rounded-lg bg-zinc-100 p-1">
-                <button
-                  type="button"
-                  onClick={() => setDeckVersion('original')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    deckVersion === 'original'
-                      ? 'bg-white text-zinc-900 shadow-sm'
-                      : 'text-zinc-600 hover:text-zinc-900'
-                  }`}
-                >
-                  Original Upload
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPlayerCustomDeckText(null);
-                    setDeckVersion('mana-optimized');
-                  }}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    deckVersion === 'mana-optimized'
-                      ? 'bg-white text-sky-900 shadow-sm'
-                      : 'text-zinc-600 hover:text-zinc-900'
-                  }`}
-                >
-                  <RefreshCw className={`h-3 w-3 ${deckVersion === 'mana-optimized' ? 'text-sky-700' : 'text-zinc-400'}`} />
-                  <span>Mana Optimization</span>
-                  {selectedLandChangesCount > 0 && (
-                    <span className="font-mono text-[11px] text-sky-700">
-                      ({selectedLandChangesCount})
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPlayerCustomDeckText(null);
-                    setDeckVersion('full-optimized');
-                  }}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                    deckVersion === 'full-optimized'
-                      ? 'bg-white text-zinc-900 shadow-sm'
-                      : 'text-zinc-600 hover:text-zinc-900'
-                  }`}
-                >
-                  All Analyzer Fixes
-                </button>
-              </div>
+            {/* Your Deck Version */}
+            <div className="inline-flex flex-wrap items-center gap-1 rounded-lg bg-zinc-100 p-1">
+              <button
+                type="button"
+                onClick={() => setDeckVersion('original')}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  deckVersion === 'original'
+                    ? 'bg-white text-zinc-900 shadow-sm'
+                    : 'text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                Original Deck
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPlayerCustomDeckText(null);
+                  setDeckVersion('mana-optimized');
+                }}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  deckVersion === 'mana-optimized'
+                    ? 'bg-white text-sky-900 shadow-sm'
+                    : 'text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                <RefreshCw className={`h-3 w-3 ${deckVersion === 'mana-optimized' ? 'text-sky-700' : 'text-zinc-400'}`} />
+                <span>Mana Fixes</span>
+                {selectedLandChangesCount > 0 && (
+                  <span className="font-mono text-[11px] text-sky-700">
+                    ({selectedLandChangesCount})
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPlayerCustomDeckText(null);
+                  setDeckVersion('full-optimized');
+                }}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  deckVersion === 'full-optimized'
+                    ? 'bg-white text-zinc-900 shadow-sm'
+                    : 'text-zinc-600 hover:text-zinc-900'
+                }`}
+              >
+                All Fixes
+              </button>
             </div>
+
+            {!isSetupExpanded && (
+              <div className="hidden xl:flex items-center gap-1.5 text-xs text-zinc-600">
+                <span className="font-semibold text-zinc-900">
+                  {analysis.deckName || 'Your Deck'}
+                </span>
+                <span className="text-zinc-300" aria-hidden="true">·</span>
+                <span className="font-mono tabular-nums">
+                  {effectiveUserDeck.totalMainAndCmd} cards
+                </span>
+                <span className="text-zinc-300" aria-hidden="true">·</span>
+                <span>
+                  vs {visibleOpponents.map((o) => o.name).join(', ')}
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => {
@@ -1340,913 +1397,786 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                   block: 'start',
                 });
               }}
-              title="Play turn-by-turn live against the configured bots"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+              title="Start or reshuffle a live turn-by-turn tabletop game against these AI bots"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3.5 py-2 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Bot className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-              <span>Play Live vs Bots</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setPlayAreaMode('replay');
-                document.getElementById('interactive-live-game')?.scrollIntoView({
-                  behavior: 'smooth',
-                  block: 'start',
-                });
-              }}
-              title="Inspect simulated bot match rounds in the unified visual play area"
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                playAreaMode === 'replay'
-                  ? 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100'
-                  : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'
-              }`}
-            >
-              <LayoutGrid className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-              <span>Visual Board Replay</span>
+              <Bot className="h-3.5 w-3.5 shrink-0" />
+              <span>Play Live Tabletop</span>
             </button>
 
             <button
               type="button"
               onClick={() => void handleRunPlaytest(false)}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-lg bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+              title="Auto-simulate a multi-round bot match and inspect turn-by-turn replays & analytics"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3.5 py-2 text-xs font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
             >
               {loading ? (
                 <>
-                  <Shuffle className="h-4 w-4 animate-spin" />
-                  Shuffling &amp; Simulating {mode}...
+                  <Shuffle className="h-3.5 w-3.5 animate-spin text-sky-700" />
+                  <span>Simulating {mode}...</span>
                 </>
               ) : result ? (
                 <>
-                  <RotateCcw className="h-4 w-4" />
-                  Re-Shuffle &amp; Play Again
+                  <RotateCcw className="h-3.5 w-3.5 text-sky-700" />
+                  <span>Re-Simulate {mode}</span>
                 </>
               ) : (
                 <>
-                  <Play className="h-4 w-4" />
-                  Play {mode} Bot Match
+                  <Play className="h-3.5 w-3.5 text-sky-700" />
+                  <span>Auto-Simulate Match</span>
                 </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsMultiplayerHubOpen(true)}
+              title="Host or join a 1–4 player LAN or self-hosted online multiplayer session with friends and AI bots"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+            >
+              <Users className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+              <span>Multiplayer (LAN / Online)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsSetupExpanded((v) => !v)}
+              aria-expanded={isSetupExpanded}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0"
+            >
+              <Sliders className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+              <span>{isSetupExpanded ? 'Hide Setup' : `Configure Pod & Bots (${botCount})`}</span>
+              {isSetupExpanded ? (
+                <ChevronUp className="h-3.5 w-3.5 text-zinc-500" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />
               )}
             </button>
           </div>
         </div>
 
-        {/* Loaded User Commander & Decklist Verification Bar */}
-        <div className="rounded-lg border border-zinc-200 bg-zinc-50/70 p-4 space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-700">
-              <span className="inline-flex items-center gap-1.5 font-semibold text-zinc-900">
-                <Crown className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-                Your Active Deck:
-              </span>
-              <span className="font-semibold text-zinc-900">
-                {analysis.deckName || 'Your Deck'}
-              </span>
-              <span className="text-zinc-300" aria-hidden="true">·</span>
-              <span className="capitalize font-medium">{detectedFormat}</span>
-              <span className="text-zinc-300" aria-hidden="true">·</span>
-              <span className="font-mono tabular-nums font-semibold text-zinc-900">
-                {effectiveUserDeck.totalMainAndCmd} cards
-              </span>
-              <span className="font-mono tabular-nums text-zinc-600">
-                ({effectiveUserDeck.cmdQty > 0 ? `${effectiveUserDeck.cmdQty} Cmdr + ` : ''}
-                {effectiveUserDeck.mainQty} Main · {effectiveUserDeck.landCount} Lands)
-              </span>
-              {isCommanderFormat && effectiveUserDeck.totalMainAndCmd !== 100 && (
-                <span className="inline-flex items-center gap-1 text-amber-700 font-medium">
-                  <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                  Target 100
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {playerCustomDeckText && (
-                <span className="text-[11px] font-medium text-sky-700">
-                  Custom Playtest List Active
-                </span>
-              )}
-              {resolvingCustomMeta && (
-                <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Resolving Scryfall...
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isEditingPlayerDeck) {
-                    setPlayerDeckDraftText(
-                      playerCustomDeckText ?? effectiveUserDeck.serializedText
-                    );
-                  }
-                  setIsEditingPlayerDeck((v) => !v);
-                }}
-                className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer"
-              >
-                <Pencil className="h-3 w-3 text-sky-700" />
-                {isEditingPlayerDeck ? 'Close Editor' : 'Edit List'}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleCopyLoadedDeck()}
-                className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer"
-              >
-                {copiedLoadedDeck ? (
-                  <>
-                    <Check className="h-3 w-3 text-emerald-700" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="h-3 w-3" />
-                    Copy List
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowLoadedDeckPreview((v) => !v)}
-                className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer"
-              >
-                <Eye className="h-3 w-3 text-sky-700" />
-                {showLoadedDeckPreview ? 'Hide Decklist' : `Verify List (${effectiveUserDeck.totalMainAndCmd})`}
-                {showLoadedDeckPreview ? (
-                  <ChevronUp className="h-3 w-3" />
-                ) : (
-                  <ChevronDown className="h-3 w-3" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between border-t border-zinc-200/70 pt-2.5">
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-medium text-zinc-600">Commander in Command Zone:</span>
-              {effectiveUserDeck.commanders.length > 0 ? (
-                effectiveUserDeck.commanders.map((cmd, cIdx) => (
-                  <React.Fragment key={cmd.name}>
-                    {cIdx > 0 && <span className="text-zinc-400">&amp;</span>}
-                    <CardLink
-                      name={cmd.name}
-                      meta={cmd.card || findMeta(cmd.name)}
-                      onInspect={onInspectCard}
-                    />
-                  </React.Fragment>
-                ))
-              ) : (
-                <span className="text-amber-700 font-medium">
-                  {isCommanderFormat
-                    ? 'No Commander tagged yet — pick your Commander on the right'
-                    : 'None (non-Commander format)'}
-                </span>
-              )}
-            </div>
-
-            {effectiveUserDeck.uniqueCardNames.length > 0 && (
-              <div className="flex items-center gap-2">
-                <label
-                  htmlFor="playtest-player-commander-select"
-                  className="text-[11px] font-medium text-zinc-600 whitespace-nowrap"
-                >
-                  {effectiveUserDeck.commanders.length > 0 ? 'Switch Commander:' : 'Set Commander:'}
-                </label>
-                <select
-                  id="playtest-player-commander-select"
-                  value={effectiveUserDeck.commanders[0]?.name || ''}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setPlayerCommanderOverride(val || null);
-                  }}
-                  className="max-w-[230px] rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
-                >
-                  <option value="">
-                    {effectiveUserDeck.commanders.length > 0
-                      ? 'Auto / Imported Commander'
-                      : 'Select Commander from deck...'}
-                  </option>
-                  {effectiveUserDeck.uniqueCardNames.map((cardName) => (
-                    <option key={cardName} value={cardName}>
-                      {cardName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
-
-          {deckVersion === 'mana-optimized' && (
-            <div className="flex flex-wrap items-center justify-between gap-2.5 border-t border-zinc-200/70 pt-2.5 text-xs">
-              <div className="flex flex-wrap items-center gap-2 text-zinc-700">
-                <RefreshCw className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-                <span className="font-semibold text-zinc-900">
-                  Live-synced with Mana &amp; Lands
-                </span>
-                <span className="text-zinc-300" aria-hidden="true">·</span>
-                {selectedLandChangesCount > 0 ? (
-                  <span className="font-mono text-[11px] text-sky-800">
-                    {selectedLandChangesCount} land adjustment{selectedLandChangesCount === 1 ? '' : 's'} active ({effectiveUserDeck.landCount} lands)
+        {isSetupExpanded && (
+          <div className="space-y-4 border-t border-zinc-100 pt-4">
+            {/* Compact Active Deck & Commander Strip */}
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50/70 px-3.5 py-2.5 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-700">
+                  <Crown className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                  <span className="font-semibold text-zinc-900">
+                    {analysis.deckName || 'Your Deck'}
                   </span>
-                ) : totalLandChangesCount > 0 ? (
-                  <span className="text-amber-800">
-                    No land fixes selected yet — apply recommended fixes or toggle individually in Mana &amp; Lands.
+                  <span className="text-zinc-300" aria-hidden="true">·</span>
+                  <span className="capitalize font-medium">{detectedFormat}</span>
+                  <span className="text-zinc-300" aria-hidden="true">·</span>
+                  <span className="font-mono tabular-nums font-semibold text-zinc-900">
+                    {effectiveUserDeck.totalMainAndCmd} cards
                   </span>
-                ) : (
-                  <span className="text-zinc-600">
-                    No land adjustments recommended for this list ({effectiveUserDeck.landCount} lands).
+                  <span className="font-mono tabular-nums text-zinc-500">
+                    ({effectiveUserDeck.landCount} lands)
                   </span>
-                )}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                {selectedLandChangesCount === 0 && totalLandChangesCount > 0 && onApplyAllManaFixes && (
-                  <button
-                    type="button"
-                    onClick={onApplyAllManaFixes}
-                    className="rounded-md bg-sky-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap"
-                  >
-                    Apply All Mana Fixes ({totalLandChangesCount})
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() =>
-                    window.dispatchEvent(
-                      new CustomEvent<string>('deck-navigate-section', {
-                        detail: 'mana-section',
-                      })
-                    )
-                  }
-                  className="rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap"
-                >
-                  Adjust in Mana &amp; Lands
-                </button>
-              </div>
-            </div>
-          )}
-
-          {manaSyncNotice && (
-            <div className="flex items-center justify-between gap-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-900">
-              <span>{manaSyncNotice}</span>
-              <button
-                type="button"
-                onClick={() => setManaSyncNotice(null)}
-                aria-label="Dismiss sync notice"
-                className="text-sky-700 hover:text-sky-900 cursor-pointer"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
-
-          {isEditingPlayerDeck && (
-            <div className="rounded-md border border-zinc-200 bg-white p-3 space-y-2">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-                <span className="font-semibold text-zinc-700">
-                  Edit / Paste Your Active Decklist (include Commander section or select above)
-                </span>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void handlePasteCustomText('player-draft', (text) =>
-                        setPlayerDeckDraftText(text)
-                      )
-                    }
-                    className="inline-flex items-center gap-1 rounded border border-zinc-300 bg-zinc-50 px-2 py-0.5 font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer"
-                  >
-                    {clipboardNoticeKey === 'player-draft:pasted' ? (
-                      <>
-                        <Check className="h-3 w-3 text-emerald-700" />
-                        <span>Pasted</span>
-                      </>
-                    ) : (
-                      <>
-                        <ClipboardPaste className="h-3 w-3 text-sky-700" />
-                        <span>Paste</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!playerDeckDraftText.trim()}
-                    onClick={() =>
-                      void handleCopyCustomText('player-draft', playerDeckDraftText)
-                    }
-                    className="inline-flex items-center gap-1 rounded border border-zinc-300 bg-zinc-50 px-2 py-0.5 font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer"
-                  >
-                    {clipboardNoticeKey === 'player-draft:copied' ? (
-                      <>
-                        <Check className="h-3 w-3 text-emerald-700" />
-                        <span>Copied</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-3 w-3 text-sky-700" />
-                        <span>Copy</span>
-                      </>
-                    )}
-                  </button>
-                  {playerCustomDeckText && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPlayerCustomDeckText(null);
-                        setPlayerCommanderOverride(null);
-                        setIsEditingPlayerDeck(false);
-                      }}
-                      className="rounded border border-zinc-300 bg-zinc-50 px-2 py-0.5 font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer"
-                    >
-                      Reset to Analyzed
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const trimmed = playerDeckDraftText.trim();
-                      setPlayerCustomDeckText(trimmed ? playerDeckDraftText : null);
-                      setPlayerCommanderOverride(null);
-                      setDeckVersion('original');
-                      setIsEditingPlayerDeck(false);
-                    }}
-                    className="rounded bg-sky-700 px-2.5 py-0.5 font-semibold text-white hover:bg-sky-800 cursor-pointer"
-                  >
-                    Apply Decklist
-                  </button>
-                </div>
-              </div>
-              {clipboardNoticeKey === 'player-draft:blocked' && (
-                <div className="text-[11px] text-amber-700">
-                  Clipboard read blocked — click in the text box below and press Ctrl+V (Cmd+V on Mac).
-                </div>
-              )}
-              <textarea
-                rows={6}
-                value={playerDeckDraftText}
-                onChange={(e) => setPlayerDeckDraftText(e.target.value)}
-                placeholder="Commander&#10;1 Atraxa, Praetors' Voice&#10;&#10;Deck&#10;1 Sol Ring&#10;..."
-                className="w-full rounded-md border border-zinc-300 bg-zinc-50/60 p-2 font-mono text-[11px] text-zinc-900 focus:border-sky-600 focus:bg-white focus:outline-none"
-              />
-            </div>
-          )}
-
-          {showLoadedDeckPreview && (
-            <div className="rounded-md border border-zinc-200 bg-white p-3">
-              <div className="mb-1.5 flex items-center justify-between text-[11px] text-zinc-500">
-                <span>
-                  Exact decklist fed to Bot Match &amp; Turn Simulator (
-                  {deckVersion === 'mana-optimized'
-                    ? 'Mana Optimization Synced'
-                    : deckVersion === 'full-optimized'
-                    ? 'With Analyzer Fixes'
-                    : playerCustomDeckText
-                    ? 'Edited in Playtester'
-                    : 'Original Upload'}
-                  )
-                </span>
-                <span className="font-mono tabular-nums">
-                  {effectiveUserDeck.totalMainAndCmd} cards
-                </span>
-              </div>
-              <pre className="max-h-52 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-zinc-800">
-                {effectiveUserDeck.serializedText}
-              </pre>
-            </div>
-          )}
-        </div>
-
-        {/* Opponent Bot Slots with Adaptive Bot IQ & Memory Inspector */}
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="text-xs text-zinc-600">
-              <span className="font-semibold text-zinc-800">
-                {mode} AI Opponents ({botCount} {botCount === 1 ? 'Bot' : 'Bots'})
-              </span>
-              <span className="mx-1.5 text-zinc-300" aria-hidden="true">·</span>
-              <span>Each bot retains matchup lessons per archetype or custom decklist.</span>
-              <span className="mx-1.5 text-zinc-300" aria-hidden="true">·</span>
-              <button
-                type="button"
-                onClick={() => openTutorial('learning')}
-                className="font-semibold text-sky-700 hover:text-sky-900 underline cursor-pointer"
-              >
-                How Bot Learning works
-              </button>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={handleMirrorUserDeckToAllBots}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <Copy className="h-3 w-3" />
-                {botCount > 1 ? 'Mirror Your Deck to All Bots' : 'Load Your Deck for Bot'}
-              </button>
-
-              {botCount > 1 && (
-                <div className="flex items-center gap-2">
-                  <label
-                    htmlFor={`bulk-indignance-${mode}`}
-                    className="text-xs font-medium text-zinc-500 whitespace-nowrap"
-                  >
-                    Set all {mode} bots:
-                  </label>
-                  <select
-                    id={`bulk-indignance-${mode}`}
-                    value={sharedModeIndignance}
-                    onChange={(e) => {
-                      if (e.target.value !== 'mixed') {
-                        setAllModeBotsIndignance(e.target.value as BotIndignanceLevel);
-                      }
-                    }}
-                    className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-medium text-zinc-800 focus:border-sky-600 focus:outline-none cursor-pointer"
-                  >
-                    {sharedModeIndignance === 'mixed' && (
-                      <option value="mixed" disabled>
-                        Mixed levels
-                      </option>
-                    )}
-                    {BOT_INDIGNANCE_OPTIONS.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div
-            className={`grid grid-cols-1 gap-4 ${
-              botCount === 1
-                ? 'md:grid-cols-1 max-w-xl'
-                : botCount === 2
-                ? 'md:grid-cols-2'
-                : 'md:grid-cols-3'
-            }`}
-          >
-            {visibleOpponents.map((opp, idx) => {
-              const indignanceMeta = getBotIndignanceMeta(opp.indignance);
-              const botKey = resolveBotLearningKey(opp);
-              const profile = getBotProfileForOpp(opp);
-              const isBrainOpen = expandedBrainKey === `${opp.id}:${botKey}`;
-              const totalLessons =
-                profile.learnedFromFacedDecks.length +
-                profile.learnedFromOwnDecks.length +
-                profile.tacticalDirectives.length;
-
-              return (
-                <div
-                  key={opp.id}
-                  className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-4 space-y-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-zinc-700">
-                      Opponent {idx + 1}
+                  {isCommanderFormat && effectiveUserDeck.totalMainAndCmd !== 100 && (
+                    <span className="inline-flex items-center gap-1 text-amber-700 font-medium">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      Target 100
                     </span>
-                    <input
-                      type="text"
-                      value={opp.name}
-                      onChange={(e) => updateOpponent(idx, { name: e.target.value })}
-                      aria-label={`Opponent ${idx + 1} name`}
-                      className="w-36 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-900 focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-
-                  {/* Adaptive Bot IQ & Memory Strip */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-sky-200 bg-sky-50/70 px-2.5 py-1.5 text-[11px]">
-                    <div className="flex items-center gap-1.5 font-semibold text-sky-900">
-                      <Brain className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-                      <span>Bot IQ {profile.botIqScore}</span>
-                      <span className="text-sky-400">·</span>
-                      <span className="font-mono text-zinc-700">
-                        {profile.matchesPlayed} {profile.matchesPlayed === 1 ? 'game' : 'games'} ({profile.wins}W-{profile.losses}L)
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setExpandedBrainKey(isBrainOpen ? null : `${opp.id}:${botKey}`)
-                      }
-                      className="font-semibold text-sky-700 hover:text-sky-900 underline cursor-pointer"
-                    >
-                      {isBrainOpen ? 'Hide Brain' : `Brain (${totalLessons})`}
-                    </button>
-                  </div>
-
-                  {isBrainOpen && (
-                    <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2.5 text-[11px]">
-                      <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-1.5">
-                        <span className="font-bold text-zinc-900">
-                          Adaptive Memory · {opp.name}
-                        </span>
-                        {profile.matchesPlayed > 0 || totalLessons > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => onResetBotMemory(botKey)}
-                            className="inline-flex items-center gap-1 text-red-700 hover:text-red-900 font-medium cursor-pointer"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                            Reset Bot
-                          </button>
-                        ) : null}
-                      </div>
-
-                      {profile.matchesPlayed > 0 && (
-                        <div className="rounded border border-zinc-100 bg-zinc-50 px-2.5 py-2 space-y-1 font-mono text-[10px] tabular-nums text-zinc-600">
-                          <div className="flex flex-wrap items-center justify-between gap-1 text-zinc-800 font-semibold">
-                            <span>
-                              Record: {profile.wins}W-{profile.losses}L-{profile.closes}C (
-                              {Math.round((profile.wins / Math.max(1, profile.matchesPlayed)) * 100)}% WR)
-                            </span>
-                            <span className="text-sky-700">IQ {profile.botIqScore}</span>
-                          </div>
-                          {profile.cumulativeStats && (
-                            <div>
-                              Avg/Game: {(profile.cumulativeStats.totalDamageDealt / Math.max(1, profile.matchesPlayed)).toFixed(1)} Dmg ·{' '}
-                              {(profile.cumulativeStats.totalPoisonDealt / Math.max(1, profile.matchesPlayed)).toFixed(1)} Poison ·{' '}
-                              {(profile.cumulativeStats.totalCommanderDamageDealt / Math.max(1, profile.matchesPlayed)).toFixed(1)} Cmdr ·{' '}
-                              {(profile.cumulativeStats.totalCardsMilled / Math.max(1, profile.matchesPlayed)).toFixed(1)} Mill
-                            </div>
-                          )}
-                          {profile.winVectorStats &&
-                            (profile.winVectorStats.life +
-                              profile.winVectorStats.poison +
-                              profile.winVectorStats.commander +
-                              profile.winVectorStats.mill >
-                              0) && (
-                              <div>
-                                Wins By: Life {profile.winVectorStats.life} · Poison {profile.winVectorStats.poison} · Cmdr {profile.winVectorStats.commander} · Mill {profile.winVectorStats.mill}
-                              </div>
-                            )}
-                        </div>
-                      )}
-
-                      {(profile.knownPlayerThreats || []).length > 0 && (
-                        <div>
-                          <div className="font-semibold text-zinc-700">Known Player Threats Tracked:</div>
-                          <p className="mt-0.5 text-zinc-600">
-                            {(profile.knownPlayerThreats || []).slice(0, 6).join(', ')}
-                          </p>
-                        </div>
-                      )}
-
-                      {(profile.observedPlayerWeaknesses || []).length > 0 && (
-                        <div>
-                          <div className="font-semibold text-zinc-700">Observed Weaknesses Exploited:</div>
-                          <ul className="mt-1 list-disc list-inside space-y-0.5 text-zinc-600">
-                            {(profile.observedPlayerWeaknesses || []).slice(0, 3).map((w, i) => (
-                              <li key={i}>{w}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {profile.tacticalDirectives.length > 0 && (
-                        <div>
-                          <div className="font-semibold text-zinc-700">Active Tactical Directives:</div>
-                          <ul className="mt-1 list-disc list-inside space-y-0.5 text-zinc-600">
-                            {profile.tacticalDirectives.slice(0, 4).map((d, i) => (
-                              <li key={i}>{d}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {profile.learnedFromFacedDecks.length > 0 && (
-                        <div>
-                          <div className="font-semibold text-zinc-700">Learned From Decks Faced:</div>
-                          <ul className="mt-1 list-disc list-inside space-y-0.5 text-zinc-600">
-                            {profile.learnedFromFacedDecks.slice(0, 3).map((d, i) => (
-                              <li key={i}>{d}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {profile.learnedFromOwnDecks.length > 0 && (
-                        <div>
-                          <div className="font-semibold text-zinc-700">Learned Piloting Own Decks:</div>
-                          <ul className="mt-1 list-disc list-inside space-y-0.5 text-zinc-600">
-                            {profile.learnedFromOwnDecks.slice(0, 3).map((d, i) => (
-                              <li key={i}>{d}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {totalLessons === 0 && profile.matchesPlayed === 0 && (
-                        <p className="text-zinc-500">
-                          No stored games for this bot yet. Play a match or add a coaching rule below!
-                        </p>
-                      )}
-
-                      <div className="flex items-center gap-1.5 pt-1 border-t border-zinc-100">
-                        <input
-                          type="text"
-                          value={inlineCoachTextByKey[botKey] || ''}
-                          onChange={(e) =>
-                            setInlineCoachTextByKey((prev) => ({
-                              ...prev,
-                              [botKey]: e.target.value,
-                            }))
-                          }
-                          placeholder="Teach rule (e.g. Counter my commander)..."
-                          className="flex-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] text-zinc-900 focus:border-sky-600 focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleInlineAddDirective(opp)}
-                          disabled={!(inlineCoachTextByKey[botKey] || '').trim()}
-                          className="rounded bg-sky-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer"
-                        >
-                          Train
-                        </button>
-                      </div>
-                    </div>
                   )}
+                  <span className="text-zinc-300" aria-hidden="true">·</span>
+                  <span className="text-zinc-600">Cmdr:</span>
+                  {effectiveUserDeck.commanders.length > 0 ? (
+                    effectiveUserDeck.commanders.map((cmd, cIdx) => (
+                      <React.Fragment key={cmd.name}>
+                        {cIdx > 0 && <span className="text-zinc-400">&amp;</span>}
+                        <CardLink
+                          name={cmd.name}
+                          meta={cmd.card || findMeta(cmd.name)}
+                          onInspect={onInspectCard}
+                        />
+                      </React.Fragment>
+                    ))
+                  ) : (
+                    <span className="text-amber-700 font-medium">
+                      {isCommanderFormat ? 'None selected' : 'None'}
+                    </span>
+                  )}
+                </div>
 
-                  <div>
-                    <label
-                      htmlFor={`bot-arch-${opp.id}`}
-                      className="block text-[11px] font-medium text-zinc-500"
-                    >
-                      Bot Deck Archetype
-                    </label>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {effectiveUserDeck.uniqueCardNames.length > 0 && (
                     <select
-                      id={`bot-arch-${opp.id}`}
-                      value={opp.archetype}
+                      id="playtest-player-commander-select"
+                      aria-label="Switch Commander"
+                      value={effectiveUserDeck.commanders[0]?.name || ''}
                       onChange={(e) => {
                         const val = e.target.value;
-                        if (val === '__MIRROR_USER_DECK__') {
-                          handleLoadUserDeckIntoBot(idx, 'active');
-                        } else {
-                          updateOpponent(idx, { archetype: val });
-                        }
+                        setPlayerCommanderOverride(val || null);
                       }}
-                      className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
+                      className="max-w-[190px] rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
                     >
-                      <option value="__MIRROR_USER_DECK__">
-                        Mirror Your Deck ({effectiveUserDeck.commanderNames[0] || analysis.deckName || 'Your List'})
+                      <option value="">
+                        {effectiveUserDeck.commanders.length > 0
+                          ? 'Switch Commander...'
+                          : 'Set Commander...'}
                       </option>
-                      {BOT_ARCHETYPES.map((arch) => (
-                        <option key={arch} value={arch}>
-                          {arch}
+                      {effectiveUserDeck.uniqueCardNames.map((cardName) => (
+                        <option key={cardName} value={cardName}>
+                          {cardName}
                         </option>
                       ))}
                     </select>
-                  </div>
+                  )}
 
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-medium text-zinc-500">
-                        Bot Indignance Level
-                      </span>
-                      <span
-                        className={`text-[11px] font-semibold ${indignanceMeta.textColorClass}`}
-                      >
-                        {indignanceMeta.label}
-                      </span>
-                    </div>
-                    <div
-                      role="group"
-                      aria-label={`${opp.name} indignance level for ${mode}`}
-                      className="mt-1 grid grid-cols-4 gap-1 rounded-lg border border-zinc-200 bg-zinc-100 p-1"
-                    >
-                      {BOT_INDIGNANCE_OPTIONS.map((opt) => {
-                        const isSelected = indignanceMeta.id === opt.id;
-                        return (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            onClick={() => updateOpponent(idx, { indignance: opt.id })}
-                            aria-pressed={isSelected}
-                            className={`px-1.5 py-1 text-[11px] font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
-                              isSelected
-                                ? opt.activeSegmentClass
-                                : 'text-zinc-700 hover:text-zinc-900'
-                            }`}
-                          >
-                            {opt.shortLabel}
-                          </button>
+                  {resolvingCustomMeta && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Syncing art...
+                    </span>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isEditingPlayerDeck) {
+                        setPlayerDeckDraftText(
+                          playerCustomDeckText ?? effectiveUserDeck.serializedText
                         );
-                      })}
-                    </div>
-                    <p className="mt-1.5 text-[11px] leading-snug text-zinc-600">
-                      {indignanceMeta.description}
-                    </p>
+                      }
+                      setIsEditingPlayerDeck((v) => !v);
+                    }}
+                    className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <Pencil className="h-3 w-3 text-sky-700" />
+                    {isEditingPlayerDeck ? 'Close Editor' : 'Edit Decklist'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyLoadedDeck()}
+                    className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    {copiedLoadedDeck ? (
+                      <>
+                        <Check className="h-3 w-3 text-emerald-700" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3 w-3" />
+                        Copy
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowLoadedDeckPreview((v) => !v)}
+                    className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <Eye className="h-3 w-3 text-sky-700" />
+                    {showLoadedDeckPreview ? 'Hide List' : 'View List'}
+                  </button>
+                </div>
+              </div>
+
+              {deckVersion === 'mana-optimized' && (
+                <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-200/70 pt-2 text-xs">
+                  <div className="flex flex-wrap items-center gap-2 text-zinc-700">
+                    <RefreshCw className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                    <span className="font-semibold text-zinc-900">
+                      Synced with Mana &amp; Lands
+                    </span>
+                    <span className="text-zinc-300" aria-hidden="true">·</span>
+                    {selectedLandChangesCount > 0 ? (
+                      <span className="font-mono text-[11px] text-sky-800">
+                        {selectedLandChangesCount} land change{selectedLandChangesCount === 1 ? '' : 's'} active
+                      </span>
+                    ) : totalLandChangesCount > 0 ? (
+                      <span className="text-amber-800">
+                        No land fixes selected yet.
+                      </span>
+                    ) : (
+                      <span className="text-zinc-600">
+                        No land changes needed.
+                      </span>
+                    )}
                   </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {selectedLandChangesCount === 0 && totalLandChangesCount > 0 && onApplyAllManaFixes && (
+                      <button
+                        type="button"
+                        onClick={onApplyAllManaFixes}
+                        className="rounded-md bg-sky-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap"
+                      >
+                        Apply All Mana Fixes ({totalLandChangesCount})
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        window.dispatchEvent(
+                          new CustomEvent<string>('deck-navigate-section', {
+                            detail: 'mana-section',
+                          })
+                        )
+                      }
+                      className="rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap"
+                    >
+                      Mana &amp; Lands
+                    </button>
+                  </div>
+                </div>
+              )}
 
-                  {opp.archetype === 'Custom Decklist' && (() => {
-                    const customRaw = opp.customDeckText || '';
-                    const parsedCustom = customRaw.trim()
-                      ? parseDecklistClientSide(customRaw)
-                      : null;
-                    const customResolved: ResolvedDeckCard[] = parsedCustom
-                      ? parsedCustom.cards.map((c) => ({
-                          ...c,
-                          card: findMeta(c.name),
-                        }))
-                      : [];
-                    if (customResolved.length > 0) {
-                      const totalC = customResolved
-                        .filter((c) => c.zone === 'main' || c.zone === 'commander')
-                        .reduce((s, c) => s + c.quantity, 0);
-                      autoRecognizeCommandersClientSide(
-                        customResolved,
-                        customResolved.some((c) => c.zone === 'commander') || totalC >= 85
-                          ? 'commander'
-                          : detectedFormat
-                      );
-                    }
-                    const botCmds = customResolved.filter((c) => c.zone === 'commander');
-                    const botCmdQty = botCmds.reduce((s, c) => s + c.quantity, 0);
-                    const botMainQty = customResolved
-                      .filter((c) => c.zone === 'main')
-                      .reduce((s, c) => s + c.quantity, 0);
-                    const botTotalQty = botCmdQty + botMainQty;
-                    const botCandidates = Array.from(
-                      new Set(
-                        customResolved
-                          .filter((c) => c.zone === 'commander' || c.zone === 'main')
-                          .map((c) => c.name)
-                      )
-                    );
+              {manaSyncNotice && (
+                <div className="flex items-center justify-between gap-3 rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs text-sky-900">
+                  <span>{manaSyncNotice}</span>
+                  <button
+                    type="button"
+                    onClick={() => setManaSyncNotice(null)}
+                    aria-label="Dismiss sync notice"
+                    className="text-sky-700 hover:text-sky-900 cursor-pointer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
 
-                    return (
-                      <div className="space-y-2 rounded-md border border-zinc-200 bg-white p-2.5">
-                        <div className="flex flex-wrap items-center justify-between gap-1.5">
-                          <span className="text-[11px] font-semibold text-zinc-700">
-                            Bot Custom Decklist
+              {isEditingPlayerDeck && (
+                <div className="rounded-md border border-zinc-200 bg-white p-3 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                    <span className="font-semibold text-zinc-700">
+                      Edit or Paste Your Active Decklist
+                    </span>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handlePasteCustomText('player-draft', (text) =>
+                            setPlayerDeckDraftText(text)
+                          )
+                        }
+                        className="inline-flex items-center gap-1 rounded border border-zinc-300 bg-zinc-50 px-2 py-0.5 font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                      >
+                        {clipboardNoticeKey === 'player-draft:pasted' ? (
+                          <>
+                            <Check className="h-3 w-3 text-emerald-700" />
+                            <span>Pasted</span>
+                          </>
+                        ) : (
+                          <>
+                            <ClipboardPaste className="h-3 w-3 text-sky-700" />
+                            <span>Paste</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!playerDeckDraftText.trim()}
+                        onClick={() =>
+                          void handleCopyCustomText('player-draft', playerDeckDraftText)
+                        }
+                        className="inline-flex items-center gap-1 rounded border border-zinc-300 bg-zinc-50 px-2 py-0.5 font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer"
+                      >
+                        {clipboardNoticeKey === 'player-draft:copied' ? (
+                          <>
+                            <Check className="h-3 w-3 text-emerald-700" />
+                            <span>Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3 w-3 text-sky-700" />
+                            <span>Copy</span>
+                          </>
+                        )}
+                      </button>
+                      {playerCustomDeckText && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPlayerCustomDeckText(null);
+                            setPlayerCommanderOverride(null);
+                            setIsEditingPlayerDeck(false);
+                          }}
+                          className="rounded border border-zinc-300 bg-zinc-50 px-2 py-0.5 font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                        >
+                          Reset to Analyzed
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const trimmed = playerDeckDraftText.trim();
+                          setPlayerCustomDeckText(trimmed ? playerDeckDraftText : null);
+                          setPlayerCommanderOverride(null);
+                          setDeckVersion('original');
+                          setIsEditingPlayerDeck(false);
+                        }}
+                        className="rounded bg-sky-700 px-2.5 py-0.5 font-semibold text-white hover:bg-sky-800 cursor-pointer"
+                      >
+                        Apply Decklist
+                      </button>
+                    </div>
+                  </div>
+                  {clipboardNoticeKey === 'player-draft:blocked' && (
+                    <div className="text-[11px] text-amber-700">
+                      Clipboard read blocked — click in the text box below and press Ctrl+V (Cmd+V on Mac).
+                    </div>
+                  )}
+                  <textarea
+                    rows={5}
+                    value={playerDeckDraftText}
+                    onChange={(e) => setPlayerDeckDraftText(e.target.value)}
+                    placeholder="Commander&#10;1 Atraxa, Praetors' Voice&#10;&#10;Deck&#10;1 Sol Ring&#10;..."
+                    className="w-full rounded-md border border-zinc-300 bg-zinc-50/60 p-2 font-mono text-[11px] text-zinc-900 focus:border-sky-600 focus:bg-white focus:outline-none"
+                  />
+                </div>
+              )}
+
+              {showLoadedDeckPreview && (
+                <div className="rounded-md border border-zinc-200 bg-white p-3">
+                  <div className="mb-1.5 flex items-center justify-between text-[11px] text-zinc-500">
+                    <span>Active Decklist ({effectiveUserDeck.totalMainAndCmd} cards)</span>
+                  </div>
+                  <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-zinc-800">
+                    {effectiveUserDeck.serializedText}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            {/* Unified AI Bot Opponents Grid (Merged Bot Playtest + Live Match Setup) */}
+            <div className="space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
+                  <span className="font-semibold text-zinc-900">
+                    AI Bot Opponents ({botCount} {botCount === 1 ? 'Seat' : 'Seats'})
+                  </span>
+                  <span className="text-zinc-300" aria-hidden="true">·</span>
+                  <span>Applies to both Live Tabletop and Auto-Simulated matches.</span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleMirrorUserDeckToAllBots}
+                    className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <Copy className="h-3 w-3" />
+                    {botCount > 1 ? 'Mirror Your Deck to All Bots' : 'Mirror Your Deck'}
+                  </button>
+
+                  {botCount > 1 && (
+                    <>
+                      <select
+                        id={`bulk-intelligence-${mode}`}
+                        aria-label="Set all bots AI Skill"
+                        value={sharedModeIntelligence}
+                        onChange={(e) => {
+                          if (e.target.value !== 'mixed') {
+                            setAllModeBotsIntelligence(e.target.value as BotIntelligenceLevel);
+                          }
+                        }}
+                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-800 focus:border-sky-600 focus:outline-none cursor-pointer"
+                      >
+                        {sharedModeIntelligence === 'mixed' && (
+                          <option value="mixed" disabled>
+                            All Skill: Mixed
+                          </option>
+                        )}
+                        {BOT_INTELLIGENCE_OPTIONS.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            All Skill: {opt.label}
+                          </option>
+                        ))}
+                      </select>
+
+                      <select
+                        id={`bulk-indignance-${mode}`}
+                        aria-label="Set all bots Playstyle"
+                        value={sharedModeIndignance}
+                        onChange={(e) => {
+                          if (e.target.value !== 'mixed') {
+                            setAllModeBotsIndignance(e.target.value as BotIndignanceLevel);
+                          }
+                        }}
+                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-800 focus:border-sky-600 focus:outline-none cursor-pointer"
+                      >
+                        {sharedModeIndignance === 'mixed' && (
+                          <option value="mixed" disabled>
+                            All Playstyle: Mixed
+                          </option>
+                        )}
+                        {BOT_INDIGNANCE_OPTIONS.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            All Playstyle: {opt.shortLabel}
+                          </option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div
+                className={`grid grid-cols-1 gap-3 ${
+                  botCount === 1
+                    ? 'md:grid-cols-1 max-w-xl'
+                    : botCount === 2
+                    ? 'md:grid-cols-2'
+                    : 'md:grid-cols-3'
+                }`}
+              >
+                {visibleOpponents.map((opp, idx) => {
+                  const indignanceMeta = getBotIndignanceMeta(opp.indignance);
+                  const intelligenceMeta = getBotIntelligenceMeta(opp.intelligence);
+                  const botKey = resolveBotLearningKey(opp);
+                  const profile = getBotProfileForOpp(opp);
+                  const isBrainOpen = expandedBrainKey === `${opp.id}:${botKey}`;
+                  const totalLessons =
+                    profile.learnedFromFacedDecks.length +
+                    profile.learnedFromOwnDecks.length +
+                    profile.tacticalDirectives.length;
+
+                  return (
+                    <div
+                      key={opp.id}
+                      className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-3 space-y-2.5"
+                    >
+                      {/* Top Header: Seat Badge, Editable Name, IQ & Brain Inspector */}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="font-mono text-[11px] font-bold text-zinc-500 shrink-0">
+                            Seat {idx + 2}
                           </span>
-                          <div className="flex flex-wrap items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void handlePasteCustomText(`bot-${opp.id}`, (text) =>
-                                  updateOpponent(idx, { customDeckText: text })
-                                )
+                          <input
+                            type="text"
+                            value={opp.name}
+                            onChange={(e) => updateOpponent(idx, { name: e.target.value })}
+                            aria-label={`Opponent ${idx + 1} name`}
+                            className="w-full max-w-[140px] rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-semibold text-zinc-900 focus:border-sky-600 focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-[11px] shrink-0">
+                          <span className="font-mono font-semibold text-sky-900 tabular-nums">
+                            IQ {profile.botIqScore}
+                          </span>
+                          <span className="text-zinc-300" aria-hidden="true">·</span>
+                          <span className="font-mono text-zinc-600 tabular-nums">
+                            {profile.wins}W-{profile.losses}L
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedBrainKey(isBrainOpen ? null : `${opp.id}:${botKey}`)
+                            }
+                            className="inline-flex items-center gap-1 rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer whitespace-nowrap"
+                          >
+                            <Brain className="h-3 w-3 text-sky-700" />
+                            <span>{isBrainOpen ? 'Hide' : `Brain (${totalLessons})`}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Compact 3-Control Setup Grid: Deck Archetype, AI Skill, Playstyle */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="sm:col-span-2">
+                          <label
+                            htmlFor={`bot-arch-${opp.id}`}
+                            className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
+                          >
+                            Bot Deck
+                          </label>
+                          <select
+                            id={`bot-arch-${opp.id}`}
+                            value={opp.archetype}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === '__MIRROR_USER_DECK__') {
+                                handleLoadUserDeckIntoBot(idx, 'active');
+                              } else {
+                                updateOpponent(idx, { archetype: val });
                               }
-                              className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
-                            >
-                              {clipboardNoticeKey === `bot-${opp.id}:pasted` ? (
-                                <>
-                                  <Check className="h-3 w-3 text-emerald-700" />
-                                  <span>Pasted</span>
-                                </>
-                              ) : (
-                                <>
-                                  <ClipboardPaste className="h-3 w-3 text-sky-700" />
-                                  <span>Paste</span>
-                                </>
-                              )}
-                            </button>
-                            <button
-                              type="button"
-                              disabled={!customRaw.trim()}
-                              onClick={() =>
-                                void handleCopyCustomText(`bot-${opp.id}`, customRaw)
+                            }}
+                            className="mt-0.5 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
+                          >
+                            <option value="__MIRROR_USER_DECK__">
+                              Mirror Your Deck ({effectiveUserDeck.commanderNames[0] || analysis.deckName || 'Your List'})
+                            </option>
+                            {BOT_ARCHETYPES.map((arch) => (
+                              <option key={arch} value={arch}>
+                                {arch}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor={`bot-skill-${opp.id}`}
+                            className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
+                          >
+                            AI Skill
+                          </label>
+                          <select
+                            id={`bot-skill-${opp.id}`}
+                            value={intelligenceMeta.id}
+                            onChange={(e) =>
+                              updateOpponent(idx, {
+                                intelligence: e.target.value as BotIntelligenceLevel,
+                              })
+                            }
+                            title={intelligenceMeta.description}
+                            className="mt-0.5 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
+                          >
+                            {BOT_INTELLIGENCE_OPTIONS.map((opt) => (
+                              <option key={opt.id} value={opt.id}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label
+                            htmlFor={`bot-style-${opp.id}`}
+                            className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
+                          >
+                            Playstyle
+                          </label>
+                          <select
+                            id={`bot-style-${opp.id}`}
+                            value={indignanceMeta.id}
+                            onChange={(e) =>
+                              updateOpponent(idx, {
+                                indignance: e.target.value as BotIndignanceLevel,
+                              })
+                            }
+                            title={indignanceMeta.description}
+                            className="mt-0.5 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
+                          >
+                            {BOT_INDIGNANCE_OPTIONS.map((opt) => (
+                              <option key={opt.id} value={opt.id}>
+                                {opt.shortLabel}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {isBrainOpen && (
+                        <div className="rounded-lg border border-zinc-200 bg-white p-2.5 space-y-2 text-[11px]">
+                          <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-1.5">
+                            <span className="font-bold text-zinc-900">
+                              Adaptive Memory · {opp.name}
+                            </span>
+                            {profile.matchesPlayed > 0 || totalLessons > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => onResetBotMemory(botKey)}
+                                className="inline-flex items-center gap-1 text-red-700 hover:text-red-900 font-medium cursor-pointer"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                                Reset
+                              </button>
+                            ) : null}
+                          </div>
+
+                          {profile.matchesPlayed > 0 && (
+                            <div className="rounded border border-zinc-100 bg-zinc-50 px-2 py-1.5 font-mono text-[10px] tabular-nums text-zinc-600">
+                              <div className="flex flex-wrap items-center justify-between gap-1 text-zinc-800 font-semibold">
+                                <span>
+                                  Record: {profile.wins}W-{profile.losses}L-{profile.closes}C (
+                                  {Math.round((profile.wins / Math.max(1, profile.matchesPlayed)) * 100)}% WR)
+                                </span>
+                                <span className="text-sky-700">IQ {profile.botIqScore}</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {profile.tacticalDirectives.length > 0 && (
+                            <div>
+                              <div className="font-semibold text-zinc-700">Tactical Directives:</div>
+                              <ul className="mt-0.5 list-disc list-inside space-y-0.5 text-zinc-600">
+                                {profile.tacticalDirectives.slice(0, 4).map((d, i) => (
+                                  <li key={i}>{d}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {profile.learnedFromFacedDecks.length > 0 && (
+                            <div>
+                              <div className="font-semibold text-zinc-700">Learned Matchup Notes:</div>
+                              <ul className="mt-0.5 list-disc list-inside space-y-0.5 text-zinc-600">
+                                {profile.learnedFromFacedDecks.slice(0, 2).map((d, i) => (
+                                  <li key={i}>{d}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {totalLessons === 0 && profile.matchesPlayed === 0 && (
+                            <p className="text-zinc-500">
+                              No stored lessons yet. Add a coaching rule below.
+                            </p>
+                          )}
+
+                          <div className="flex items-center gap-1.5 pt-1 border-t border-zinc-100">
+                            <input
+                              type="text"
+                              value={inlineCoachTextByKey[botKey] || ''}
+                              onChange={(e) =>
+                                setInlineCoachTextByKey((prev) => ({
+                                  ...prev,
+                                  [botKey]: e.target.value,
+                                }))
                               }
-                              className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer"
-                            >
-                              {clipboardNoticeKey === `bot-${opp.id}:copied` ? (
-                                <>
-                                  <Check className="h-3 w-3 text-emerald-700" />
-                                  <span>Copied</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Copy className="h-3 w-3 text-sky-700" />
-                                  <span>Copy</span>
-                                </>
-                              )}
-                            </button>
+                              placeholder="Teach rule (e.g. Hold counter for my commander)..."
+                              className="flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] text-zinc-900 focus:border-sky-600 focus:outline-none"
+                            />
                             <button
                               type="button"
-                              onClick={() => handleLoadUserDeckIntoBot(idx, 'original')}
-                              className="rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer"
+                              onClick={() => handleInlineAddDirective(opp)}
+                              disabled={!(inlineCoachTextByKey[botKey] || '').trim()}
+                              className="rounded bg-sky-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer"
                             >
-                              Use Your Upload
+                              Train
                             </button>
-                            {manaOptimizedDeckSerialized !== originalDeckSerialized && (
-                              <button
-                                type="button"
-                                onClick={() => handleLoadUserDeckIntoBot(idx, 'mana-optimized')}
-                                className="rounded border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer"
-                              >
-                                Mana Fixes
-                              </button>
-                            )}
-                            {optimizedDeckSerialized !== originalDeckSerialized && (
-                              <button
-                                type="button"
-                                onClick={() => handleLoadUserDeckIntoBot(idx, 'optimized')}
-                                className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 hover:bg-emerald-100 cursor-pointer"
-                              >
-                                With Fixes
-                              </button>
-                            )}
-                            {customRaw.trim() && (
-                              <button
-                                type="button"
-                                onClick={() => updateOpponent(idx, { customDeckText: '' })}
-                                className="rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 hover:bg-zinc-100 cursor-pointer"
-                              >
-                                Clear
-                              </button>
-                            )}
                           </div>
                         </div>
-                        {clipboardNoticeKey === `bot-${opp.id}:blocked` && (
-                          <div className="text-[10px] text-amber-700">
-                            Clipboard read blocked — click inside the box below and press Ctrl+V (Cmd+V on Mac).
-                          </div>
-                        )}
+                      )}
 
-                        <textarea
-                          rows={4}
-                          value={customRaw}
-                          onChange={(e) =>
-                            updateOpponent(idx, { customDeckText: e.target.value })
-                          }
-                          placeholder="Paste Commander or 60-card decklist, or click 'Use Your Upload' above..."
-                          className="w-full rounded-md border border-zinc-300 bg-white p-2.5 font-mono text-[11px] leading-relaxed text-zinc-900 placeholder:text-zinc-500 focus:border-sky-600 focus:outline-none"
-                        />
+                      {opp.archetype === 'Custom Decklist' && (() => {
+                        const customRaw = opp.customDeckText || '';
+                        const parsedCustom = customRaw.trim()
+                          ? parseDecklistClientSide(customRaw)
+                          : null;
+                        const customResolved: ResolvedDeckCard[] = parsedCustom
+                          ? parsedCustom.cards.map((c) => ({
+                              ...c,
+                              card: findMeta(c.name),
+                            }))
+                          : [];
+                        if (customResolved.length > 0) {
+                          const totalC = customResolved
+                            .filter((c) => c.zone === 'main' || c.zone === 'commander')
+                            .reduce((s, c) => s + c.quantity, 0);
+                          autoRecognizeCommandersClientSide(
+                            customResolved,
+                            customResolved.some((c) => c.zone === 'commander') || totalC >= 85
+                              ? 'commander'
+                              : detectedFormat
+                          );
+                        }
+                        const botCmds = customResolved.filter((c) => c.zone === 'commander');
+                        const botCmdQty = botCmds.reduce((s, c) => s + c.quantity, 0);
+                        const botMainQty = customResolved
+                          .filter((c) => c.zone === 'main')
+                          .reduce((s, c) => s + c.quantity, 0);
+                        const botTotalQty = botCmdQty + botMainQty;
+                        const botCandidates = Array.from(
+                          new Set(
+                            customResolved
+                              .filter((c) => c.zone === 'commander' || c.zone === 'main')
+                              .map((c) => c.name)
+                          )
+                        );
 
-                        {parsedCustom && parsedCustom.cards.length > 0 && (
-                          <div className="space-y-1.5 text-[11px]">
-                            <div className="flex flex-wrap items-center justify-between gap-1 text-zinc-600">
-                              <span className="font-mono tabular-nums font-medium">
-                                {botTotalQty} cards ({botCmdQty} Cmdr + {botMainQty} Main)
+                        return (
+                          <div className="space-y-1.5 rounded-md border border-zinc-200 bg-white p-2">
+                            <div className="flex flex-wrap items-center justify-between gap-1">
+                              <span className="text-[10px] font-semibold text-zinc-700">
+                                Custom Decklist ({botTotalQty} cards)
                               </span>
-                              {botCmds.length > 0 ? (
-                                <span className="font-semibold text-sky-800 truncate max-w-[200px]">
-                                  Cmdr: {botCmds.map((c) => c.name).join(' & ')}
-                                </span>
-                              ) : botTotalQty >= 85 ? (
-                                <span className="text-amber-700 font-medium">
-                                  Auto-detects on Sim (or pick below)
-                                </span>
-                              ) : null}
+                              <div className="flex flex-wrap items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void handlePasteCustomText(`bot-${opp.id}`, (text) =>
+                                      updateOpponent(idx, { customDeckText: text })
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                                >
+                                  <ClipboardPaste className="h-2.5 w-2.5 text-sky-700" />
+                                  <span>Paste</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleLoadUserDeckIntoBot(idx, 'original')}
+                                  className="rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer"
+                                >
+                                  Your List
+                                </button>
+                                {customRaw.trim() && (
+                                  <button
+                                    type="button"
+                                    onClick={() => updateOpponent(idx, { customDeckText: '' })}
+                                    className="rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 hover:bg-zinc-100 cursor-pointer"
+                                  >
+                                    Clear
+                                  </button>
+                                )}
+                              </div>
                             </div>
 
+                            <textarea
+                              rows={3}
+                              value={customRaw}
+                              onChange={(e) =>
+                                updateOpponent(idx, { customDeckText: e.target.value })
+                              }
+                              placeholder="Paste Commander or 60-card decklist..."
+                              className="w-full rounded-md border border-zinc-300 bg-white p-2 font-mono text-[11px] leading-snug text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
+                            />
+
                             {botCandidates.length > 0 && (
-                              <div className="flex items-center gap-1.5">
-                                <label
-                                  htmlFor={`bot-cmd-select-${opp.id}`}
-                                  className="text-[10px] font-medium text-zinc-500 whitespace-nowrap"
-                                >
-                                  Bot Cmdr:
-                                </label>
-                                <select
-                                  id={`bot-cmd-select-${opp.id}`}
-                                  value={botCmds[0]?.name || ''}
-                                  onChange={(e) => {
-                                    const chosen = e.target.value;
-                                    if (!chosen) return;
-                                    const secondPartner =
-                                      botCmds.length > 1 &&
-                                      normalizeCardLookupKey(botCmds[1].name) !==
-                                        normalizeCardLookupKey(chosen)
-                                        ? botCmds[1].name
-                                        : undefined;
-                                    updateOpponent(idx, {
-                                      customDeckText: setDecklistCommanderClientSide(
-                                        customRaw,
-                                        chosen,
-                                        secondPartner
-                                      ),
-                                    });
-                                  }}
-                                  className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
-                                >
-                                  <option value="">
-                                    {botCmds.length > 0
-                                      ? 'Change bot commander...'
-                                      : 'Select commander card...'}
+                              <select
+                                id={`bot-cmd-select-${opp.id}`}
+                                aria-label="Select bot commander"
+                                value={botCmds[0]?.name || ''}
+                                onChange={(e) => {
+                                  const chosen = e.target.value;
+                                  if (!chosen) return;
+                                  const secondPartner =
+                                    botCmds.length > 1 &&
+                                    normalizeCardLookupKey(botCmds[1].name) !==
+                                      normalizeCardLookupKey(chosen)
+                                      ? botCmds[1].name
+                                      : undefined;
+                                  updateOpponent(idx, {
+                                    customDeckText: setDecklistCommanderClientSide(
+                                      customRaw,
+                                      chosen,
+                                      secondPartner
+                                    ),
+                                  });
+                                }}
+                                className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
+                              >
+                                <option value="">
+                                  {botCmds.length > 0
+                                    ? `Cmdr: ${botCmds.map((c) => c.name).join(' & ')}`
+                                    : 'Select bot commander...'}
+                                </option>
+                                {botCandidates.map((cn) => (
+                                  <option key={cn} value={cn}>
+                                    {cn}
                                   </option>
-                                  {botCandidates.map((cn) => (
-                                    <option key={cn} value={cn}>
-                                      {cn}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
+                                ))}
+                              </select>
                             )}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              );
-            })}
+                        );
+                      })()}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
 
         {loading && (
           <div className="rounded-xl border border-sky-200 bg-sky-50/40 p-4 space-y-3">
@@ -3420,6 +3350,16 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
         onClose={() => setIsTutorialOpen(false)}
         initialStep={tutorialInitialStep}
         autoLearnEnabled={autoLearnEnabled}
+      />
+
+      <MultiplayerSessionHub
+        isOpen={isMultiplayerHubOpen}
+        onClose={() => setIsMultiplayerHubOpen(false)}
+        analysis={analysis}
+        effectiveUserCards={effectiveUserDeck.cards}
+        userCommanders={effectiveUserDeck.commanders}
+        findMeta={findMeta}
+        onInspectCard={onInspectCard}
       />
     </section>
   );

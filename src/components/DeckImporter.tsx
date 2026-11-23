@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
+  Bot,
   Check,
   ClipboardPaste,
   Copy,
@@ -9,6 +10,7 @@ import {
   Loader2,
   Sparkles,
   Upload,
+  Users,
   X,
 } from 'lucide-react';
 import type { DeckFormat, DeckGoal, ParsedDeckResult } from '../types/deck';
@@ -40,6 +42,18 @@ interface DeckImporterProps {
   onGoalChange: (goal: DeckGoal) => void;
   onAnalyze: () => void;
   onAnalyzeLocalFallback?: () => void;
+  onQuickPlaytest?: (sampleOverride?: {
+    deckText: string;
+    deckName: string;
+    format: DeckFormat;
+    goal: DeckGoal;
+  }) => void;
+  onQuickMultiplayer?: (sampleOverride?: {
+    deckText: string;
+    deckName: string;
+    format: DeckFormat;
+    goal: DeckGoal;
+  }) => void;
 }
 
 type InputTab = 'paste' | 'url' | 'file';
@@ -59,6 +73,8 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
   onGoalChange,
   onAnalyze,
   onAnalyzeLocalFallback,
+  onQuickPlaytest,
+  onQuickMultiplayer,
 }) => {
   const [activeTab, setActiveTab] = useState<InputTab>('paste');
   const [urlInput, setUrlInput] = useState('');
@@ -742,7 +758,7 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-4 pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                 <button
                   type="button"
                   onClick={() => {
@@ -757,24 +773,52 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                   Clear input
                 </button>
 
-                <button
-                  type="button"
-                  onClick={onAnalyze}
-                  disabled={isAnalyzing || !deckText.trim()}
-                  className="inline-flex items-center gap-2 rounded-lg bg-sky-700 px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  {isAnalyzing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Analyzing Cards &amp; Mana...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles className="h-4 w-4" />
-                      Analyze Deck
-                    </>
+                <div className="flex flex-wrap items-center gap-2">
+                  {onQuickPlaytest && (
+                    <button
+                      type="button"
+                      onClick={() => onQuickPlaytest()}
+                      disabled={isAnalyzing}
+                      title="Jump straight to Bot Playtest without waiting for full deck analysis (uses your pasted decklist or a ready Commander pod deck if blank)"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+                    >
+                      <Bot className="h-4 w-4 text-sky-700 shrink-0" />
+                      <span>Play vs Bots (Skip Analysis)</span>
+                    </button>
                   )}
-                </button>
+
+                  {onQuickMultiplayer && (
+                    <button
+                      type="button"
+                      onClick={() => onQuickMultiplayer()}
+                      disabled={isAnalyzing}
+                      title="Open the 1–4 player LAN & Self-Hosted Online Multiplayer Lobby right away without analyzing a deck first"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-sky-600 bg-sky-50 px-3.5 py-2.5 text-xs font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+                    >
+                      <Users className="h-4 w-4 text-sky-700 shrink-0" />
+                      <span>Multiplayer Lobby (LAN / Online)</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={onAnalyze}
+                    disabled={isAnalyzing || !deckText.trim()}
+                    className="inline-flex items-center gap-2 rounded-lg bg-sky-700 px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    {isAnalyzing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Analyzing Cards &amp; Mana...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Analyze Deck
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -787,29 +831,83 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
               Try a Sample Deck
             </h2>
             <p className="mt-1 text-xs text-zinc-500">
-              Load a real deck with common mana or curve issues to see how the analyzer works.
+              Load a real deck to analyze mana &amp; curve, or jump straight into Bot Playtest &amp; Multiplayer with zero wait.
             </p>
 
             <div className="mt-4 divide-y divide-zinc-100">
               {SAMPLE_DECKS.map((sample) => (
-                <button
+                <div
                   key={sample.id}
-                  type="button"
-                  onClick={() => {
-                    onDeckTextChange(sample.deckText);
-                    onDeckNameChange(sample.title);
-                    onFormatChange(sample.format);
-                    onGoalChange(sample.goal);
-                    setImportNotice(`Loaded sample: ${sample.title}`);
-                    setImportError(null);
-                    setActiveTab('paste');
-                  }}
-                  className="block w-full py-3 text-left hover:bg-zinc-50 -mx-2 px-2 rounded-lg transition-colors cursor-pointer"
+                  className="py-3 first:pt-1 last:pb-1 space-y-2"
                 >
-                  <div className="text-sm font-semibold text-zinc-900">{sample.title}</div>
-                  <div className="mt-0.5 text-xs text-zinc-600">{sample.subtitle}</div>
-                  <div className="mt-1 text-xs font-medium text-sky-700">Load decklist</div>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDeckTextChange(sample.deckText);
+                      onDeckNameChange(sample.title);
+                      onFormatChange(sample.format);
+                      onGoalChange(sample.goal);
+                      setImportNotice(`Loaded sample: ${sample.title}`);
+                      setImportError(null);
+                      setActiveTab('paste');
+                    }}
+                    className="block w-full text-left hover:bg-zinc-50 -mx-2 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <div className="text-sm font-semibold text-zinc-900">{sample.title}</div>
+                    <div className="mt-0.5 text-xs text-zinc-600">{sample.subtitle}</div>
+                  </button>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDeckTextChange(sample.deckText);
+                        onDeckNameChange(sample.title);
+                        onFormatChange(sample.format);
+                        onGoalChange(sample.goal);
+                        setImportNotice(`Loaded sample: ${sample.title}`);
+                        setImportError(null);
+                        setActiveTab('paste');
+                      }}
+                      className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-sky-700 hover:bg-zinc-100 cursor-pointer"
+                    >
+                      Load into Editor
+                    </button>
+                    {onQuickPlaytest && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onQuickPlaytest({
+                            deckText: sample.deckText,
+                            deckName: sample.title,
+                            format: sample.format,
+                            goal: sample.goal,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+                      >
+                        <Bot className="h-3 w-3 text-sky-700" />
+                        <span>Instant Playtest</span>
+                      </button>
+                    )}
+                    {onQuickMultiplayer && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onQuickMultiplayer({
+                            deckText: sample.deckText,
+                            deckName: sample.title,
+                            format: sample.format,
+                            goal: sample.goal,
+                          })
+                        }
+                        className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-900 hover:bg-sky-100 cursor-pointer"
+                      >
+                        <Users className="h-3 w-3 text-sky-700" />
+                        <span>Multiplayer</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
           </div>

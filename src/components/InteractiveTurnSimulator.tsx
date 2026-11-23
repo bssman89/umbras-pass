@@ -64,6 +64,7 @@ import {
 } from '../utils/playtestReconciler';
 import {
   applyAiDirectivesToLiveBots,
+  assignCreaturePlaymatSpot,
   createInitialLiveBots,
   createLiveBotZoneCardFromCreature,
   evaluateBotCounterWarResponse,
@@ -75,6 +76,7 @@ import {
   recordUserActionForBots,
   resolveBotBlocksForPlayerAttack,
   resolveIncomingAttackCombat,
+  tidyBotCreaturesForPlaymat,
   type BotTurnPhaseStep,
   type LiveBotCreature,
   type LiveBotState,
@@ -84,6 +86,15 @@ import {
   type PendingBotStackSpell,
   type PlayerBoardSnapshot,
 } from '../utils/liveBotEngine';
+import {
+  clampPlaymatX,
+  clampPlaymatY,
+  computeOpenPlayerPlaymatSpot,
+  getNextPlaymatZ,
+  isBacklinePlaymatCard,
+  tidyPlayerPlaymatPositions,
+  type PlaymatDropPoint,
+} from '../utils/playmatPositioning';
 import {
   classifyCardStackProfile,
   createManualTriggeredAbilityStackItem,
@@ -193,6 +204,9 @@ interface BattlefieldPermanent extends SimCardInstance {
   protectedUntilEot?: boolean;
   tempPowerBoost?: number;
   tempToughnessBoost?: number;
+  playmatX?: number;
+  playmatY?: number;
+  playmatZ?: number;
 }
 
 interface OpponentTrackerState {
@@ -626,8 +640,8 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
   }, [activeDeckCards, analysis.deckName, analysis.archetype, analysis.metrics?.averageCmcNonLand, format, findMeta]);
 
   const [liveBotMode, setLiveBotMode] = useState<boolean>(true);
-  const [liveGamePhase, setLiveGamePhase] = useState<'setup' | 'playing'>('setup');
-  const [hasStartedLiveGameOnce, setHasStartedLiveGameOnce] = useState<boolean>(false);
+  const [liveGamePhase, setLiveGamePhase] = useState<'setup' | 'playing'>('playing');
+  const [hasStartedLiveGameOnce, setHasStartedLiveGameOnce] = useState<boolean>(true);
   const [firstPlayerChoice, setFirstPlayerChoice] = useState<FirstPlayerSelection>('player');
   const [resolvedFirstSeatIndex, setResolvedFirstSeatIndex] = useState<number>(0);
   const [freeFirstMulligan, setFreeFirstMulligan] = useState<boolean>(
@@ -1100,11 +1114,9 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     if (liveVsBotsNonce > prevNonceRef.current) {
       prevNonceRef.current = liveVsBotsNonce;
       setLiveBotMode(true);
-      if (!hasStartedLiveGameOnce) {
-        setLiveGamePhase('setup');
-      } else {
-        triggerDeckShuffleAnimation(true);
-      }
+      setHasStartedLiveGameOnce(true);
+      setLiveGamePhase('playing');
+      triggerDeckShuffleAnimation(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveVsBotsNonce]);
@@ -3002,6 +3014,8 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
         }
         if (effKind === 'token' && item.tokenPayload) {
           const tp = item.tokenPayload;
+          const isBack = tp.tokenAbility === 'treasure';
+          const spot = computeOpenPlayerPlaymatSpot(workingBf, isBack);
           workingBf.push({
             uid: `trig-token-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
             name: tp.name,
@@ -3024,6 +3038,9 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
             summoningSick: tp.isCreature,
             isToken: true,
             tokenAbility: tp.tokenAbility || 'none',
+            playmatX: spot.x,
+            playmatY: spot.y,
+            playmatZ: spot.z,
           });
         }
         if (effKind === 'burn-opponents') {
@@ -3261,11 +3278,19 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                 );
               }
             }
+            const permSpot = computeOpenPlayerPlaymatSpot(
+              workingBf,
+              isBacklinePlaymatCard(p),
+              p.dropPos
+            );
             workingBf.push({
               ...p,
               tapped: false,
               attacking: false,
               summoningSick: p.isCreature && !kw.haste,
+              playmatX: permSpot.x,
+              playmatY: permSpot.y,
+              playmatZ: permSpot.z,
             });
             // Check if this permanent entering the battlefield triggers an ETB ability (CR 603.2)!
             const etbTrigger = detectPermanentETBTrigger({
@@ -3435,7 +3460,10 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
               b.id === bp.botId
                 ? {
                     ...b,
-                    creatures: [...b.creatures, bp.creaturePayload!],
+                    creatures: [
+                      ...b.creatures,
+                      assignCreaturePlaymatSpot(b.creatures, bp.creaturePayload!),
+                    ],
                     liveMemory: {
                       ...b.liveMemory,
                       creaturesPlayedCount: b.liveMemory.creaturesPlayedCount + 1,
@@ -3874,13 +3902,17 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     );
   };
 
-  const handlePlayLandFromHand = (card: SimCardInstance) => {
+  const handlePlayLandFromHand = (card: SimCardInstance, dropPos?: PlaymatDropPoint) => {
     const isTapped = Boolean(card.meta?.entersTappedLikely);
+    const spot = computeOpenPlayerPlaymatSpot(battlefield, true, dropPos);
     const enteredLandPerm: BattlefieldPermanent = {
       ...card,
       tapped: isTapped,
       attacking: false,
       summoningSick: false,
+      playmatX: spot.x,
+      playmatY: spot.y,
+      playmatZ: spot.z,
     };
     const nextBattlefield = [...battlefield, enteredLandPerm];
     setHand((prev) => prev.filter((c) => c.uid !== card.uid));
@@ -3956,7 +3988,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     return true;
   };
 
-  const handleCastFromHand = (card: SimCardInstance) => {
+  const handleCastFromHand = (card: SimCardInstance, dropPos?: PlaymatDropPoint) => {
     const paid = spendManaForSpell(card.meta?.manaCost || '', card.cmc);
     if (!paid) {
       appendLog(`Not enough mana in pool or untapped lands to cast ${card.name} (MV ${card.cmc}).`);
@@ -4023,6 +4055,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
         playerCardPayload: {
           ...card,
           toughness: Number(card.meta?.toughness) || Math.max(2, card.power),
+          dropPos,
         },
       };
 
@@ -4106,10 +4139,26 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           }.`
         );
       }
-      setBattlefield((prev) => [
-        ...prev.filter((b) => b.uid !== existingLegendDup?.uid),
-        { ...card, tapped: false, attacking: false, summoningSick: card.isCreature && !cardKw.haste },
-      ]);
+      setBattlefield((prev) => {
+        const remaining = prev.filter((b) => b.uid !== existingLegendDup?.uid);
+        const spot = computeOpenPlayerPlaymatSpot(
+          remaining,
+          isBacklinePlaymatCard(card),
+          dropPos
+        );
+        return [
+          ...remaining,
+          {
+            ...card,
+            tapped: false,
+            attacking: false,
+            summoningSick: card.isCreature && !cardKw.haste,
+            playmatX: spot.x,
+            playmatY: spot.y,
+            playmatZ: spot.z,
+          },
+        ];
+      });
       // Even in fast-cast mode, if the permanent has an ETB trigger, push its ETB trigger onto the Stack!
       const etbTrigger = detectPermanentETBTrigger(card);
       if (etbTrigger) {
@@ -4130,7 +4179,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     appendLog(`Cast ${card.name} (${card.cmc} mana).`);
   };
 
-  const handleCastCommander = (cmd: SimCardInstance) => {
+  const handleCastCommander = (cmd: SimCardInstance, dropPos?: PlaymatDropPoint) => {
     const tax = commanderTaxByUid[cmd.uid] || 0;
     const totalCost = cmd.cmc + tax;
     const paid = spendManaForSpell(cmd.meta?.manaCost || '', totalCost);
@@ -4195,6 +4244,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           ...cmd,
           toughness: Number(cmd.meta?.toughness) || Math.max(2, cmd.power),
           fromCommandZone: true,
+          dropPos,
         },
       };
 
@@ -4243,10 +4293,21 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
 
     const cmdKw = extractCreatureKeywords(cmd.meta);
     setCommandZone((prev) => prev.filter((c) => c.uid !== cmd.uid));
-    setBattlefield((prev) => [
-      ...prev,
-      { ...cmd, tapped: false, attacking: false, summoningSick: !cmdKw.haste },
-    ]);
+    setBattlefield((prev) => {
+      const spot = computeOpenPlayerPlaymatSpot(prev, false, dropPos);
+      return [
+        ...prev,
+        {
+          ...cmd,
+          tapped: false,
+          attacking: false,
+          summoningSick: !cmdKw.haste,
+          playmatX: spot.x,
+          playmatY: spot.y,
+          playmatZ: spot.z,
+        },
+      ];
+    });
     playTabletopSound(soundEnabled, 'cast');
     appendLog(`Cast Commander ${cmd.name} for ${totalCost} mana.`);
   };
@@ -4404,6 +4465,12 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
         rarity: 'common',
       };
 
+      const isTokenBackline = blueprint.tokenAbility === 'treasure';
+      const tokenSpot = computeOpenPlayerPlaymatSpot(
+        [...battlefield, ...created],
+        isTokenBackline
+      );
+
       created.push({
         uid: `token-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
         name: blueprint.name,
@@ -4426,6 +4493,9 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
         summoningSick: isCreature && !hasHaste,
         isToken: true,
         tokenAbility: blueprint.tokenAbility || 'none',
+        playmatX: tokenSpot.x,
+        playmatY: tokenSpot.y,
+        playmatZ: tokenSpot.z,
       });
     }
 
@@ -4536,6 +4606,58 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     });
   };
 
+  const handleMoveBattlefieldCard = (uid: string, x: number, y: number) => {
+    setBattlefield((prev) => {
+      const nextZ = getNextPlaymatZ(prev);
+      return prev.map((perm) =>
+        perm.uid === uid
+          ? {
+              ...perm,
+              playmatX: clampPlaymatX(x),
+              playmatY: clampPlaymatY(y),
+              playmatZ: nextZ,
+            }
+          : perm
+      );
+    });
+  };
+
+  const handleAutoArrangePlaymat = () => {
+    setBattlefield((prev) => tidyPlayerPlaymatPositions(prev));
+  };
+
+  const handleMoveBotCard = (botId: string, uid: string, x: number, y: number) => {
+    setLiveBots((prev) =>
+      prev.map((bot) => {
+        if (bot.id !== botId) return bot;
+        const nextZ = getNextPlaymatZ(bot.creatures);
+        return {
+          ...bot,
+          creatures: bot.creatures.map((cr) =>
+            cr.uid === uid
+              ? {
+                  ...cr,
+                  playmatX: clampPlaymatX(x, 10, 90),
+                  playmatY: clampPlaymatY(y, 16, 84),
+                  playmatZ: nextZ,
+                }
+              : cr
+          ),
+        };
+      })
+    );
+  };
+
+  const handleAutoArrangeBotPlaymat = (botId: string) => {
+    setLiveBots((prev) =>
+      prev.map((bot) =>
+        bot.id === botId
+          ? { ...bot, creatures: tidyBotCreaturesForPlaymat(bot.creatures) }
+          : bot
+      )
+    );
+  };
+
   const handleDiscardFromHand = (card: SimCardInstance) => {
     setHand((prev) => prev.filter((c) => c.uid !== card.uid));
     setGraveyard((prev) => [card, ...prev]);
@@ -4595,7 +4717,8 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
   const handleMovePlayerZoneCard = (
     fromZone: 'graveyard' | 'exile',
     cardUid: string,
-    destination: 'battlefield' | 'hand' | 'graveyard' | 'exile'
+    destination: 'battlefield' | 'hand' | 'graveyard' | 'exile',
+    dropPos?: PlaymatDropPoint
   ) => {
     if (fromZone === destination) return;
     const sourceList = fromZone === 'graveyard' ? graveyard : exile;
@@ -4612,15 +4735,25 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
 
     if (destination === 'battlefield') {
       const kw = extractCreatureKeywords(card.meta);
-      setBattlefield((prev) => [
-        ...prev,
-        {
-          ...card,
-          tapped: false,
-          attacking: false,
-          summoningSick: card.isCreature && !kw.haste,
-        },
-      ]);
+      setBattlefield((prev) => {
+        const spot = computeOpenPlayerPlaymatSpot(
+          prev,
+          isBacklinePlaymatCard(card),
+          dropPos
+        );
+        return [
+          ...prev,
+          {
+            ...card,
+            tapped: false,
+            attacking: false,
+            summoningSick: card.isCreature && !kw.haste,
+            playmatX: spot.x,
+            playmatY: spot.y,
+            playmatZ: spot.z,
+          },
+        ];
+      });
       playTabletopSound(soundEnabled, 'cast');
       appendLog(`Returned ${card.name} from ${fromLabel} onto the Battlefield.`);
     } else if (destination === 'hand') {
@@ -4638,9 +4771,9 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     }
   };
 
-  const handleReturnTopGraveyardToBattlefield = () => {
+  const handleReturnTopGraveyardToBattlefield = (dropPos?: PlaymatDropPoint) => {
     if (graveyard.length === 0) return;
-    handleMovePlayerZoneCard('graveyard', graveyard[0].uid, 'battlefield');
+    handleMovePlayerZoneCard('graveyard', graveyard[0].uid, 'battlefield', dropPos);
   };
 
   const handleReturnTopGraveyardToHand = () => {
@@ -4648,9 +4781,9 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     handleMovePlayerZoneCard('graveyard', graveyard[0].uid, 'hand');
   };
 
-  const handleReturnTopExileToBattlefield = () => {
+  const handleReturnTopExileToBattlefield = (dropPos?: PlaymatDropPoint) => {
     if (exile.length === 0) return;
-    handleMovePlayerZoneCard('exile', exile[0].uid, 'battlefield');
+    handleMovePlayerZoneCard('exile', exile[0].uid, 'battlefield', dropPos);
   };
 
   const handleReturnTopExileToHand = () => {
@@ -5103,70 +5236,50 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           : 'rounded-xl border border-zinc-200 bg-white p-6 space-y-6 scroll-mt-20'
       }
     >
-      {/* Unified Play Area Header (Live Play vs Bots + Visual Board Match Replay) */}
+      {/* Unified Play Area Header (Live Tabletop vs AI Bots + Match Replay) */}
       <div
-        className={`flex flex-wrap items-start justify-between gap-4 border-b pb-4 ${
+        className={`flex flex-wrap items-center justify-between gap-3 border-b pb-3.5 ${
           isFullscreen
             ? 'sticky top-0 z-20 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 border-zinc-200 bg-white/95 px-4 sm:px-6 pt-4 pb-3 backdrop-blur-sm'
             : 'border-zinc-100'
         }`}
       >
         <div>
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h3 className="font-display text-lg font-bold text-zinc-900">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="font-display text-base sm:text-lg font-bold text-zinc-900">
               {activePlayAreaMode === 'replay'
-                ? 'Visual Board Play Area (Match Replay)'
+                ? 'Simulated Match Replay'
                 : liveBotMode
-                ? 'Play Live Game vs AI Bots'
-                : 'Interactive Turn Simulator'}
+                ? 'Live Tabletop vs AI Bots'
+                : 'Solo Goldfish Tabletop'}
             </h3>
             {activePlayAreaMode === 'live' && botsAreActing && activeBotIdx !== null && liveBots[activeBotIdx] && (
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                {liveBots[activeBotIdx].name} taking turn...
+                {liveBots[activeBotIdx].name} acting...
               </span>
             )}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-500">
             {activePlayAreaMode === 'replay' && hasReplayMatch && playtestResult ? (
               <>
                 <span className="font-mono font-semibold tabular-nums text-sky-700">
-                  Round {Math.min(activeRoundIdx + 1, replayRounds.length)} of {replayRounds.length}
+                  Round {Math.min(activeRoundIdx + 1, replayRounds.length)}/{replayRounds.length}
                 </span>
                 <span aria-hidden="true">·</span>
                 <span className="font-mono tabular-nums">
-                  {playtestResult.mode} Simulated Match ({playtestResult.testedListLabel})
+                  {playtestResult.mode} ({playtestResult.testedListLabel})
                 </span>
-                {commanderNamesList.length > 0 && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-semibold text-zinc-800">
-                      Cmdr: {commanderNamesList.join(' & ')}
-                    </span>
-                  </>
-                )}
               </>
             ) : showLiveSetupLobby ? (
               <>
                 <span className="font-semibold text-sky-700">
-                  Pre-Game Match Setup
+                  Match Rules &amp; Turn Order
                 </span>
                 <span aria-hidden="true">·</span>
                 <span className="font-mono tabular-nums">
-                  {mode} Pod · {startingLife} Starting Life
+                  {mode} Pod · {startingLife} Life
                 </span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono tabular-nums">
-                  {effectiveVersionLabel}
-                </span>
-                {loadedCommandersLabel && (
-                  <>
-                    <span aria-hidden="true">·</span>
-                    <span className="font-semibold text-zinc-800">
-                      Cmdr: {loadedCommandersLabel}
-                    </span>
-                  </>
-                )}
               </>
             ) : (
               <>
@@ -5185,10 +5298,6 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                     </span>
                   </>
                 )}
-                <span aria-hidden="true">·</span>
-                <span className="font-mono tabular-nums">
-                  {effectiveVersionLabel}
-                </span>
                 {loadedCommandersLabel && (
                   <>
                     <span aria-hidden="true">·</span>
@@ -5199,42 +5308,42 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                 )}
                 <span aria-hidden="true">·</span>
                 <span className="font-mono tabular-nums">
-                  {library.length} Library · {hand.length} Hand · {graveyard.length} Graveyard
+                  {library.length} Lib · {hand.length} Hand · {graveyard.length} GY
                 </span>
               </>
             )}
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Unified Play Area Mode Switch: Live Play vs Visual Board Match Replay */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {/* Play Area Mode Switch: Live Tabletop vs Match Replay */}
           <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
             <button
               type="button"
               onClick={() => setActivePlayAreaMode('live')}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 activePlayAreaMode === 'live'
                   ? 'bg-white text-sky-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               <Play className="h-3.5 w-3.5 text-sky-700" />
-              Live Play vs Bots
+              Live Tabletop
             </button>
             <button
               type="button"
               onClick={() => setActivePlayAreaMode('replay')}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 activePlayAreaMode === 'replay'
                   ? 'bg-white text-emerald-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               <Layers className="h-3.5 w-3.5 text-emerald-700" />
-              Visual Board Replay
+              Match Replay
               {hasReplayMatch && (
                 <span className="font-mono text-[10px] text-sky-700">
-                  (R{Math.min(activeRoundIdx + 1, replayRounds.length)}/{replayRounds.length})
+                  ({Math.min(activeRoundIdx + 1, replayRounds.length)}/{replayRounds.length})
                 </span>
               )}
             </button>
@@ -5242,19 +5351,19 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
 
           {activePlayAreaMode === 'live' && (
             <>
-              {/* Optional Mode Switch: Live Game vs Bots vs Solo Goldfish */}
+              {/* Opponent Mode Switch: vs AI Bots vs Solo Goldfish */}
               <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
                 <button
                   type="button"
                   onClick={() => setLiveBotMode(true)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     liveBotMode
                       ? 'bg-white text-sky-900 shadow-sm'
                       : 'text-zinc-600 hover:text-zinc-900'
                   }`}
                 >
                   <Bot className="h-3.5 w-3.5 text-sky-700" />
-                  Play vs Bots
+                  vs Bots
                 </button>
                 <button
                   type="button"
@@ -5267,43 +5376,43 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                     setPendingIncomingAttack(null);
                     setLiveBotMode(false);
                   }}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`px-2 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     !liveBotMode
                       ? 'bg-white text-zinc-900 shadow-sm'
                       : 'text-zinc-600 hover:text-zinc-900'
                   }`}
                 >
-                  Solo Goldfish
+                  Goldfish
                 </button>
               </div>
 
               {!showLiveSetupLobby && (
                 <>
-                  {/* GUI Style Switch: 2/3/4 Visual Tabletop vs Compact List */}
+                  {/* View Switch: Visual Tabletop vs Compact List */}
                   <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
                     <button
                       type="button"
                       onClick={() => setGuiView('tabletop')}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                      className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                         guiView === 'tabletop'
                           ? 'bg-white text-emerald-900 shadow-sm'
                           : 'text-zinc-600 hover:text-zinc-900'
                       }`}
                     >
                       <LayoutGrid className="h-3.5 w-3.5 text-emerald-700" />
-                      Tabletop GUI
+                      Tabletop
                     </button>
                     <button
                       type="button"
                       onClick={() => setGuiView('list')}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                      className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                         guiView === 'list'
                           ? 'bg-white text-zinc-900 shadow-sm'
                           : 'text-zinc-600 hover:text-zinc-900'
                       }`}
                     >
                       <List className="h-3.5 w-3.5 text-zinc-600" />
-                      Compact List
+                      List
                     </button>
                   </div>
 
@@ -5312,11 +5421,11 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                       <button
                         type="button"
                         onClick={() => setLiveGamePhase('setup')}
-                        title="Open Pre-Game Match Setup to edit bot intelligence, bot decks, turn order, and starting life"
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-900 hover:bg-sky-100 cursor-pointer whitespace-nowrap shrink-0"
+                        title="Configure starting life, d20 turn order rolls, and advanced match rules"
+                        className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                       >
                         <Sliders className="h-3.5 w-3.5 text-sky-700" />
-                        Match Setup
+                        Rules &amp; Turn Order
                       </button>
 
                       <button
@@ -5326,8 +5435,8 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                             prev === 'normal' ? 'step' : prev === 'step' ? 'fast' : 'normal'
                           )
                         }
-                        title="Cycle bot turn pace: Normal Pace → Step-by-Step (manual Next Bot) → Fast Bots"
-                        className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 ${
+                        title="Cycle bot turn pace: Normal → Step-by-Step → Fast"
+                        className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 ${
                           botTurnPace === 'step'
                             ? 'border-amber-300 bg-amber-50 text-amber-900'
                             : botTurnPace === 'fast'
@@ -5337,10 +5446,10 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                       >
                         <FastForward className="h-3.5 w-3.5 text-sky-700" />
                         {botTurnPace === 'step'
-                          ? 'Step-by-Step Bots'
+                          ? 'Pace: Step'
                           : botTurnPace === 'fast'
-                          ? 'Fast Bots'
-                          : 'Normal Bot Pace'}
+                          ? 'Pace: Fast'
+                          : 'Pace: Normal'}
                       </button>
 
                       <button
@@ -5358,8 +5467,8 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                               : '12s'
                           )
                         }
-                        title="Cycle Interrupt/Response notification timer when bots play cards: 12s → 8s → 20s → Manual (No Timer) → Smart Only (only pause if you hold an instant)"
-                        className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 ${
+                        title="Cycle Interrupt/Response timer when bots cast spells"
+                        className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 ${
                           interruptWindowMode === 'smart-only'
                             ? 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'
                             : interruptWindowMode === 'manual'
@@ -5368,15 +5477,9 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                         }`}
                       >
                         <Bell className="h-3.5 w-3.5 text-sky-700" />
-                        {interruptWindowMode === '12s'
-                          ? 'Interrupt Window: 12s'
-                          : interruptWindowMode === '8s'
-                          ? 'Interrupt Window: 8s'
-                          : interruptWindowMode === '20s'
-                          ? 'Interrupt Window: 20s'
-                          : interruptWindowMode === 'manual'
-                          ? 'Interrupt Window: Manual'
-                          : 'Interrupt: Smart Only'}
+                        {interruptWindowMode === 'smart-only'
+                          ? 'Resp: Smart'
+                          : `Resp: ${interruptWindowMode}`}
                       </button>
 
                       <button
@@ -5385,17 +5488,17 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                         aria-pressed={fullControlPriority}
                         title={
                           fullControlPriority
-                            ? 'Full Control ON: Always pauses on bot spells & attacks so you can inspect the Stack or hold priority manually'
-                            : 'Smart Priority: Automatically opens the Stack whenever you hold an affordable Instant/Flash spell or a bot counters your spell'
+                            ? 'Full Control ON: Always pauses on bot spells & attacks'
+                            : 'Smart Priority: Opens Stack when you hold an affordable Instant/Flash spell'
                         }
-                        className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 ${
+                        className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 ${
                           fullControlPriority
                             ? 'border-sky-500 bg-sky-700 text-white shadow-sm'
                             : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'
                         }`}
                       >
                         <Layers className={`h-3.5 w-3.5 ${fullControlPriority ? 'text-amber-300' : 'text-sky-700'}`} />
-                        {fullControlPriority ? 'Full Control: ON' : 'Smart Stack Priority'}
+                        {fullControlPriority ? 'Full Control' : 'Smart Priority'}
                       </button>
                     </>
                   )}
@@ -5404,17 +5507,12 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                     <button
                       type="button"
                       onClick={handleMulligan}
-                      title={
-                        freeFirstMulligan && mulliganCount === 0
-                          ? 'Free First Mulligan (CR 103.5c): reshuffle and draw a fresh 7-card hand'
-                          : 'London Mulligan (CR 103.5): reshuffle, draw 7 cards, then choose N cards to put on the bottom of your library'
-                      }
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 cursor-pointer whitespace-nowrap shrink-0"
+                      className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 cursor-pointer whitespace-nowrap shrink-0"
                     >
                       <Shuffle className="h-3.5 w-3.5 text-amber-700" />
                       {freeFirstMulligan && mulliganCount === 0
                         ? 'Free Mulligan (7)'
-                        : `London Mulligan (Keep ${Math.max(
+                        : `Mulligan (Keep ${Math.max(
                             1,
                             7 - (freeFirstMulligan ? mulliganCount : mulliganCount + 1)
                           )})`}
@@ -5423,31 +5521,13 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
 
                   <button
                     type="button"
-                    onClick={() => handleDrawManual(1, true)}
-                    disabled={library.length === 0 || botsAreActing || isShufflingDeck}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
-                  >
-                    <Plus className="h-3.5 w-3.5 text-sky-700" />
-                    Draw Card
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleShuffleLibrary}
-                    disabled={library.length < 2 || botsAreActing || Boolean(pendingIncomingAttack) || isSimulationFinished}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
-                  >
-                    <Shuffle className={`h-3.5 w-3.5 text-sky-700 ${isShufflingDeck ? 'animate-spin' : ''}`} />
-                    {isShufflingDeck ? 'Shuffling...' : 'Shuffle'}
-                  </button>
-                  <button
-                    type="button"
                     onClick={() =>
                       resetGame('Reshuffled deck & drew fresh Opening 7', true, {
                         firstSeatIdx: resolvedFirstSeatIndex,
                         triggerOpeningLead: resolvedFirstSeatIndex > 0,
                       })
                     }
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                   >
                     <RotateCcw className="h-3.5 w-3.5 text-sky-700" />
                     New Game
@@ -5464,9 +5544,9 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
             title={
               isFullscreen
                 ? 'Exit Fullscreen Play Area (Esc)'
-                : 'Expand Play Area to Fullscreen inside program'
+                : 'Expand Play Area to Fullscreen'
             }
-            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
               isFullscreen
                 ? 'bg-sky-700 text-white hover:bg-sky-800 shadow-sm'
                 : 'border border-sky-600/40 bg-sky-50 text-sky-800 hover:bg-sky-100'
@@ -5475,7 +5555,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
             {isFullscreen ? (
               <>
                 <Minimize2 className="h-3.5 w-3.5 shrink-0" />
-                Exit Fullscreen
+                Exit
               </>
             ) : (
               <>
@@ -6137,6 +6217,10 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
             onAdjustPlayerCounter={handleAdjustPlayerCounter}
             onToggleMonarch={handleToggleMonarch}
             onReorderBattlefield={handleReorderBattlefield}
+            onMoveBattlefieldCard={handleMoveBattlefieldCard}
+            onAutoArrangePlaymat={handleAutoArrangePlaymat}
+            onMoveBotCard={handleMoveBotCard}
+            onAutoArrangeBotPlaymat={handleAutoArrangeBotPlaymat}
             onDiscardFromHand={handleDiscardFromHand}
             onExileFromHand={handleExileFromHand}
             onMovePermanentToExile={handleMovePermanentToExile}

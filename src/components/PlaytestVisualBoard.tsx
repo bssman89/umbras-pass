@@ -7,6 +7,7 @@ import {
   Flame,
   Layers,
   Mountain,
+  Palette,
   Pause,
   Play,
   RotateCcw,
@@ -32,6 +33,18 @@ import {
   saveHoverZoomPreference,
   type HoveredCardPreview,
 } from './CardHoverZoomOverlay';
+import {
+  loadTabletopPlaymatPreferences,
+  PLAYMAT_THEME_UPDATED_EVENT,
+  resolveSeatPlaymatSurface,
+  resolveTabletopSurface,
+  type TabletopPlaymatPreferences,
+} from '../utils/tabletopPlaymatThemes';
+import {
+  PlaymatSurfaceBackdrop,
+  TabletopPlaymatCustomizerModal,
+} from './TabletopPlaymatCustomizerModal';
+import { resolveCardWithCustomProxy } from '../utils/customCardProxiesAndTokens';
 
 interface PlaytestVisualBoardProps {
   result: PlaytestResult;
@@ -167,12 +180,21 @@ const BoardCardTile: React.FC<BoardCardTileProps> = ({
     );
   }
 
+  const resolvedCustom = resolveCardWithCustomProxy(name, meta);
+  const effectiveMeta = resolvedCustom.meta || meta;
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [name, effectiveMeta?.imageUri]);
+
   const ptLabel =
-    meta?.power && meta?.toughness ? `${meta.power}/${meta.toughness}` : null;
-  const typeSummary = meta?.isLand
+    effectiveMeta?.power && effectiveMeta?.toughness
+      ? `${effectiveMeta.power}/${effectiveMeta.toughness}`
+      : null;
+  const typeSummary = effectiveMeta?.isLand
     ? 'Land'
-    : meta?.typeLine
-    ? meta.typeLine.split('—')[0].trim()
+    : effectiveMeta?.typeLine
+    ? effectiveMeta.typeLine.split('—')[0].trim()
     : subtitle || 'Spell';
 
   const handleMouseEnter = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -181,8 +203,8 @@ const BoardCardTile: React.FC<BoardCardTileProps> = ({
     if (badge) tags.push(badge);
     if (highlight === 'commander' && badge !== 'Cmdr') tags.push('Commander');
     showPreview({
-      name,
-      meta,
+      name: resolvedCustom.displayTitle || name,
+      meta: effectiveMeta,
       rect: buildHoverRect(e.currentTarget),
       ptLabel: ptLabel || (subtitle && /^\d+\/\d+$/.test(subtitle) ? subtitle : null),
       statusTags: tags,
@@ -196,17 +218,17 @@ const BoardCardTile: React.FC<BoardCardTileProps> = ({
       onMouseLeave={hidePreview}
       onClick={() => {
         hidePreview();
-        onInspect(name, meta);
+        onInspect(name, effectiveMeta);
       }}
-      title={`Inspect ${name}${meta?.manaCost ? ` (${meta.manaCost})` : ''}`}
+      title={`Inspect ${name}${effectiveMeta?.manaCost ? ` (${effectiveMeta.manaCost})` : ''}`}
       className={`${sizeClass} relative shrink-0 rounded-lg border bg-white p-1.5 text-left transition-all duration-150 hover:-translate-y-0.5 cursor-pointer group ${borderClass} ${
         animateDraw ? 'animate-card-draw-slide' : ''
       } ${hoverZoomEnabled ? 'hover:z-20 hover:scale-[1.07] hover:shadow-lg' : ''}`}
     >
       <div className={`relative ${artHeightClass} w-full overflow-hidden rounded border border-zinc-200 bg-zinc-100`}>
-        {meta?.imageUri && !imgFailed ? (
+        {effectiveMeta?.imageUri && !imgFailed ? (
           <img
-            src={meta.imageUri}
+            src={effectiveMeta.imageUri}
             alt={name}
             referrerPolicy="no-referrer"
             onError={() => setImgFailed(true)}
@@ -316,6 +338,20 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
     loadHoverZoomPreference()
   );
   const [hoveredCard, setHoveredCard] = useState<HoveredCardPreview | null>(null);
+  const [playmatPrefs, setPlaymatPrefs] = useState<TabletopPlaymatPreferences>(() =>
+    loadTabletopPlaymatPreferences()
+  );
+  const [showPlaymatCustomizer, setShowPlaymatCustomizer] = useState(false);
+
+  useEffect(() => {
+    const handleSync = () => {
+      setPlaymatPrefs(loadTabletopPlaymatPreferences());
+    };
+    window.addEventListener(PLAYMAT_THEME_UPDATED_EVENT, handleSync);
+    return () => window.removeEventListener(PLAYMAT_THEME_UPDATED_EVENT, handleSync);
+  }, []);
+
+  const tabletopSurface = resolveTabletopSurface(playmatPrefs);
 
   const handleToggleHoverZoom = () => {
     setHoverZoomEnabled((prev) => {
@@ -639,6 +675,16 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
             {hoverZoomEnabled ? 'Hover Zoom On' : 'Hover Zoom Off'}
           </button>
 
+          <button
+            type="button"
+            onClick={() => setShowPlaymatCustomizer(true)}
+            title="Customize tabletop background and per-seat TCG playmats"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-900 hover:bg-emerald-100 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+          >
+            <Palette className="h-3.5 w-3.5 text-emerald-700" />
+            <span>Playmats &amp; Theme</span>
+          </button>
+
           <select
             aria-label="Playback speed"
             value={playbackSpeed}
@@ -673,10 +719,13 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
       </div>
 
       {/* Tabletop Playmat Surface (2 / 3 / 4 Player Felt Arena) */}
-      <div className="bg-[#0F4C3A] border-t-2 border-[#186A52] p-4 sm:p-5 space-y-4">
+      <div
+        className={`relative overflow-hidden border-t-2 p-4 sm:p-5 space-y-4 transition-colors ${tabletopSurface.outerClass}`}
+      >
+        <PlaymatSurfaceBackdrop surface={tabletopSurface} variant="table" />
         {/* 2 / 3 / 4 Seat Turn Order Track */}
         <div
-          className={`grid gap-2 ${
+          className={`relative z-10 grid gap-2 ${
             1 + botPlays.length === 2
               ? 'grid-cols-2'
               : 1 + botPlays.length === 3
@@ -752,7 +801,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
         </div>
 
         {/* Top Zone: Bot Opponent Seats */}
-        <div className={`grid gap-3.5 ${botGridClass}`}>
+        <div className={`relative z-10 grid gap-3.5 ${botGridClass}`}>
           {botPlays.map((bp, idx) => {
             const botStats = getParticipantStat(activeRound, bp.botName);
             const isEliminated =
@@ -781,21 +830,24 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
             const archetypeRoster = getCreatureRosterForArchetype(bp.archetype);
             const visibleCreatureCount = Math.min(botCreatures, 5);
             const extraCreatureCount = Math.max(0, botCreatures - visibleCreatureCount);
+            const botSeatNum = Math.min(4, idx + 2) as 2 | 3 | 4;
+            const botSeatSurface = resolveSeatPlaymatSurface(playmatPrefs, botSeatNum);
 
             return (
               <div
                 key={`${bp.botName}-${idx}`}
                 onClick={() => setTurnFocus(isFocused ? 'all' : idx)}
-                className={`rounded-xl border p-3.5 space-y-3 transition-opacity duration-150 cursor-pointer text-white ${
+                className={`relative overflow-hidden rounded-xl border p-3.5 space-y-3 transition-opacity duration-150 cursor-pointer text-white ${
                   isEliminated
                     ? 'border-red-400/45 bg-[#2A171C]/85'
                     : isFocused
-                    ? 'border-sky-400 bg-[#125541] ring-1 ring-sky-400/50'
-                    : 'border-[#1E6E56] bg-[#0B392C]/90 hover:border-emerald-400/60'
+                    ? botSeatSurface.seatActiveClass
+                    : botSeatSurface.seatClass
                 } ${isDimmed ? 'opacity-65' : 'opacity-100'}`}
               >
+                <PlaymatSurfaceBackdrop surface={botSeatSurface} variant="seat" />
                 {/* Bot Seat Header */}
-                <div className="flex items-start justify-between gap-2">
+                <div className="relative z-10 flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="font-mono text-[10px] font-bold text-emerald-300">
@@ -1294,6 +1346,18 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
       preview={hoveredCard}
       enabled={hoverZoomEnabled}
       onDismiss={handleHidePreview}
+    />
+    <TabletopPlaymatCustomizerModal
+      isOpen={showPlaymatCustomizer}
+      onClose={() => setShowPlaymatCustomizer(false)}
+      preferences={playmatPrefs}
+      onChangePreferences={setPlaymatPrefs}
+      seatLabels={[
+        `Seat 1 (You · ${deckName || 'Your Deck'})`,
+        botPlays[0]?.botName && `Seat 2 (${botPlays[0].botName})`,
+        botPlays[1]?.botName && `Seat 3 (${botPlays[1].botName})`,
+        botPlays[2]?.botName && `Seat 4 (${botPlays[2].botName})`,
+      ]}
     />
     </VisualBoardHoverContext.Provider>
   );

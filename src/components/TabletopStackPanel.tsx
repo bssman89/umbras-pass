@@ -35,6 +35,10 @@ import {
   hideGlobalCardHover,
   showGlobalCardHover,
 } from './CardHoverZoomOverlay';
+import {
+  getScryfallFallbackImageUri,
+  resolveCardWithCustomProxy,
+} from '../utils/customCardProxiesAndTokens';
 
 export interface StackHandCardSummary {
   uid: string;
@@ -820,7 +824,15 @@ export const TabletopStackPanel: React.FC<TabletopStackPanelProps> = ({
         {reversedStack.map(({ item, resolutionRank, arrayIdx }, visualIdx) => {
           const isTop = visualIdx === 0;
           const isBottom = visualIdx === reversedStack.length - 1 && reversedStack.length > 1;
-          const imgUrl = item.meta?.imageUri;
+          const cleanStackCardName = item.cardName.replace(/ — .*$/, '');
+          const resolvedStackArt = resolveCardWithCustomProxy(
+            cleanStackCardName,
+            item.meta ?? null
+          );
+          const imgUrl =
+            resolvedStackArt.meta?.imageUri ||
+            item.meta?.imageUri ||
+            getScryfallFallbackImageUri(cleanStackCardName);
           const isTrigger = Boolean(item.isTriggeredAbility);
           const isActivated = Boolean(item.isActivatedAbility);
 

@@ -3956,9 +3956,11 @@ function makeSyntheticMeta(
     isProtection: Boolean(flags?.isProtection),
     power,
     toughness,
-    imageUri: '',
+    imageUri: `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(
+      name.split('//')[0].trim()
+    )}&format=image&version=normal`,
     priceUsd: null,
-    scryfallUri: '',
+    scryfallUri: `https://scryfall.com/search?q=!"${encodeURIComponent(name)}"`,
     legalInFormat: true,
     rarity: 'rare',
   };

@@ -210,7 +210,14 @@ function normalizeCardMetadata(rawMeta: unknown): DeckAnalysisResult['resolvedCa
     isProtection: Boolean(m.isProtection),
     power: typeof m.power === 'string' ? m.power : undefined,
     toughness: typeof m.toughness === 'string' ? m.toughness : undefined,
-    imageUri: typeof m.imageUri === 'string' ? m.imageUri : '',
+    imageUri:
+      typeof m.imageUri === 'string' && m.imageUri.trim()
+        ? m.imageUri.trim()
+        : typeof m.name === 'string' && m.name.trim()
+        ? `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(
+            m.name.split('//')[0].trim()
+          )}&format=image&version=normal`
+        : '',
     backImageUri: typeof m.backImageUri === 'string' ? m.backImageUri : undefined,
     priceUsd:
       typeof m.priceUsd === 'number' && Number.isFinite(m.priceUsd) ? m.priceUsd : null,
@@ -800,7 +807,7 @@ function getWorkspaceStorageTarget(userScopeKey: string): {
 export function loadUserActiveWorkspace(
   userScopeKey: string
 ): UserActiveWorkspaceState | null {
-  if (!userScopeKey || !userScopeKey.startsWith('uid_')) {
+  if (!userScopeKey) {
     return null;
   }
   const { storage, key } = getWorkspaceStorageTarget(userScopeKey);
@@ -841,7 +848,7 @@ export function persistUserActiveWorkspace(
   userScopeKey: string,
   state: UserActiveWorkspaceState | null
 ): void {
-  if (!userScopeKey || !userScopeKey.startsWith('uid_')) {
+  if (!userScopeKey) {
     return;
   }
   const { storage, key } = getWorkspaceStorageTarget(userScopeKey);

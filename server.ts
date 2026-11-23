@@ -46,6 +46,7 @@ import {
   getUpdateDownloadState,
   startReleaseAssetDownload,
 } from './server/updater.ts';
+import { registerMultiplayerRoutes } from './server/multiplayerServer.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -137,6 +138,8 @@ async function startServer() {
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
   });
+
+  registerMultiplayerRoutes(app);
 
   app.get('/api/updates/check', async (req, res) => {
     try {

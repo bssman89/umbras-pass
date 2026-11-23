@@ -1,6 +1,8 @@
 # Umbras Pass — Indie Magic: The Gathering Deck Analyzer & Playtest Sim
 
-**Umbras Pass** is a free, standalone *Magic: The Gathering* deck analyzer, mana base optimizer, and tabletop playtest simulator. It features adaptive AI opponents powered by a local `.gguf` language model—meaning **100% private, offline AI with no cloud API keys or subscriptions required**.
+**Umbras Pass** is a free, standalone *Magic: The Gathering* deck analyzer, mana base optimizer, and interactive 1–4 player tabletop simulator. It features adaptive AI opponents powered by a local `.gguf` language model—meaning **100% private, offline AI with no cloud API keys or subscriptions required**—alongside **Offline LAN & Self-Hosted Online Multiplayer** with friends and AI bots.
+
+> **Latest Release — v1.2.0:** Free-form drag-and-drop playmats, 1–4 player LAN & Self-Hosted Online Multiplayer, custom playmats & card proxies/tokens, streamlined Playtest setup, and Scryfall artwork & sync fixes. See **[CHANGELOG.md](CHANGELOG.md)** and **[RELEASE_NOTES_v1.2.0.md](RELEASE_NOTES_v1.2.0.md)**.
 
 <!-- Quick Navigation -->
 - [Key Features](#key-features)
@@ -19,20 +21,19 @@
 ## Key Features
 
 - **Universal Deck Importer:** Paste or import decklists directly from **MTG Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox (CSV), MTGO, or Cockatrice**, or jump right in with built-in sample decks.
-- **Karsten-Calibrated Mana Analysis:** Automatically checks land counts, ramp targets, color pip distributions, and tapped-land tempo warnings so you stop getting mana-screwed.
-- **Deep Curve & Playability Metrics:** Visualize stacked mana curves, cumulative playability odds, color identity breakdowns, and average/median CMC benchmarks.
-- **Live Tabletop Simulator (1v1 & 1v3 Commander):** Test your deck turn-by-turn against adaptive AI bots with hover card zoom, phase tracking, visual LIFO Stack & trigger resolution queue, and persistent matchup memory.
+- **Karsten-Calibrated Mana Analysis & Metrics:** Automatically checks land counts, ramp targets, color pip distributions, tapped-land tempo warnings, stacked mana curves, cumulative playability odds, and average/median CMC benchmarks.
+- **Free-Form Drag-and-Drop Playmats (Playtest):** Streamlined **Playtest** tab merging goldfishing and Live AI Bot pods with a unified 2D canvas. Drag permanents freely anywhere on your playmat or bot playmats, drop cards from Hand/Command Zone/Graveyard/Exile to exact board coordinates, toggle **Zone Guides**, or click **Tidy Board** for automatic non-overlapping spacing.
+- **1–4 Player Hybrid Multiplayer (Offline LAN & Self-Hosted Online):** Host or join local Wi-Fi/Ethernet or port-forwarded online pods mixing human friends and adaptive AI bots. Protected by 6-character room codes, scrypt-hashed session passcodes, and a **Host Lobby Approval Queue**, plus built-in **Local IP Detection**, **Port Reachability Self-Test**, and copy-pasteable **Router Port-Forwarding & OS Firewall Guides**.
+- **Custom Tabletop Playmats & Backgrounds:** Customize per-user seat playmats and table-wide themes using built-in artwork presets or your own custom image URLs, synced live across multiplayer rooms.
+- **Custom Card Images, Proxies & Custom Tokens:** Override card artwork, create full playtest proxies, apply custom frame borders, and spawn custom tokens directly onto the battlefield in both Playtest and Multiplayer sessions.
+- **Visual LIFO Stack & Official CR Rules Engine:** Real-time MTG Arena/MTGO-style visual Stack (`CR 405`), automatic trigger detection (`CR 603`), trigger reordering, London Mulligan, Commander tax tracking, First Strike/Double Strike & Trample+Deathtouch combat (`CR 510`), and Scryfall card artwork zoom previews.
 - **100% Local AI:** Runs directly on your PC's CPU or GPU using `.gguf` models. *(Don't want to download an AI model? Umbras Pass still works out of the box using its built-in deterministic rules engine!)*
 
 ---
 
 ## Planned Future Updates & Features
 
-- **Offline LAN (Local Area Network) Multiplayer Tabletop Sessions (1–4 Players)**
-- **User Self-Hosted Online Multiplayer Tabletop Sessions (1–4 Players)**
-- **Enhanced Deck Builder:** Integrated card search, recommendations, and synergy data powered by Scryfall, EDHREC, and other MTG card sources.
-- **Custom Tabletop Playmats & Backgrounds:** Per-user and per-tabletop custom TCG playmat and background themes.
-- **Custom Card Images, Proxies & Tokens:** Support for custom card art, playtest proxies, and custom token visuals.
+- **Enhanced Deck Builder:** Integrated card search, synergy recommendations, and EDHREC/Scryfall-powered deck construction inside the workspace.
 
 ---
 
@@ -50,8 +51,8 @@ Optimize land counts, color sources, and early-game tempo.
 Inspect stacked mana curves, playability percentages, and CMC benchmarks.
 ![Umbras Pass Advanced Deck Metrics](docs/screenshots/04-advanced-deck-metrics.png)
 
-### Live Tabletop vs. Adaptive AI Bots
-Playtest 1v1 or 4-player Commander pods against bots that learn your deck's threats.
+### Live Tabletop & Interactive Playtest vs. Adaptive AI Bots
+Playtest 1v1 or 4-player Commander pods with drag-and-drop playmats and bots that learn your deck's threats.
 ![Umbras Pass Live Tabletop VS AI Bots](docs/screenshots/05-live-tabletop-playtest.png)
 
 ### One-Click `.gguf` AI Setup
@@ -154,7 +155,7 @@ If you prefer to download the AI model manually or already have `.gguf` files on
 | `npm run dist:win:qwen4b` | Downloads `Qwen3-4B-Q4_K_M.gguf` (if missing) and packages a complete offline Windows bundle |
 
 ### Building & Sharing Windows `.exe` Releases
-- **Standalone `.exe` (no bundled model):** Run `npm run dist:win` (or push a Git tag like `v1.0.0` to trigger GitHub Actions). Users will see the one-time startup screen to auto-download their `.gguf` model.
+- **Standalone `.exe` (no bundled model):** Run `npm run dist:win` (or push a Git tag like `v1.2.0` to trigger GitHub Actions). Users will see the one-time startup screen to auto-download their `.gguf` model.
 - **Offline bundle with `.gguf` included:** Run `npm run dist:win:qwen4b`, then zip and share the entire `dist-electron/win-unpacked/` folder so `models/` stays next to the `.exe`.
 
 ### Security & Repository Hygiene

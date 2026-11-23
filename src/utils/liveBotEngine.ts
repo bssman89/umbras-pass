@@ -24,6 +24,11 @@ import {
   buildBotPastPlayBriefing,
   resolveBotLearningKey,
 } from './botLearning';
+import {
+  computeOpenBotPlaymatSpot,
+  getNextPlaymatZ,
+  tidyBotPlaymatPositions,
+} from './playmatPositioning';
 
 export interface CreatureKeywords {
   flying: boolean;
@@ -125,6 +130,35 @@ export interface LiveBotCreature extends CreatureKeywords {
   hasInfect: boolean;
   toxicValue: number;
   meta: CardMetadata | null;
+  playmatX?: number;
+  playmatY?: number;
+  playmatZ?: number;
+}
+
+export function assignCreaturePlaymatSpot(
+  existing: ReadonlyArray<LiveBotCreature>,
+  creature: LiveBotCreature
+): LiveBotCreature {
+  if (
+    typeof creature.playmatX === 'number' &&
+    typeof creature.playmatY === 'number'
+  ) {
+    return {
+      ...creature,
+      playmatZ: creature.playmatZ ?? getNextPlaymatZ(existing),
+    };
+  }
+  const spot = computeOpenBotPlaymatSpot(existing, { preferFront: true });
+  return {
+    ...creature,
+    playmatX: spot.x,
+    playmatY: spot.y,
+    playmatZ: spot.z,
+  };
+}
+
+export function tidyBotCreaturesForPlaymat(creatures: LiveBotCreature[]): LiveBotCreature[] {
+  return tidyBotPlaymatPositions(creatures, false);
 }
 
 export interface LiveBotDeckCard extends CreatureKeywords {
@@ -2074,12 +2108,16 @@ export function executeBotTurn(
   const exiledPlayerCreatureUids: string[] = [];
   let boardWipeCast = false;
 
-  // 1. Untap & clear summoning sickness
+  // 1. Untap, pull attackers back from combat front edge, and clear summoning sickness
   bot.tappedLands = 0;
   bot.creatures = bot.creatures.map((c) => ({
     ...c,
     tapped: false,
     summoningSick: false,
+    playmatY:
+      typeof c.playmatY === 'number' && c.playmatY > 68
+        ? 44
+        : c.playmatY,
   }));
 
   // 2. Draw step (respecting 1v1 starting player Turn 1 draw skip, CR 103.8a)
@@ -2462,7 +2500,7 @@ export function executeBotTurn(
         });
       }
       bot.liveMemory.creaturesPlayedCount += 1;
-      bot.creatures.push(cmdCreature);
+      bot.creatures.push(assignCreaturePlaymatSpot(bot.creatures, cmdCreature));
       notifyRivalsOfBotPlay(4, `${bot.name} deployed Commander ${bot.commanderName}`);
     }
 
@@ -2734,7 +2772,7 @@ export function executeBotTurn(
           });
         }
         bot.liveMemory.creaturesPlayedCount += 1;
-        bot.creatures.push(creatureObj);
+        bot.creatures.push(assignCreaturePlaymatSpot(bot.creatures, creatureObj));
         mainPhaseActions.push(`Deployed ${card.name} (${card.power}/${card.toughness})`);
       } else {
         addBotZoneCardInPlace(bot, 'graveyard', {
@@ -2942,7 +2980,7 @@ export function executeBotTurn(
         });
       }
       bot.liveMemory.creaturesPlayedCount += 1;
-      bot.creatures.push(cmdCreature);
+      bot.creatures.push(assignCreaturePlaymatSpot(bot.creatures, cmdCreature));
       notifyRivalsOfBotPlay(4, `${bot.name} deployed Commander ${bot.commanderName}`);
     }
 
@@ -3250,7 +3288,7 @@ export function executeBotTurn(
         });
       }
       bot.liveMemory.creaturesPlayedCount += 1;
-      bot.creatures.push(creatureObj);
+      bot.creatures.push(assignCreaturePlaymatSpot(bot.creatures, creatureObj));
       mainPhaseActions.push(`Cast ${pick.name} (${pick.power}/${pick.toughness})`);
     }
 
@@ -3540,9 +3578,18 @@ export function executeBotTurn(
       if (rival && !rival.eliminated && chosenSelection) {
         const attackers = chosenSelection.attackers;
         if (attackers.length > 0) {
+          const allAtkIds = new Set(attackers.map((a) => a.uid));
           const atkIds = new Set(attackers.filter((a) => !a.vigilance).map((a) => a.uid));
+          let zCursor = getNextPlaymatZ(bot.creatures);
           bot.creatures = bot.creatures.map((c) =>
-            atkIds.has(c.uid) ? { ...c, tapped: true } : c
+            allAtkIds.has(c.uid)
+              ? {
+                  ...c,
+                  tapped: atkIds.has(c.uid) ? true : c.tapped,
+                  playmatY: Math.max(c.playmatY ?? 48, 76),
+                  playmatZ: zCursor++,
+                }
+              : c
           );
 
           const availableRivalBlockers = rival.creatures.filter((c) => !c.tapped && c.toughness > 0);
@@ -3668,9 +3715,18 @@ export function executeBotTurn(
       // Evaluating attacks against YOU
       const attackers = chosenSelection.attackers;
       if (attackers.length > 0) {
+        const allAtkIds = new Set(attackers.map((a) => a.uid));
         const atkIds = new Set(attackers.filter((a) => !a.vigilance).map((a) => a.uid));
+        let zCursor = getNextPlaymatZ(bot.creatures);
         bot.creatures = bot.creatures.map((c) =>
-          atkIds.has(c.uid) ? { ...c, tapped: true } : c
+          allAtkIds.has(c.uid)
+            ? {
+                ...c,
+                tapped: atkIds.has(c.uid) ? true : c.tapped,
+                playmatY: Math.max(c.playmatY ?? 48, 76),
+                playmatZ: zCursor++,
+              }
+            : c
         );
 
         // Check if player has ANY legal blocker for at least one attacker
@@ -3934,9 +3990,18 @@ export function executeBotPostStackCombat(
       const rival = nextBots.find((b) => b.id === chosenCombatRef.targetBotId);
       if (rival && !rival.eliminated && chosenSelection && chosenSelection.attackers.length > 0) {
         const attackers = chosenSelection.attackers;
+        const allAtkIds = new Set(attackers.map((a) => a.uid));
         const atkIds = new Set(attackers.filter((a) => !a.vigilance).map((a) => a.uid));
+        let zCursor = getNextPlaymatZ(bot.creatures);
         bot.creatures = bot.creatures.map((c) =>
-          atkIds.has(c.uid) ? { ...c, tapped: true } : c
+          allAtkIds.has(c.uid)
+            ? {
+                ...c,
+                tapped: atkIds.has(c.uid) ? true : c.tapped,
+                playmatY: Math.max(c.playmatY ?? 48, 76),
+                playmatZ: zCursor++,
+              }
+            : c
         );
         const availableRivalBlockers = rival.creatures.filter((c) => !c.tapped && c.toughness > 0);
         let totalDmg = 0;
@@ -4021,9 +4086,18 @@ export function executeBotPostStackCombat(
       }
     } else if (chosenSelection && chosenSelection.attackers.length > 0) {
       const attackers = chosenSelection.attackers;
+      const allAtkIds = new Set(attackers.map((a) => a.uid));
       const atkIds = new Set(attackers.filter((a) => !a.vigilance).map((a) => a.uid));
+      let zCursor = getNextPlaymatZ(bot.creatures);
       bot.creatures = bot.creatures.map((c) =>
-        atkIds.has(c.uid) ? { ...c, tapped: true } : c
+        allAtkIds.has(c.uid)
+          ? {
+              ...c,
+              tapped: atkIds.has(c.uid) ? true : c.tapped,
+              playmatY: Math.max(c.playmatY ?? 48, 76),
+              playmatZ: zCursor++,
+            }
+          : c
       );
 
       const playerHasLegalBlocker = attackers.some((atk) => {
