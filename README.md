@@ -28,9 +28,11 @@
 
 ## Planned Future Updates & Features
 
-- **Offline LAN Multiplayer**
-- **Online Multiplayer**
-- **Deck Builder**
+- **Offline LAN (Local Area Network) Multiplayer Tabletop Sessions (1–4 Players)**
+- **User Self-Hosted Online Multiplayer Tabletop Sessions (1–4 Players)**
+- **Enhanced Deck Builder:** Integrated card search, recommendations, and synergy data powered by Scryfall, EDHREC, and other MTG card sources.
+- **Custom Tabletop Playmats & Backgrounds:** Per-user and per-tabletop custom TCG playmat and background themes.
+- **Custom Card Images, Proxies & Tokens:** Support for custom card art, playtest proxies, and custom token visuals.
 
 ---
 
