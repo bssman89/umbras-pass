@@ -1,6 +1,7 @@
 # Changelog — Umbra's Pass
 
-## Latest Release — Live Stack & Trigger Queue, Analysis Lock & Cancel Flow, WotC Comprehensive Rules Engine
+## [v1.1.0] — Version 1.1.0 (2026-11-22)
+### Live Stack & Trigger Queue, Analysis Lock & Cancel Flow, WotC Comprehensive Rules Engine
 
 ### ⚡ New Features & Enhancements
 

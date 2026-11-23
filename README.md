@@ -4,6 +4,7 @@
 
 <!-- Quick Navigation -->
 - [Key Features](#key-features)
+- [Planned Future Updates & Features](#planned-future-updates--features)
 - [Screenshots](#screenshots)
 - [Getting Started](#getting-started)
   - [Option A: Windows App (No Coding Required)](#option-a-windows-app-no-coding-required)
@@ -20,8 +21,16 @@
 - **Universal Deck Importer:** Paste or import decklists directly from **MTG Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox (CSV), MTGO, or Cockatrice**, or jump right in with built-in sample decks.
 - **Karsten-Calibrated Mana Analysis:** Automatically checks land counts, ramp targets, color pip distributions, and tapped-land tempo warnings so you stop getting mana-screwed.
 - **Deep Curve & Playability Metrics:** Visualize stacked mana curves, cumulative playability odds, color identity breakdowns, and average/median CMC benchmarks.
-- **Live Tabletop Simulator (1v1 & 1v3 Commander):** Test your deck turn-by-turn against adaptive AI bots with hover card zoom, phase tracking, and persistent matchup memory.
+- **Live Tabletop Simulator (1v1 & 1v3 Commander):** Test your deck turn-by-turn against adaptive AI bots with hover card zoom, phase tracking, visual LIFO Stack & trigger resolution queue, and persistent matchup memory.
 - **100% Local AI:** Runs directly on your PC's CPU or GPU using `.gguf` models. *(Don't want to download an AI model? Umbras Pass still works out of the box using its built-in deterministic rules engine!)*
+
+---
+
+## Planned Future Updates & Features
+
+- **Offline LAN Multiplayer**
+- **Online Multiplayer**
+- **Deck Builder**
 
 ---
 
