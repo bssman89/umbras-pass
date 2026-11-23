@@ -34,7 +34,7 @@
 
 ---
 
-## Screenshots
+## Program Screenshots
 
 ### Deck Importer & Sample Decks
 Import from any major deckbuilder or test immediately with pre-loaded decks.
