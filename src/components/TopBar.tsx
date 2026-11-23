@@ -161,15 +161,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   const [bugEmail, setBugEmail] = useState('');
   const [bugSubmitted, setBugSubmitted] = useState(false);
   const [bugError, setBugError] = useState<string | null>(null);
-  const [blockedTipSection, setBlockedTipSection] = useState<string | null>(null);
 
   const settingsRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (hasAnalysis) {
-      setBlockedTipSection(null);
-    }
-  }, [hasAnalysis]);
 
   useEffect(() => {
     const syncWelcomePref = () => {
@@ -348,38 +341,61 @@ export const TopBar: React.FC<TopBarProps> = ({
             const isActive = activeSection === item.id;
             const Icon = item.icon;
             return (
-              <button
-                key={item.id}
-                type="button"
-                aria-disabled={item.disabled || undefined}
-                onClick={() => {
-                  if (item.disabled) {
-                    setBlockedTipSection(item.label);
-                    onNavigate('import');
-                    return;
+              <div key={item.id} className="relative group shrink-0">
+                <button
+                  type="button"
+                  aria-disabled={item.disabled || undefined}
+                  onClick={() => {
+                    if (item.disabled) {
+                      onNavigate('import');
+                      return;
+                    }
+                    onNavigate(item.id);
+                  }}
+                  title={
+                    item.disabled
+                      ? `Import a deck first and click Analyze Deck before proceeding to ${item.label}`
+                      : hasAnalysis && item.id === 'import'
+                      ? 'Warning: Clicking Import Deck will stop your current Bot Playtest and reset the program to import a new deck'
+                      : item.label
                   }
-                  setBlockedTipSection(null);
-                  onNavigate(item.id);
-                }}
-                title={
-                  item.disabled
-                    ? 'Import and analyze a deck first to open this section'
-                    : hasAnalysis && item.id === 'import'
-                    ? 'Warning: Clicking Import Deck will stop your current Bot Playtest and reset the program to import a new deck'
-                    : item.label
-                }
-                className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                  item.disabled
-                    ? 'opacity-45 cursor-not-allowed text-zinc-500 hover:text-zinc-700'
-                    : isActive
-                    ? 'bg-white text-zinc-900 shadow-sm cursor-pointer'
-                    : 'text-zinc-600 hover:text-zinc-900 cursor-pointer'
-                }`}
-              >
-                <Icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-sky-700' : 'text-zinc-500'}`} />
-                <span className="hidden 2xl:inline">{item.label}</span>
-                <span className="2xl:hidden">{item.shortLabel}</span>
-              </button>
+                  className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                    item.disabled
+                      ? 'opacity-65 cursor-not-allowed text-zinc-500 hover:bg-amber-50 hover:text-amber-900'
+                      : isActive
+                      ? 'bg-white text-zinc-900 shadow-sm cursor-pointer'
+                      : 'text-zinc-600 hover:text-zinc-900 cursor-pointer'
+                  }`}
+                >
+                  <Icon
+                    className={`h-3.5 w-3.5 shrink-0 ${
+                      item.disabled
+                        ? 'text-zinc-400 group-hover:text-amber-700'
+                        : isActive
+                        ? 'text-sky-700'
+                        : 'text-zinc-500'
+                    }`}
+                  />
+                  <span className="hidden 2xl:inline">{item.label}</span>
+                  <span className="2xl:hidden">{item.shortLabel}</span>
+                </button>
+
+                {item.disabled && (
+                  <div
+                    role="tooltip"
+                    className="pointer-events-none invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 absolute left-1/2 top-full z-40 mt-2 w-64 -translate-x-1/2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-[11px] leading-snug text-amber-950 shadow-lg"
+                  >
+                    <div className="flex items-start gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-700 shrink-0 mt-0.5" />
+                      <span>
+                        <strong className="font-bold">Import &amp; Analyze First:</strong> Import a deck below and click{' '}
+                        <strong className="font-semibold">Analyze Deck</strong> before proceeding to{' '}
+                        <strong className="font-semibold">{item.label}</strong>.
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>
@@ -1120,70 +1136,69 @@ export const TopBar: React.FC<TopBarProps> = ({
       {/* Compact Mobile Workspace Bar (< md) */}
       <nav
         aria-label="Mobile workspace sections"
-        className="flex md:hidden items-center gap-1 border-t border-zinc-100 bg-zinc-50 px-3 py-1.5 overflow-x-auto"
+        className="flex md:hidden items-center gap-1 border-t border-zinc-100 bg-zinc-50 px-3 py-1.5"
       >
         <div className="flex w-full items-center gap-1 rounded-lg bg-zinc-100 p-1">
           {navItems.map((item) => {
             const isActive = activeSection === item.id;
             const Icon = item.icon;
             return (
-              <button
-                key={item.id}
-                type="button"
-                aria-disabled={item.disabled || undefined}
-                onClick={() => {
-                  if (item.disabled) {
-                    setBlockedTipSection(item.label);
-                    onNavigate('import');
-                    return;
+              <div key={item.id} className="relative group flex-1">
+                <button
+                  type="button"
+                  aria-disabled={item.disabled || undefined}
+                  title={
+                    item.disabled
+                      ? `Import a deck first and click Analyze Deck before proceeding to ${item.label}`
+                      : item.label
                   }
-                  setBlockedTipSection(null);
-                  onNavigate(item.id);
-                }}
-                className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                  item.disabled
-                    ? 'opacity-45 cursor-not-allowed text-zinc-500 hover:text-zinc-700'
-                    : isActive
-                    ? 'bg-white text-zinc-900 shadow-sm cursor-pointer'
-                    : 'text-zinc-600 hover:text-zinc-900 cursor-pointer'
-                }`}
-              >
-                <Icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-sky-700' : 'text-zinc-500'}`} />
-                <span>{item.shortLabel}</span>
-              </button>
+                  onClick={() => {
+                    if (item.disabled) {
+                      onNavigate('import');
+                      return;
+                    }
+                    onNavigate(item.id);
+                  }}
+                  className={`w-full inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                    item.disabled
+                      ? 'opacity-65 cursor-not-allowed text-zinc-500 hover:bg-amber-50 hover:text-amber-900'
+                      : isActive
+                      ? 'bg-white text-zinc-900 shadow-sm cursor-pointer'
+                      : 'text-zinc-600 hover:text-zinc-900 cursor-pointer'
+                  }`}
+                >
+                  <Icon
+                    className={`h-3.5 w-3.5 shrink-0 ${
+                      item.disabled
+                        ? 'text-zinc-400 group-hover:text-amber-700'
+                        : isActive
+                        ? 'text-sky-700'
+                        : 'text-zinc-500'
+                    }`}
+                  />
+                  <span>{item.shortLabel}</span>
+                </button>
+
+                {item.disabled && (
+                  <div
+                    role="tooltip"
+                    className="pointer-events-none invisible opacity-0 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100 transition-opacity duration-150 absolute left-1/2 top-full z-40 mt-2 w-56 -translate-x-1/2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-[11px] leading-snug text-amber-950 shadow-lg"
+                  >
+                    <div className="flex items-start gap-1.5">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-700 shrink-0 mt-0.5" />
+                      <span>
+                        <strong className="font-bold">Import &amp; Analyze First:</strong> Import a deck and click{' '}
+                        <strong className="font-semibold">Analyze Deck</strong> before proceeding to{' '}
+                        <strong className="font-semibold">{item.label}</strong>.
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
       </nav>
-
-      {/* First-Time Navigation Tip Banner */}
-      {!hasAnalysis && blockedTipSection && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="border-t border-sky-300 bg-sky-50 px-4 sm:px-6 py-2"
-        >
-          <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-2 text-sky-900 min-w-0">
-              <Info className="h-4 w-4 text-sky-700 shrink-0" />
-              <p className="leading-snug">
-                <span className="font-bold">Tip:</span> To open{' '}
-                <span className="font-semibold">{blockedTipSection}</span>, you must first import a
-                decklist below (paste, upload a file, paste a deck URL, or pick a sample deck) and click{' '}
-                <span className="font-semibold">Analyze Deck</span>.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setBlockedTipSection(null)}
-              aria-label="Dismiss navigation tip"
-              className="rounded-md p-1 text-sky-700 hover:bg-sky-100 cursor-pointer shrink-0"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Active Session Warning Banner when clicking Import Deck */}
       {hasAnalysis && isImportResetWarningOpen && (
