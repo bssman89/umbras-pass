@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, XCircle } from 'lucide-react';
 import type { OperationProgressUpdate } from '../utils/streamApi';
 
 export type OperationProgressState = OperationProgressUpdate;
@@ -8,6 +8,8 @@ interface OperationProgressBarProps {
   title: string;
   progress: OperationProgressState;
   compact?: boolean;
+  onCancel?: () => void;
+  cancelLabel?: string;
 }
 
 function formatElapsed(seconds: number): string {
@@ -20,6 +22,8 @@ export const OperationProgressBar: React.FC<OperationProgressBarProps> = ({
   title,
   progress,
   compact = false,
+  onCancel,
+  cancelLabel = 'Cancel',
 }) => {
   const clampedTarget = Math.max(0, Math.min(100, Number(progress.percent) || 0));
   const [displayedPercent, setDisplayedPercent] = useState<number>(clampedTarget);
@@ -87,6 +91,16 @@ export const OperationProgressBar: React.FC<OperationProgressBarProps> = ({
           <span className="font-mono text-sm font-bold tabular-nums text-sky-800">
             {roundedPercent}%
           </span>
+          {onCancel && (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 hover:border-red-400 cursor-pointer transition-colors"
+            >
+              <XCircle className="h-3.5 w-3.5 shrink-0" />
+              <span>{cancelLabel}</span>
+            </button>
+          )}
         </div>
       </div>
 

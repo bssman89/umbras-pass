@@ -395,12 +395,16 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
               <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                 <button
                   type="button"
-                  onClick={() => onInspectCard(latestBotItem.cardName)}
+                  onClick={() => onInspectCard(latestBotItem.cardName.replace(/ — .*$/, ''))}
                   className={`text-sm font-bold hover:underline cursor-pointer ${
                     isDark ? 'text-white' : 'text-zinc-950'
                   }`}
                 >
-                  {latestBotItem.controllerName} played {latestBotItem.cardName}
+                  {latestBotItem.isTriggeredAbility
+                    ? `${latestBotItem.controllerName}'s ${latestBotItem.cardName} triggered`
+                    : latestBotItem.isActivatedAbility
+                    ? `${latestBotItem.controllerName} activated ${latestBotItem.cardName}`
+                    : `${latestBotItem.controllerName} cast ${latestBotItem.cardName}`}
                 </button>
                 <span
                   className={`text-xs ${isDark ? 'text-sky-200/90' : 'text-zinc-700'}`}

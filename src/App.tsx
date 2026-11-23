@@ -902,6 +902,20 @@ export default function App() {
     }
   };
 
+  const handleCancelAnalysis = () => {
+    analysisAbortRef.current?.abort();
+    analysisAbortRef.current = null;
+    setIsAnalyzing(false);
+    setIsImportResetModalOpen(false);
+    setAnalysisProgress({
+      percent: 0,
+      stage: 'Deck analysis cancelled.',
+    });
+    if (!analysis) {
+      setActiveSection('import');
+    }
+  };
+
   const handleConfirmResetToImport = () => {
     analysisAbortRef.current?.abort();
     analysisAbortRef.current = null;
@@ -923,6 +937,11 @@ export default function App() {
 
   const handleNavigate = (section: ActiveSection) => {
     if (section === 'import') {
+      if (isAnalyzing && !analysis) {
+        handleCancelAnalysis();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
       if (analysis || isAnalyzing) {
         setIsImportResetModalOpen(true);
         return;
@@ -932,10 +951,11 @@ export default function App() {
       return;
     }
 
+    if (isAnalyzing || !analysis) return;
+
     setIsImportResetModalOpen(false);
     const wasInImport = activeSection === 'import';
     setActiveSection(section);
-    if (!analysis) return;
 
     if (section === 'analysis') {
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1021,7 +1041,9 @@ export default function App() {
     <FirestoreErrorBoundary>
       <div className="min-h-screen flex flex-col bg-zinc-100 text-zinc-900">
         <TopBar
-          hasAnalysis={Boolean(analysis) || isAnalyzing}
+          hasAnalysis={Boolean(analysis)}
+          isAnalyzing={isAnalyzing}
+          onCancelAnalysis={handleCancelAnalysis}
           activeSection={activeSection}
           onNavigate={handleNavigate}
           isImportResetWarningOpen={isImportResetModalOpen}
@@ -1048,6 +1070,8 @@ export default function App() {
                 <OperationProgressBar
                   title={`Analyzing ${deckName.trim() || 'Decklist'}`}
                   progress={analysisProgress}
+                  onCancel={handleCancelAnalysis}
+                  cancelLabel="Cancel Analysis"
                 />
                 <div className="grid grid-cols-1 gap-4 pt-2 sm:grid-cols-2 lg:grid-cols-4">
                   {[0, 1, 2, 3].map((i) => (

@@ -14,7 +14,41 @@ export type StackMechanicKind =
   | 'commander'
   | 'creature'
   | 'activated-ability'
+  | 'triggered-ability'
   | 'spell';
+
+export type TriggerAbilityKind =
+  | 'etb'
+  | 'landfall'
+  | 'cast'
+  | 'upkeep'
+  | 'attack'
+  | 'dies'
+  | 'end-step';
+
+export type TriggeredEffectKind =
+  | 'draw'
+  | 'lifegain'
+  | 'ramp-mana'
+  | 'token'
+  | 'burn-opponents'
+  | 'pump-board'
+  | 'counter-plus1'
+  | 'scry';
+
+export interface ResolvedStackHistoryEntry {
+  id: string;
+  turn: number;
+  phase: string;
+  controller: 'player' | 'bot';
+  controllerName: string;
+  cardName: string;
+  itemCategory: 'spell' | 'triggered-ability' | 'activated-ability';
+  mechanicBadge: string;
+  targetSummary: string;
+  outcome: 'resolved' | 'countered' | 'fizzled';
+  timestamp: number;
+}
 
 export type ActivatedAbilityEffectKind =
   | 'mana'
@@ -136,10 +170,23 @@ export interface StackItem {
   burnDamage?: number;
   botReactionNote?: string;
   isActivatedAbility?: boolean;
+  isTriggeredAbility?: boolean;
+  triggerKind?: TriggerAbilityKind;
+  triggerConditionText?: string;
+  triggeredEffectKind?: TriggeredEffectKind;
   sourcePermanentUid?: string;
   activatedEffectKind?: ActivatedAbilityEffectKind;
   drawCount?: number;
   lifegainAmount?: number;
+  manaProduceColor?: ManaColor;
+  manaProduceCount?: number;
+  tokenPayload?: {
+    name: string;
+    power: number;
+    toughness: number;
+    isCreature: boolean;
+    tokenAbility?: 'treasure' | 'food' | 'clue' | 'blood' | 'none';
+  };
 }
 
 const FREE_WITH_COMMANDER_NAMES = new Set([
@@ -937,3 +984,563 @@ export function extractPermanentActivatedAbilities(
     return a.manaCost - b.manaCost;
   });
 }
+
+export interface PermanentTriggerCheckInput {
+  uid: string;
+  name: string;
+  cmc: number;
+  typeLine: string;
+  isLand: boolean;
+  isCreature: boolean;
+  extraDrawCount?: number;
+  lifegainAmount?: number;
+  meta: CardMetadata | null;
+}
+
+/**
+ * Detects if a permanent entering the battlefield (CR 603.2 / ETB) produces a Triggered Ability on the Stack.
+ */
+export function detectPermanentETBTrigger(
+  perm: PermanentTriggerCheckInput
+): StackItem | null {
+  const lowerName = (perm.name || '').trim().toLowerCase();
+  const oracle = perm.meta?.oracleText || '';
+  const lowerOracle = oracle.toLowerCase();
+
+  // Check explicit oracle ETB trigger wording or curated ETB staples
+  const hasEtbClause =
+    /\bwhen (this|it|[a-z0-9,' -]+) enters\b/i.test(lowerOracle) ||
+    /\benters the battlefield, (draw|you gain|create|deal|destroy|exile|put|scry|search)/i.test(
+      lowerOracle
+    ) ||
+    /\b(mulldrifter|spirited companion|elvish visionary|wall of omens|baleful strix|coiling oracle|solemn simulacrum|dockside extortionist|eternal witness|solitude|ravenous chupacabra|shriekmaw|sun titan|titan of industry|craterhoof behemoth|avenger of zendikar|wood elves|farhaven elf|springbloom druid|reclamation sage|loran of the third path|imperial recruiter|recruiter of the guard|stoneforge mystic|spellseeker|tishana's tidebinder|orcish bowmasters|gilded drake|agent of treachery|bojuka bog|radiant fountain|halimar depths)\b/i.test(
+      lowerName
+    );
+
+  if (!hasEtbClause && !(perm.extraDrawCount && perm.extraDrawCount > 0) && !(perm.lifegainAmount && perm.lifegainAmount > 0)) {
+    return null;
+  }
+
+  // Classify the ETB triggered effect
+  let triggeredEffectKind: TriggeredEffectKind = 'scry';
+  let drawCount = perm.extraDrawCount || 0;
+  let lifegainAmount = perm.lifegainAmount || 0;
+  let burnDamage = 0;
+  let pumpPower = 0;
+  let pumpToughness = 0;
+  let tokenPayload: StackItem['tokenPayload'];
+  let targetSummary = 'ETB Triggered Ability resolves on battlefield.';
+
+  if (
+    /\bdockside extortionist\b/i.test(lowerName) ||
+    /\bcreate .* treasure token/i.test(lowerOracle)
+  ) {
+    triggeredEffectKind = 'token';
+    tokenPayload = {
+      name: 'Treasure',
+      power: 0,
+      toughness: 0,
+      isCreature: false,
+      tokenAbility: 'treasure',
+    };
+    targetSummary = 'Create a Treasure artifact token (Sacrifice: +1 Mana).';
+  } else if (
+    /\b(avenger of zendikar|scute swarm)\b/i.test(lowerName) ||
+    /\bcreate .* \d+\/\d+ .* creature token/i.test(lowerOracle)
+  ) {
+    triggeredEffectKind = 'token';
+    tokenPayload = {
+      name: 'Plant / Ally Token',
+      power: 1,
+      toughness: 1,
+      isCreature: true,
+      tokenAbility: 'none',
+    };
+    targetSummary = 'Create a 1/1 Creature token on your battlefield.';
+  } else if (
+    drawCount > 0 ||
+    /\b(draw a card|draw two cards|draw \d+ cards)\b/i.test(lowerOracle) ||
+    /\b(mulldrifter|spirited companion|elvish visionary|wall of omens|baleful strix|coiling oracle|solemn simulacrum)\b/i.test(
+      lowerName
+    )
+  ) {
+    triggeredEffectKind = 'draw';
+    drawCount =
+      drawCount > 0
+        ? drawCount
+        : /\b(mulldrifter|draw two cards)\b/i.test(lowerName + ' ' + lowerOracle)
+        ? 2
+        : 1;
+    targetSummary = `Draw ${drawCount} card${drawCount === 1 ? '' : 's'} when ${perm.name} enters the battlefield.`;
+  } else if (
+    /\bcraterhoof behemoth\b/i.test(lowerName) ||
+    /\bcreatures you control get \+\d+\/\+\d+/i.test(lowerOracle)
+  ) {
+    triggeredEffectKind = 'pump-board';
+    pumpPower = 3;
+    pumpToughness = 3;
+    targetSummary = 'Creatures you control get +3/+3 until end of turn.';
+  } else if (
+    lifegainAmount > 0 ||
+    /\bgain \d+ life\b/i.test(lowerOracle) ||
+    /\b(radiant fountain|titan of industry)\b/i.test(lowerName)
+  ) {
+    triggeredEffectKind = 'lifegain';
+    const match = lowerOracle.match(/gain (\d+) life/);
+    lifegainAmount = lifegainAmount > 0 ? lifegainAmount : match ? Number(match[1]) : 2;
+    targetSummary = `Gain +${lifegainAmount} life when ${perm.name} enters the battlefield.`;
+  } else if (/\bdeals? \d+ damage\b/i.test(lowerOracle)) {
+    triggeredEffectKind = 'burn-opponents';
+    const match = lowerOracle.match(/deals? (\d+) damage/);
+    burnDamage = match ? Number(match[1]) : 2;
+    targetSummary = `Deals ${burnDamage} damage to opponent when ${perm.name} enters.`;
+  } else if (/\bput a \+1\/\+1 counter\b/i.test(lowerOracle)) {
+    triggeredEffectKind = 'counter-plus1';
+    targetSummary = `Put a +1/+1 counter on ${perm.name} when it enters.`;
+  } else {
+    triggeredEffectKind = 'scry';
+    targetSummary = `ETB Trigger (${perm.name}): resolves enter-the-battlefield effect.`;
+  }
+
+  return {
+    id: createStackItemId('trig-etb'),
+    controller: 'player',
+    controllerName: 'You',
+    seatLabel: 'You · Trigger',
+    cardName: `${perm.name} — ETB Trigger`,
+    cmc: 0,
+    typeLine: 'Triggered Ability (ETB)',
+    meta: perm.meta,
+    mechanic: 'triggered-ability',
+    mechanicBadge: 'ETB Trigger',
+    uncounterable: false,
+    countered: false,
+    targetSummary,
+    isTriggeredAbility: true,
+    triggerKind: 'etb',
+    triggerConditionText: `When ${perm.name} enters the battlefield`,
+    triggeredEffectKind,
+    sourcePermanentUid: perm.uid,
+    drawCount: drawCount > 0 ? drawCount : undefined,
+    lifegainAmount: lifegainAmount > 0 ? lifegainAmount : undefined,
+    burnDamage: burnDamage > 0 ? burnDamage : undefined,
+    pumpPower: pumpPower > 0 ? pumpPower : undefined,
+    pumpToughness: pumpToughness > 0 ? pumpToughness : undefined,
+    tokenPayload,
+  };
+}
+
+/**
+ * Scans battlefield permanents for triggered abilities that fire on game events
+ * (Landfall, Cast Spell, Beginning of Upkeep, Declare Attackers, Creature Dies) per CR 603.
+ */
+export function detectBoardTriggersForEvent(
+  event: {
+    kind: 'landfall' | 'cast-spell' | 'upkeep' | 'attack' | 'dies';
+    sourceCardName?: string;
+    sourceTypeLine?: string;
+    isNonCreatureSpell?: boolean;
+    attackingUids?: string[];
+  },
+  battlefieldPermanents: ActivatedAbilityPermanentInput[]
+): StackItem[] {
+  const triggers: StackItem[] = [];
+  const attackingSet = new Set(event.attackingUids || []);
+
+  for (const perm of battlefieldPermanents) {
+    if (perm.isToken && !perm.meta?.oracleText) continue;
+    const lowerName = (perm.name || '').trim().toLowerCase();
+    const oracle = perm.meta?.oracleText || '';
+    const lowerOracle = oracle.toLowerCase();
+
+    if (event.kind === 'landfall') {
+      const isLandfall =
+        /\blandfall\b/i.test(lowerOracle) ||
+        /\bwhenever a land enters\b/i.test(lowerOracle) ||
+        /\b(lotus cobra|tatyova, benthic druid|tireless provisioner|tireless tracker|scute swarm|avenger of zendikar|omnath|field of the dead|courser of kruphix|ancient greenwarden|azusa|auger of autumn|felidar retreat|roil elemental|valakut)\b/i.test(
+          lowerName
+        );
+      if (!isLandfall) continue;
+
+      let effectKind: TriggeredEffectKind = 'lifegain';
+      let drawCount = 0;
+      let lifegainAmount = 0;
+      let manaProduceColor: ManaColor | undefined;
+      let manaProduceCount = 0;
+      let tokenPayload: StackItem['tokenPayload'];
+      let pumpPower = 0;
+      let pumpToughness = 0;
+      let targetSummary = `Landfall (${perm.name}) triggered by ${event.sourceCardName || 'Land'}.`;
+
+      if (/\blotus cobra\b/i.test(lowerName) || /\badd one mana of any color\b/i.test(lowerOracle)) {
+        effectKind = 'ramp-mana';
+        manaProduceColor = 'G';
+        manaProduceCount = 1;
+        targetSummary = `Landfall: Add 1 mana ({G}) to your mana pool.`;
+      } else if (/\btatyova\b/i.test(lowerName) || (/\bdraw a card\b/i.test(lowerOracle) && /\bgain \d+ life\b/i.test(lowerOracle))) {
+        effectKind = 'draw';
+        drawCount = 1;
+        lifegainAmount = 1;
+        targetSummary = `Landfall: Draw 1 card and gain +1 life.`;
+      } else if (/\btireless provisioner\b/i.test(lowerName)) {
+        effectKind = 'token';
+        tokenPayload = {
+          name: 'Treasure',
+          power: 0,
+          toughness: 0,
+          isCreature: false,
+          tokenAbility: 'treasure',
+        };
+        targetSummary = `Landfall: Create a Treasure token.`;
+      } else if (/\btireless tracker\b/i.test(lowerName) || /\binvestigate\b/i.test(lowerOracle)) {
+        effectKind = 'token';
+        tokenPayload = {
+          name: 'Clue',
+          power: 0,
+          toughness: 0,
+          isCreature: false,
+          tokenAbility: 'clue',
+        };
+        targetSummary = `Landfall: Investigate (create a Clue token).`;
+      } else if (/\b(scute swarm|field of the dead|felidar retreat)\b/i.test(lowerName) || /\bcreate a \d+\/\d+/i.test(lowerOracle)) {
+        effectKind = 'token';
+        tokenPayload = {
+          name: 'Landfall Token',
+          power: 1,
+          toughness: 1,
+          isCreature: true,
+          tokenAbility: 'none',
+        };
+        targetSummary = `Landfall: Create a 1/1 Creature token.`;
+      } else if (/\bavenger of zendikar\b/i.test(lowerName) || /\bput a \+1\/\+1 counter\b/i.test(lowerOracle)) {
+        effectKind = 'counter-plus1';
+        targetSummary = `Landfall: Put a +1/+1 counter on ${perm.name}.`;
+      } else {
+        effectKind = 'lifegain';
+        lifegainAmount = 1;
+        targetSummary = `Landfall (${perm.name}): Gain +1 life.`;
+      }
+
+      triggers.push({
+        id: createStackItemId('trig-landfall'),
+        controller: 'player',
+        controllerName: 'You',
+        seatLabel: 'You · Landfall',
+        cardName: `${perm.name} — Landfall Trigger`,
+        cmc: 0,
+        typeLine: 'Triggered Ability (Landfall)',
+        meta: perm.meta,
+        mechanic: 'triggered-ability',
+        mechanicBadge: 'Landfall Trigger',
+        uncounterable: false,
+        countered: false,
+        targetSummary,
+        isTriggeredAbility: true,
+        triggerKind: 'landfall',
+        triggerConditionText: `Whenever a land (${event.sourceCardName || 'Land'}) enters the battlefield under your control`,
+        triggeredEffectKind: effectKind,
+        sourcePermanentUid: perm.uid,
+        drawCount: drawCount > 0 ? drawCount : undefined,
+        lifegainAmount: lifegainAmount > 0 ? lifegainAmount : undefined,
+        manaProduceColor,
+        manaProduceCount: manaProduceCount > 0 ? manaProduceCount : undefined,
+        tokenPayload,
+        pumpPower: pumpPower > 0 ? pumpPower : undefined,
+        pumpToughness: pumpToughness > 0 ? pumpToughness : undefined,
+      });
+    } else if (event.kind === 'cast-spell') {
+      const hasCastTrigger =
+        /\bwhenever you cast a(n)? (spell|noncreature|instant|sorcery|creature|artifact|enchantment|historic)\b/i.test(
+          lowerOracle
+        ) ||
+        /\bmagecraft\b|\bprowess\b/i.test(lowerOracle) ||
+        /\b(archmage emeritus|storm-kiln artist|guttersnipe|talrand, sky summoner|young pyromancer|monastery mentor|murmuring mystic|beast whisperer|the great henge|sythis, harvest's hand|jhoira, weatherlight captain|chulane, teller of tales|aetherflux reservoir|fiery inscription|kessig flamebreather|niv-mizzet, parun|kykar, wind's fury|veyran, voice of duality)\b/i.test(
+          lowerName
+        );
+      if (!hasCastTrigger) continue;
+
+      let effectKind: TriggeredEffectKind = 'draw';
+      let drawCount = 0;
+      let lifegainAmount = 0;
+      let burnDamage = 0;
+      let tokenPayload: StackItem['tokenPayload'];
+      let targetSummary = `Cast Trigger (${perm.name}) from casting ${event.sourceCardName || 'a spell'}.`;
+
+      if (/\bstorm-kiln artist\b/i.test(lowerName) || /\bcreate a treasure token\b/i.test(lowerOracle)) {
+        effectKind = 'token';
+        tokenPayload = {
+          name: 'Treasure',
+          power: 0,
+          toughness: 0,
+          isCreature: false,
+          tokenAbility: 'treasure',
+        };
+        targetSummary = `Cast Trigger: Create a Treasure token.`;
+      } else if (
+        /\b(talrand|young pyromancer|monastery mentor|murmuring mystic|kykar)\b/i.test(lowerName) ||
+        /\bcreate a \d+\/\d+ .* creature token\b/i.test(lowerOracle)
+      ) {
+        effectKind = 'token';
+        tokenPayload = {
+          name: 'Spellslinger Token',
+          power: 1,
+          toughness: 1,
+          isCreature: true,
+          tokenAbility: 'none',
+        };
+        targetSummary = `Cast Trigger: Create a Creature token on your battlefield.`;
+      } else if (
+        /\b(guttersnipe|fiery inscription|kessig flamebreather|niv-mizzet)\b/i.test(lowerName) ||
+        /\bdeals? \d+ damage to each opponent\b/i.test(lowerOracle)
+      ) {
+        effectKind = 'burn-opponents';
+        burnDamage = /guttersnipe|fiery inscription/i.test(lowerName) ? 2 : 1;
+        targetSummary = `Cast Trigger: Deals ${burnDamage} damage to target opponent.`;
+      } else if (
+        /\b(archmage emeritus|beast whisperer|the great henge|sythis|jhoira|chulane)\b/i.test(lowerName) ||
+        /\bdraw a card\b/i.test(lowerOracle)
+      ) {
+        effectKind = 'draw';
+        drawCount = 1;
+        if (/the great henge|sythis/i.test(lowerName)) lifegainAmount = 1;
+        targetSummary = `Cast Trigger: Draw 1 card${lifegainAmount > 0 ? ' and gain +1 life' : ''}.`;
+      } else if (/\bprowess\b/i.test(lowerOracle)) {
+        effectKind = 'counter-plus1';
+        targetSummary = `Prowess Trigger: ${perm.name} gets +1/+1.`;
+      } else {
+        effectKind = 'lifegain';
+        lifegainAmount = 2;
+        targetSummary = `Cast Trigger (${perm.name}): Gain +2 life.`;
+      }
+
+      triggers.push({
+        id: createStackItemId('trig-cast'),
+        controller: 'player',
+        controllerName: 'You',
+        seatLabel: 'You · Cast Trigger',
+        cardName: `${perm.name} — Cast Trigger`,
+        cmc: 0,
+        typeLine: 'Triggered Ability (Cast)',
+        meta: perm.meta,
+        mechanic: 'triggered-ability',
+        mechanicBadge: 'Cast Trigger',
+        uncounterable: false,
+        countered: false,
+        targetSummary,
+        isTriggeredAbility: true,
+        triggerKind: 'cast',
+        triggerConditionText: `Whenever you cast ${event.sourceCardName || 'a spell'}`,
+        triggeredEffectKind: effectKind,
+        sourcePermanentUid: perm.uid,
+        drawCount: drawCount > 0 ? drawCount : undefined,
+        lifegainAmount: lifegainAmount > 0 ? lifegainAmount : undefined,
+        burnDamage: burnDamage > 0 ? burnDamage : undefined,
+        tokenPayload,
+      });
+    } else if (event.kind === 'upkeep') {
+      const hasUpkeepTrigger =
+        /\bat the beginning of your upkeep\b/i.test(lowerOracle) ||
+        /\b(phyrexian arena|black market connections|sylvan library|dark confidant|bitterblossom|ophiomancer|endless ranks of the dead|sheoldred, whispering one|court of|outpost siege|assemble the legion)\b/i.test(
+          lowerName
+        );
+      if (!hasUpkeepTrigger) continue;
+
+      let effectKind: TriggeredEffectKind = 'draw';
+      let drawCount = 0;
+      let lifegainAmount = 0;
+      let tokenPayload: StackItem['tokenPayload'];
+      let targetSummary = `Upkeep Trigger (${perm.name}).`;
+
+      if (/\b(bitterblossom|ophiomancer|assemble the legion)\b/i.test(lowerName) || /\bcreate a \d+\/\d+/i.test(lowerOracle)) {
+        effectKind = 'token';
+        tokenPayload = {
+          name: 'Upkeep Token',
+          power: 1,
+          toughness: 1,
+          isCreature: true,
+          tokenAbility: 'none',
+        };
+        targetSummary = `Upkeep Trigger: Create a 1/1 Creature token.`;
+      } else {
+        effectKind = 'draw';
+        drawCount = 1;
+        targetSummary = `Upkeep Trigger (${perm.name}): Draw 1 card.`;
+      }
+
+      triggers.push({
+        id: createStackItemId('trig-upkeep'),
+        controller: 'player',
+        controllerName: 'You',
+        seatLabel: 'You · Upkeep Trigger',
+        cardName: `${perm.name} — Upkeep Trigger`,
+        cmc: 0,
+        typeLine: 'Triggered Ability (Upkeep)',
+        meta: perm.meta,
+        mechanic: 'triggered-ability',
+        mechanicBadge: 'Upkeep Trigger',
+        uncounterable: false,
+        countered: false,
+        targetSummary,
+        isTriggeredAbility: true,
+        triggerKind: 'upkeep',
+        triggerConditionText: 'At the beginning of your upkeep',
+        triggeredEffectKind: effectKind,
+        sourcePermanentUid: perm.uid,
+        drawCount: drawCount > 0 ? drawCount : undefined,
+        lifegainAmount: lifegainAmount > 0 ? lifegainAmount : undefined,
+        tokenPayload,
+      });
+    } else if (event.kind === 'attack') {
+      const isThisAttacking = attackingSet.has(perm.uid);
+      const hasAttackTrigger =
+        (isThisAttacking &&
+          (/\bwhenever (this|it|[a-z0-9,' -]+) attacks\b/i.test(lowerOracle) ||
+            /\bannihilator\b/i.test(lowerOracle) ||
+            /\b(goldspan dragon|etali|sun titan|kaalia|aurelia|winota|ragavan|anim pakal|krenko, tin street kingpin|adeline)\b/i.test(
+              lowerName
+            ))) ||
+        /\bwhenever a creature you control attacks\b|\bexalted\b/i.test(lowerOracle);
+      if (!hasAttackTrigger) continue;
+
+      let effectKind: TriggeredEffectKind = 'counter-plus1';
+      let drawCount = 0;
+      let tokenPayload: StackItem['tokenPayload'];
+      let targetSummary = `Attack Trigger (${perm.name}): +1/+1 counter on attacker.`;
+
+      if (/\b(goldspan dragon|ragavan)\b/i.test(lowerName) || /\bcreate a treasure token\b/i.test(lowerOracle)) {
+        effectKind = 'token';
+        tokenPayload = {
+          name: 'Treasure',
+          power: 0,
+          toughness: 0,
+          isCreature: false,
+          tokenAbility: 'treasure',
+        };
+        targetSummary = `Attack Trigger (${perm.name}): Create a Treasure token.`;
+      } else if (/\bdraw a card\b/i.test(lowerOracle) || /\betali\b/i.test(lowerName)) {
+        effectKind = 'draw';
+        drawCount = 1;
+        targetSummary = `Attack Trigger (${perm.name}): Draw / Bonus card.`;
+      }
+
+      triggers.push({
+        id: createStackItemId('trig-attack'),
+        controller: 'player',
+        controllerName: 'You',
+        seatLabel: 'You · Attack Trigger',
+        cardName: `${perm.name} — Attack Trigger`,
+        cmc: 0,
+        typeLine: 'Triggered Ability (Combat)',
+        meta: perm.meta,
+        mechanic: 'triggered-ability',
+        mechanicBadge: 'Attack Trigger',
+        uncounterable: false,
+        countered: false,
+        targetSummary,
+        isTriggeredAbility: true,
+        triggerKind: 'attack',
+        triggerConditionText: `Whenever ${perm.name} attacks`,
+        triggeredEffectKind: effectKind,
+        sourcePermanentUid: perm.uid,
+        drawCount: drawCount > 0 ? drawCount : undefined,
+        tokenPayload,
+      });
+    }
+  }
+
+  return triggers;
+}
+
+/**
+ * Allows the player to manually queue a triggered ability from any battlefield permanent
+ * onto the Stack (to test custom trigger chains, APNAP ordering, and LIFO resolution).
+ */
+export function createManualTriggeredAbilityStackItem(
+  perm: ActivatedAbilityPermanentInput,
+  triggerKind: TriggerAbilityKind
+): StackItem {
+  const badgeMap: Record<TriggerAbilityKind, string> = {
+    etb: 'ETB Trigger',
+    landfall: 'Landfall Trigger',
+    cast: 'Cast Trigger',
+    upkeep: 'Upkeep Trigger',
+    attack: 'Attack Trigger',
+    dies: 'Dies Trigger',
+    'end-step': 'End Step Trigger',
+  };
+  const clauseMap: Record<TriggerAbilityKind, string> = {
+    etb: `When ${perm.name} enters the battlefield`,
+    landfall: `Landfall — Whenever a land enters the battlefield under your control`,
+    cast: `Whenever you cast a spell (${perm.name})`,
+    upkeep: `At the beginning of your upkeep (${perm.name})`,
+    attack: `Whenever ${perm.name} attacks`,
+    dies: `Whenever a creature dies (${perm.name})`,
+    'end-step': `At the beginning of your end step (${perm.name})`,
+  };
+
+  // Check if auto-detector finds an explicit ETB trigger first
+  if (triggerKind === 'etb') {
+    const detected = detectPermanentETBTrigger({
+      uid: perm.uid,
+      name: perm.name,
+      cmc: 0,
+      typeLine: perm.typeLine,
+      isLand: perm.isLand,
+      isCreature: perm.isCreature,
+      meta: perm.meta,
+    });
+    if (detected) return detected;
+  }
+
+  const lowerOracle = (perm.meta?.oracleText || '').toLowerCase();
+  const drawsCard = /\bdraw a card\b/i.test(lowerOracle);
+  const createsTreasure = /\btreasure\b/i.test(lowerOracle);
+  const gainsLife = /\bgain \d+ life\b/i.test(lowerOracle);
+
+  return {
+    id: createStackItemId(`trig-${triggerKind}`),
+    controller: 'player',
+    controllerName: 'You',
+    seatLabel: `You · ${badgeMap[triggerKind]}`,
+    cardName: `${perm.name} — ${badgeMap[triggerKind]}`,
+    cmc: 0,
+    typeLine: `Triggered Ability (${badgeMap[triggerKind]})`,
+    meta: perm.meta,
+    mechanic: 'triggered-ability',
+    mechanicBadge: badgeMap[triggerKind],
+    uncounterable: false,
+    countered: false,
+    targetSummary: drawsCard
+      ? `Triggered ability of ${perm.name}: Draw 1 card.`
+      : createsTreasure
+      ? `Triggered ability of ${perm.name}: Create a Treasure token.`
+      : gainsLife
+      ? `Triggered ability of ${perm.name}: Gain +2 life.`
+      : `Triggered ability of ${perm.name} resolves (${clauseMap[triggerKind]}).`,
+    isTriggeredAbility: true,
+    triggerKind,
+    triggerConditionText: clauseMap[triggerKind],
+    triggeredEffectKind: drawsCard
+      ? 'draw'
+      : createsTreasure
+      ? 'token'
+      : gainsLife
+      ? 'lifegain'
+      : perm.isCreature
+      ? 'counter-plus1'
+      : 'scry',
+    sourcePermanentUid: perm.uid,
+    drawCount: drawsCard ? 1 : undefined,
+    lifegainAmount: gainsLife ? 2 : undefined,
+    tokenPayload: createsTreasure
+      ? {
+          name: 'Treasure',
+          power: 0,
+          toughness: 0,
+          isCreature: false,
+          tokenAbility: 'treasure',
+        }
+      : undefined,
+  };
+}
+

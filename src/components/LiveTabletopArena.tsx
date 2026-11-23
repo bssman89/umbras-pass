@@ -57,7 +57,9 @@ import {
   classifyCardStackProfile,
   getEffectiveInstantCost,
   type ActivatedAbilityOption,
+  type ResolvedStackHistoryEntry,
   type StackItem,
+  type TriggerAbilityKind,
 } from '../utils/liveStackEngine';
 import {
   InterruptResponseBanner,
@@ -709,6 +711,12 @@ interface LiveTabletopArenaProps {
   onDragAttackOpponent?: (permUid: string, opponentId: string) => void;
   // Interactive Stack, Interrupt/Response Window & Activated Abilities
   stackItems?: StackItem[];
+  resolvedStackHistory?: ResolvedStackHistoryEntry[];
+  queueAllSpellsOnStack?: boolean;
+  onToggleQueueAllSpellsOnStack?: () => void;
+  onReorderStackItem?: (itemId: string, direction: 'up' | 'down') => void;
+  onQueueManualTrigger?: (permanentUid: string, triggerKind: TriggerAbilityKind) => void;
+  onClearResolvedHistory?: () => void;
   activatedAbilities?: ActivatedAbilityOption[];
   combatFogActive?: boolean;
   totalAvailableMana?: number;
@@ -831,6 +839,12 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
   onMovePlayerZoneCard,
   onDragAttackOpponent,
   stackItems = [],
+  resolvedStackHistory = [],
+  queueAllSpellsOnStack = true,
+  onToggleQueueAllSpellsOnStack,
+  onReorderStackItem,
+  onQueueManualTrigger,
+  onClearResolvedHistory,
   activatedAbilities = [],
   combatFogActive = false,
   totalAvailableMana,
@@ -1900,8 +1914,21 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     protectedUntilEot: p.protectedUntilEot,
                   };
                 })}
+              boardPermanents={battlefield.map((p) => ({
+                uid: p.uid,
+                name: p.name,
+                typeLine: p.typeLine,
+                isCreature: p.isCreature,
+                isLand: p.isLand,
+              }))}
               liveBots={liveBots}
               activatedAbilities={activatedAbilities}
+              resolvedStackHistory={resolvedStackHistory}
+              queueAllSpellsOnStack={queueAllSpellsOnStack}
+              onToggleQueueAllSpellsOnStack={onToggleQueueAllSpellsOnStack}
+              onReorderStackItem={onReorderStackItem}
+              onQueueManualTrigger={onQueueManualTrigger}
+              onClearResolvedHistory={onClearResolvedHistory}
               totalAvailableMana={effectiveAvailableMana}
               totalManaPool={totalManaPool}
               untappedLandsCount={untappedLandsCount}
@@ -2374,6 +2401,53 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               )}
             </div>
           </div>
+        )}
+
+        {/* Always-Accessible Visual Stack & Trigger Resolution Queue Dock (shown when Stack is currently empty) */}
+        {!hasActiveStack && onCastStackResponse && onResolveStackTop && onResolveStackAll && (
+          <TabletopStackPanel
+            theme="tabletop"
+            stackItems={stackItems}
+            handCards={hand}
+            playerCreatures={battlefield
+              .filter((p) => p.isCreature)
+              .map((p) => {
+                const eff = getEffectivePermanentStats(p);
+                return {
+                  uid: p.uid,
+                  name: p.name,
+                  power: eff.power,
+                  toughness: eff.toughness,
+                  isCommander: p.isCommander,
+                  protectedUntilEot: p.protectedUntilEot,
+                };
+              })}
+            boardPermanents={battlefield.map((p) => ({
+              uid: p.uid,
+              name: p.name,
+              typeLine: p.typeLine,
+              isCreature: p.isCreature,
+              isLand: p.isLand,
+            }))}
+            liveBots={liveBots}
+            activatedAbilities={activatedAbilities}
+            resolvedStackHistory={resolvedStackHistory}
+            queueAllSpellsOnStack={queueAllSpellsOnStack}
+            onToggleQueueAllSpellsOnStack={onToggleQueueAllSpellsOnStack}
+            onReorderStackItem={onReorderStackItem}
+            onQueueManualTrigger={onQueueManualTrigger}
+            onClearResolvedHistory={onClearResolvedHistory}
+            totalAvailableMana={effectiveAvailableMana}
+            totalManaPool={totalManaPool}
+            untappedLandsCount={untappedLandsCount}
+            hasCommanderInPlay={hasCommanderOnBoard}
+            onCastResponse={onCastStackResponse}
+            onActivateAbility={onActivateAbility}
+            onResolveTop={onResolveStackTop}
+            onResolveAll={onResolveStackAll}
+            onTapAllUntappedLands={onTapAllUntappedLands}
+            onInspectCard={(name) => onInspectCard(name)}
+          />
         )}
 
         {/* 4. Bottom Player Playmat (Your Seat + Battlefield + Command/Library + Hand) */}

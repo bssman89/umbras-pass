@@ -111,6 +111,8 @@ const DEVELOPER_CREDITS = [
 
 interface TopBarProps {
   hasAnalysis: boolean;
+  isAnalyzing?: boolean;
+  onCancelAnalysis?: () => void;
   activeSection: ActiveSection;
   onNavigate: (section: ActiveSection) => void;
   isImportResetWarningOpen?: boolean;
@@ -127,6 +129,8 @@ interface TopBarProps {
 
 export const TopBar: React.FC<TopBarProps> = ({
   hasAnalysis,
+  isAnalyzing = false,
+  onCancelAnalysis,
   activeSection,
   onNavigate,
   isImportResetWarningOpen = false,
@@ -272,6 +276,8 @@ export const TopBar: React.FC<TopBarProps> = ({
     }, 2800);
   };
 
+  const isSectionLocked = !hasAnalysis || isAnalyzing;
+
   const navItems: Array<{
     id: ActiveSection;
     label: string;
@@ -280,15 +286,27 @@ export const TopBar: React.FC<TopBarProps> = ({
     disabled?: boolean;
   }> = [
     { id: 'import', label: 'Import Deck', shortLabel: 'Import', icon: Upload },
-    { id: 'analysis', label: 'Deck Overview', shortLabel: 'Overview', icon: BarChart3, disabled: !hasAnalysis },
+    {
+      id: 'analysis',
+      label: 'Deck Overview',
+      shortLabel: 'Overview',
+      icon: BarChart3,
+      disabled: isSectionLocked,
+    },
     {
       id: 'optimize',
       label: 'Mana, Changes & List',
       shortLabel: 'Mana & List',
       icon: SlidersHorizontal,
-      disabled: !hasAnalysis,
+      disabled: isSectionLocked,
     },
-    { id: 'playtest', label: 'Bot Playtest', shortLabel: 'Playtest', icon: Bot, disabled: !hasAnalysis },
+    {
+      id: 'playtest',
+      label: 'Bot Playtest',
+      shortLabel: 'Playtest',
+      icon: Bot,
+      disabled: isSectionLocked,
+    },
   ];
 
   return (
@@ -338,7 +356,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           className="order-3 xl:order-2 hidden md:flex w-full xl:w-auto items-center justify-center gap-1 rounded-lg bg-zinc-100 p-1"
         >
           {navItems.map((item) => {
-            const isActive = activeSection === item.id;
+            const isActive = !isAnalyzing && activeSection === item.id;
             const Icon = item.icon;
             return (
               <div key={item.id} className="relative group shrink-0">
@@ -347,16 +365,20 @@ export const TopBar: React.FC<TopBarProps> = ({
                   aria-disabled={item.disabled || undefined}
                   onClick={() => {
                     if (item.disabled) {
-                      onNavigate('import');
+                      if (!isAnalyzing) {
+                        onNavigate('import');
+                      }
                       return;
                     }
                     onNavigate(item.id);
                   }}
                   title={
                     item.disabled
-                      ? `Import a deck first and click Analyze Deck before proceeding to ${item.label}`
-                      : hasAnalysis && item.id === 'import'
-                      ? 'Warning: Clicking Import Deck will stop your current Bot Playtest and reset the program to import a new deck'
+                      ? isAnalyzing
+                        ? `Deck analysis in progress — please wait until it finishes before proceeding to ${item.label}`
+                        : `Import a deck first and click Analyze Deck before proceeding to ${item.label}`
+                      : (hasAnalysis || isAnalyzing) && item.id === 'import'
+                      ? 'Warning: Clicking Import Deck will stop your current analysis or Bot Playtest and reset the program'
                       : item.label
                   }
                   className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
@@ -387,11 +409,19 @@ export const TopBar: React.FC<TopBarProps> = ({
                   >
                     <div className="flex items-start gap-1.5">
                       <AlertTriangle className="h-3.5 w-3.5 text-amber-700 shrink-0 mt-0.5" />
-                      <span>
-                        <strong className="font-bold">Import &amp; Analyze First:</strong> Import a deck below and click{' '}
-                        <strong className="font-semibold">Analyze Deck</strong> before proceeding to{' '}
-                        <strong className="font-semibold">{item.label}</strong>.
-                      </span>
+                      {isAnalyzing ? (
+                        <span>
+                          <strong className="font-bold">Analyzing Decklist:</strong> Please wait for deck analysis to finish before proceeding to{' '}
+                          <strong className="font-semibold">{item.label}</strong>, or click{' '}
+                          <strong className="font-semibold">Cancel Analysis</strong> to stop.
+                        </span>
+                      ) : (
+                        <span>
+                          <strong className="font-bold">Import &amp; Analyze First:</strong> Import a deck below and click{' '}
+                          <strong className="font-semibold">Analyze Deck</strong> before proceeding to{' '}
+                          <strong className="font-semibold">{item.label}</strong>.
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}
@@ -402,6 +432,17 @@ export const TopBar: React.FC<TopBarProps> = ({
 
         {/* Zone 3: Primary Action Cluster */}
         <div className="order-2 xl:order-3 ml-auto xl:ml-0 flex items-center gap-2 shrink-0">
+          {isAnalyzing && onCancelAnalysis && (
+            <button
+              type="button"
+              onClick={onCancelAnalysis}
+              title="Stop the current deck analysis"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 hover:border-red-400 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+            >
+              <X className="h-3.5 w-3.5 text-red-600 shrink-0" />
+              <span>Cancel Analysis</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onOpenUserDecks}
@@ -1140,7 +1181,7 @@ export const TopBar: React.FC<TopBarProps> = ({
       >
         <div className="flex w-full items-center gap-1 rounded-lg bg-zinc-100 p-1">
           {navItems.map((item) => {
-            const isActive = activeSection === item.id;
+            const isActive = !isAnalyzing && activeSection === item.id;
             const Icon = item.icon;
             return (
               <div key={item.id} className="relative group flex-1">
@@ -1149,12 +1190,16 @@ export const TopBar: React.FC<TopBarProps> = ({
                   aria-disabled={item.disabled || undefined}
                   title={
                     item.disabled
-                      ? `Import a deck first and click Analyze Deck before proceeding to ${item.label}`
+                      ? isAnalyzing
+                        ? `Deck analysis in progress — please wait until it finishes before proceeding to ${item.label}`
+                        : `Import a deck first and click Analyze Deck before proceeding to ${item.label}`
                       : item.label
                   }
                   onClick={() => {
                     if (item.disabled) {
-                      onNavigate('import');
+                      if (!isAnalyzing) {
+                        onNavigate('import');
+                      }
                       return;
                     }
                     onNavigate(item.id);
@@ -1186,11 +1231,18 @@ export const TopBar: React.FC<TopBarProps> = ({
                   >
                     <div className="flex items-start gap-1.5">
                       <AlertTriangle className="h-3.5 w-3.5 text-amber-700 shrink-0 mt-0.5" />
-                      <span>
-                        <strong className="font-bold">Import &amp; Analyze First:</strong> Import a deck and click{' '}
-                        <strong className="font-semibold">Analyze Deck</strong> before proceeding to{' '}
-                        <strong className="font-semibold">{item.label}</strong>.
-                      </span>
+                      {isAnalyzing ? (
+                        <span>
+                          <strong className="font-bold">Analyzing Decklist:</strong> Wait for analysis to finish before proceeding to{' '}
+                          <strong className="font-semibold">{item.label}</strong>.
+                        </span>
+                      ) : (
+                        <span>
+                          <strong className="font-bold">Import &amp; Analyze First:</strong> Import a deck and click{' '}
+                          <strong className="font-semibold">Analyze Deck</strong> before proceeding to{' '}
+                          <strong className="font-semibold">{item.label}</strong>.
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}

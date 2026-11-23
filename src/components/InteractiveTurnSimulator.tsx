@@ -86,13 +86,18 @@ import {
 } from '../utils/liveBotEngine';
 import {
   classifyCardStackProfile,
+  createManualTriggeredAbilityStackItem,
   createStackItemFromBotSpell,
   createStackItemId,
+  detectBoardTriggersForEvent,
+  detectPermanentETBTrigger,
   extractPermanentActivatedAbilities,
   getEffectiveInstantCost,
   isSpellUncounterable,
   type ActivatedAbilityOption,
+  type ResolvedStackHistoryEntry,
   type StackItem,
+  type TriggerAbilityKind,
 } from '../utils/liveStackEngine';
 import {
   buildHoverRect,
@@ -680,6 +685,10 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     Record<string, string>
   >({});
   const [stackItems, setStackItems] = useState<StackItem[]>([]);
+  const [resolvedStackHistory, setResolvedStackHistory] = useState<
+    ResolvedStackHistoryEntry[]
+  >([]);
+  const [queueAllSpellsOnStack, setQueueAllSpellsOnStack] = useState<boolean>(true);
   const [pendingBotStackContinuation, setPendingBotStackContinuation] =
     useState<PendingBotStackSpell | null>(null);
   const [fullControlPriority, setFullControlPriority] = useState<boolean>(false);
@@ -863,6 +872,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     setPendingIncomingAttack(null);
     setBlockerAssignments({});
     setStackItems([]);
+    setResolvedStackHistory([]);
     setPendingBotStackContinuation(null);
     setCombatFogActive(false);
     setInterruptRemainingMs(0);
@@ -1306,6 +1316,24 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           appendLog(`Draw step: drew ${drawn.name}.`, nextTurnNum, 'Draw');
           return rest;
         });
+      }
+    } else if (targetPhase === 'Upkeep') {
+      const upkeepTriggers = detectBoardTriggersForEvent(
+        { kind: 'upkeep' },
+        battlefield
+      );
+      if (upkeepTriggers.length > 0) {
+        setStackItems((prev) => [...prev, ...upkeepTriggers]);
+        setInterruptResetNonce((n) => n + 1);
+        appendLog(
+          `[Stack] Entered Upkeep — ${upkeepTriggers.length} Upkeep Triggered ${
+            upkeepTriggers.length === 1 ? 'Ability' : 'Abilities'
+          } placed on the Stack (${upkeepTriggers.map((t) => t.cardName).join(', ')}).`,
+          nextTurnNum,
+          'Upkeep'
+        );
+      } else if (!isNewTurn) {
+        appendLog(`Entered Upkeep phase.`, nextTurnNum, 'Upkeep');
       }
     } else if (!isNewTurn) {
       appendLog(`Entered ${targetPhase} phase.`, nextTurnNum, targetPhase);
@@ -2791,6 +2819,30 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     const addedToExile: SimCardInstance[] = [];
     const returnedToCmdZone: SimCardInstance[] = [];
     const removeFromCmdZoneUids = new Set<string>();
+    const newlyResolvedHistory: ResolvedStackHistoryEntry[] = [];
+    const recordHistory = (
+      item: StackItem,
+      outcome: 'resolved' | 'countered' | 'fizzled',
+      summaryOverride?: string
+    ) => {
+      newlyResolvedHistory.unshift({
+        id: `hist-${item.id}-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+        turn,
+        phase: activePhase,
+        controller: item.controller,
+        controllerName: item.controllerName,
+        cardName: item.cardName,
+        itemCategory: item.isTriggeredAbility
+          ? 'triggered-ability'
+          : item.isActivatedAbility
+          ? 'activated-ability'
+          : 'spell',
+        mechanicBadge: item.mechanicBadge,
+        targetSummary: summaryOverride || item.targetSummary,
+        outcome,
+        timestamp: Date.now(),
+      });
+    };
     let extraDrawsTotal = 0;
     let playerLifeDeltaTotal = 0;
     let playerMillTotal = 0;
@@ -2804,6 +2856,11 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
       if (!item) break;
 
       if (item.countered) {
+        recordHistory(
+          item,
+          'countered',
+          `Countered by ${item.counteredByName || 'Counterspell'}`
+        );
         if (item.controller === 'player' && item.playerCardPayload) {
           if (!item.playerCardPayload.fromCommandZone) {
             addedToGy.push(item.playerCardPayload);
@@ -2908,7 +2965,13 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
               );
             }
           }
+          recordHistory(
+            item,
+            'resolved',
+            `Countered ${target.controllerName}'s ${target.cardName}`
+          );
         } else {
+          recordHistory(item, 'fizzled', 'Fizzled (no legal target)');
           appendLog(
             `[Stack] ${item.controllerName}'s ${item.cardName} fizzled (no legal target).`,
             turn,
@@ -2918,6 +2981,90 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
         if (item.controller === 'player' && item.playerCardPayload) {
           addedToGy.push(item.playerCardPayload);
         }
+        continue;
+      }
+
+      // 1b. Triggered Ability resolution (ETB, Landfall, Cast, Upkeep, Attack, Dies)
+      if (item.isTriggeredAbility) {
+        const effKind = item.triggeredEffectKind;
+        if (effKind === 'draw' || (item.drawCount && item.drawCount > 0)) {
+          const drawN = Math.max(1, item.drawCount || 1);
+          extraDrawsTotal += drawN;
+        }
+        if (effKind === 'lifegain' || (item.lifegainAmount && item.lifegainAmount > 0)) {
+          const heal = Math.max(1, item.lifegainAmount || 1);
+          playerLifeDeltaTotal += heal;
+        }
+        if (effKind === 'ramp-mana' && item.manaProduceColor) {
+          const c = item.manaProduceColor;
+          const amt = item.manaProduceCount || 1;
+          setManaPool((prev) => ({ ...prev, [c]: prev[c] + amt }));
+        }
+        if (effKind === 'token' && item.tokenPayload) {
+          const tp = item.tokenPayload;
+          workingBf.push({
+            uid: `trig-token-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            name: tp.name,
+            cmc: 0,
+            typeLine: tp.isCreature ? 'Token Creature' : 'Token Artifact',
+            isLand: false,
+            isCreature: tp.isCreature,
+            isCommander: false,
+            isArtifactOrRock: tp.tokenAbility === 'treasure',
+            producedMana: tp.tokenAbility === 'treasure' ? ['U'] : [],
+            power: tp.power,
+            baseToughness: tp.toughness,
+            toxicValue: 0,
+            hasInfect: false,
+            extraDrawCount: 0,
+            lifegainAmount: 0,
+            meta: null,
+            tapped: false,
+            attacking: false,
+            summoningSick: tp.isCreature,
+            isToken: true,
+            tokenAbility: tp.tokenAbility || 'none',
+          });
+        }
+        if (effKind === 'burn-opponents') {
+          const dmg = item.burnDamage || 2;
+          workingBots = workingBots.map((b, idx) => {
+            if (b.eliminated || idx !== 0) return b;
+            const nextLife = Math.max(0, b.life - dmg);
+            return {
+              ...b,
+              life: nextLife,
+              eliminated: nextLife <= 0 ? true : b.eliminated,
+              eliminatedReason: nextLife <= 0 ? 'life' : b.eliminatedReason,
+            };
+          });
+        }
+        if (effKind === 'pump-board') {
+          const pB = item.pumpPower || 1;
+          const tB = item.pumpToughness || 1;
+          workingBf = workingBf.map((perm) =>
+            perm.isCreature
+              ? {
+                  ...perm,
+                  tempPowerBoost: (perm.tempPowerBoost || 0) + pB,
+                  tempToughnessBoost: (perm.tempToughnessBoost || 0) + tB,
+                }
+              : perm
+          );
+        }
+        if (effKind === 'counter-plus1' && item.sourcePermanentUid) {
+          workingBf = workingBf.map((perm) =>
+            perm.uid === item.sourcePermanentUid
+              ? { ...perm, plusOneCounters: (perm.plusOneCounters || 0) + 1 }
+              : perm
+          );
+        }
+        recordHistory(item, 'resolved');
+        appendLog(
+          `[Stack · Trigger Resolved] ${item.cardName} — ${item.targetSummary}`,
+          turn,
+          activePhase
+        );
         continue;
       }
 
@@ -3120,11 +3267,32 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
               attacking: false,
               summoningSick: p.isCreature && !kw.haste,
             });
-            appendLog(
-              `[Stack] Your ${item.cardName} resolved and entered the battlefield!`,
-              turn,
-              activePhase
-            );
+            // Check if this permanent entering the battlefield triggers an ETB ability (CR 603.2)!
+            const etbTrigger = detectPermanentETBTrigger({
+              uid: p.uid,
+              name: p.name,
+              cmc: p.cmc,
+              typeLine: p.typeLine,
+              isLand: p.isLand,
+              isCreature: p.isCreature,
+              extraDrawCount: p.extraDrawCount,
+              lifegainAmount: p.lifegainAmount,
+              meta: p.meta,
+            });
+            if (etbTrigger) {
+              workingStack.push(etbTrigger);
+              appendLog(
+                `[Stack] Your ${item.cardName} resolved onto the battlefield and triggered ${etbTrigger.cardName}!`,
+                turn,
+                activePhase
+              );
+            } else {
+              appendLog(
+                `[Stack] Your ${item.cardName} resolved and entered the battlefield!`,
+                turn,
+                activePhase
+              );
+            }
           } else {
             addedToGy.push(p);
             if (p.extraDrawCount > 0) extraDrawsTotal += p.extraDrawCount;
@@ -3132,6 +3300,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
             appendLog(`[Stack] Your ${item.cardName} resolved.`, turn, activePhase);
           }
         }
+        recordHistory(item, 'resolved');
         continue;
       }
 
@@ -3252,11 +3421,13 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
             activePhase
           );
         }
+        recordHistory(item, 'resolved');
         continue;
       }
 
       // 3. Bot spell resolution
       if (item.controller === 'bot' && item.botSpellPayload) {
+        recordHistory(item, 'resolved');
         const bp = item.botSpellPayload;
         if (bp.category === 'commander' || bp.category === 'creature') {
           if (bp.creaturePayload) {
@@ -3402,6 +3573,9 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
       liveBots: workingBots,
       battlefield: workingBf,
     };
+    if (newlyResolvedHistory.length > 0) {
+      setResolvedStackHistory((prev) => [...newlyResolvedHistory, ...prev].slice(0, 24));
+    }
     setStackItems(workingStack);
     playTabletopSound(soundEnabled, 'tap');
 
@@ -3666,16 +3840,77 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     }
   };
 
+  const handleReorderStackItem = (itemId: string, direction: 'up' | 'down') => {
+    setStackItems((prev) => {
+      const idx = prev.findIndex((i) => i.id === itemId);
+      if (idx < 0) return prev;
+      // 'up' means move toward Top of Stack (higher index in array, resolves earlier)
+      // 'down' means move toward Bottom of Stack (lower index in array, resolves later)
+      const swapIdx = direction === 'up' ? idx + 1 : idx - 1;
+      if (swapIdx < 0 || swapIdx >= prev.length) return prev;
+      const next = [...prev];
+      const temp = next[idx];
+      next[idx] = next[swapIdx];
+      next[swapIdx] = temp;
+      return next;
+    });
+    setInterruptResetNonce((n) => n + 1);
+  };
+
+  const handleQueueManualTrigger = (
+    permanentUid: string,
+    triggerKind: TriggerAbilityKind
+  ) => {
+    const perm = battlefield.find((p) => p.uid === permanentUid);
+    if (!perm) return;
+    const triggerItem = createManualTriggeredAbilityStackItem(perm, triggerKind);
+    setStackItems((prev) => [...prev, triggerItem]);
+    setInterruptResetNonce((n) => n + 1);
+    playTabletopSound(soundEnabled, 'cast');
+    appendLog(
+      `[Stack] Placed ${triggerItem.cardName} on top of the Stack (${triggerItem.targetSummary}).`,
+      turn,
+      activePhase
+    );
+  };
+
   const handlePlayLandFromHand = (card: SimCardInstance) => {
     const isTapped = Boolean(card.meta?.entersTappedLikely);
+    const enteredLandPerm: BattlefieldPermanent = {
+      ...card,
+      tapped: isTapped,
+      attacking: false,
+      summoningSick: false,
+    };
+    const nextBattlefield = [...battlefield, enteredLandPerm];
     setHand((prev) => prev.filter((c) => c.uid !== card.uid));
-    setBattlefield((prev) => [
-      ...prev,
-      { ...card, tapped: isTapped, attacking: false, summoningSick: false },
-    ]);
+    setBattlefield(nextBattlefield);
     setLandsPlayedThisTurn((n) => n + 1);
     playTabletopSound(soundEnabled, 'land');
     appendLog(`Played land: ${card.name}${isTapped ? ' (enters tapped)' : ''}.`);
+
+    // Check for Land ETB trigger on the land itself + Landfall triggers on battlefield permanents (CR 603.2)
+    const landEtb = detectPermanentETBTrigger(card);
+    const landfallTriggers = detectBoardTriggersForEvent(
+      { kind: 'landfall', sourceCardName: card.name, sourceTypeLine: card.typeLine },
+      battlefield
+    );
+    const newTriggers = [
+      ...(landEtb ? [landEtb] : []),
+      ...landfallTriggers,
+    ];
+    if (newTriggers.length > 0) {
+      setStackItems((prev) => [...prev, ...newTriggers]);
+      setInterruptResetNonce((n) => n + 1);
+      appendLog(
+        `[Stack] Playing ${card.name} triggered ${newTriggers
+          .map((t) => t.cardName)
+          .join(', ')} (LIFO resolution order).`,
+        turn,
+        activePhase
+      );
+    }
+
     dispatchUserActionToBots({
       type: 'play-land',
       turn,
@@ -3750,10 +3985,25 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
       { targetSpellUncounterable: spellUncounterable }
     );
 
-    if (reaction.counteredByBotName && reaction.counterSpellName) {
-      const profile = classifyCardStackProfile(card.name, card.typeLine, card.meta);
+    const profile = classifyCardStackProfile(card.name, card.typeLine, card.meta);
+    const castTriggers = detectBoardTriggersForEvent(
+      {
+        kind: 'cast-spell',
+        sourceCardName: card.name,
+        sourceTypeLine: card.typeLine,
+        isNonCreatureSpell: !card.isCreature,
+      },
+      battlefield
+    );
+
+    const shouldUseVisualStack =
+      queueAllSpellsOnStack ||
+      Boolean(reaction.counteredByBotName && reaction.counterSpellName) ||
+      castTriggers.length > 0 ||
+      stackItems.length > 0;
+
+    if (shouldUseVisualStack) {
       const playerItemId = createStackItemId('player');
-      const counterMeta = findMeta(reaction.counterSpellName);
       const playerStackItem: StackItem = {
         id: playerItemId,
         controller: 'player',
@@ -3764,40 +4014,63 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
         typeLine: card.typeLine,
         meta: card.meta,
         mechanic: profile.mechanic,
-        mechanicBadge: card.isCreature ? 'Creature' : profile.mechanicLabel,
+        mechanicBadge: card.isCreature ? 'Creature Spell' : profile.mechanicLabel,
         uncounterable: spellUncounterable,
         countered: false,
         targetSummary: card.isCreature
-          ? `Your Battlefield (${card.power}/${Number(card.meta?.toughness) || Math.max(2, card.power)})`
-          : 'Resolves to Tabletop',
+          ? `Enters Your Battlefield (${card.power}/${Number(card.meta?.toughness) || Math.max(2, card.power)})`
+          : profile.summaryHint || 'Resolves on Tabletop',
         playerCardPayload: {
           ...card,
           toughness: Number(card.meta?.toughness) || Math.max(2, card.power),
         },
       };
-      const botCounterItem: StackItem = {
-        id: createStackItemId('bot-counter'),
-        controller: 'bot',
-        controllerBotId: reaction.counteredByBotId || undefined,
-        controllerName: reaction.counteredByBotName,
-        seatLabel: `Seat ${reaction.counteredBySeatNumber || 2} · ${reaction.counteredByBotName}`,
-        cardName: reaction.counterSpellName,
-        cmc: reaction.counterSpellCmc || 2,
-        typeLine: counterMeta?.typeLine || 'Instant',
-        meta: counterMeta,
-        mechanic: 'counterspell',
-        mechanicBadge: 'Counterspell',
-        uncounterable: isSpellUncounterable(reaction.counterSpellName, counterMeta),
-        countered: false,
-        targetSummary: `Counter Your ${card.name}`,
-        targetStackItemId: playerItemId,
-        botReactionNote: reaction.counterReason || undefined,
-      };
-      setStackItems([playerStackItem, botCounterItem]);
-      playTabletopSound(soundEnabled, 'combat');
-      appendLog(
-        `Cast ${card.name} (${card.cmc} mana) — ${reaction.counteredByBotName} put ${reaction.counterSpellName} on the Stack! Respond or resolve.`
-      );
+
+      // CR 603.3: Cast triggers go onto the Stack ON TOP of the spell that caused them to trigger (so cast triggers resolve first!)
+      const addedStackBatch: StackItem[] = [playerStackItem, ...castTriggers];
+
+      if (reaction.counteredByBotName && reaction.counterSpellName) {
+        const counterMeta = findMeta(reaction.counterSpellName);
+        const botCounterItem: StackItem = {
+          id: createStackItemId('bot-counter'),
+          controller: 'bot',
+          controllerBotId: reaction.counteredByBotId || undefined,
+          controllerName: reaction.counteredByBotName,
+          seatLabel: `Seat ${reaction.counteredBySeatNumber || 2} · ${reaction.counteredByBotName}`,
+          cardName: reaction.counterSpellName,
+          cmc: reaction.counterSpellCmc || 2,
+          typeLine: counterMeta?.typeLine || 'Instant',
+          meta: counterMeta,
+          mechanic: 'counterspell',
+          mechanicBadge: 'Counterspell',
+          uncounterable: isSpellUncounterable(reaction.counterSpellName, counterMeta),
+          countered: false,
+          targetSummary: `Counter Your ${card.name}`,
+          targetStackItemId: playerItemId,
+          botReactionNote: reaction.counterReason || undefined,
+        };
+        addedStackBatch.push(botCounterItem);
+        playTabletopSound(soundEnabled, 'combat');
+        appendLog(
+          `[Stack] Cast ${card.name} (${card.cmc} mana)${
+            castTriggers.length > 0
+              ? ` + triggered ${castTriggers.map((t) => t.cardName).join(', ')}`
+              : ''
+          } — ${reaction.counteredByBotName} responded with ${reaction.counterSpellName} on the Stack!`
+        );
+      } else {
+        playTabletopSound(soundEnabled, 'cast');
+        appendLog(
+          `[Stack] Cast ${card.name} (${card.cmc} mana) onto the Stack${
+            castTriggers.length > 0
+              ? ` — triggered ${castTriggers.map((t) => t.cardName).join(', ')} on top (resolves before spell per CR 603.3)`
+              : ''
+          }.`
+        );
+      }
+
+      setStackItems((prev) => [...prev, ...addedStackBatch]);
+      setInterruptResetNonce((n) => n + 1);
       return;
     }
 
@@ -3837,6 +4110,12 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
         ...prev.filter((b) => b.uid !== existingLegendDup?.uid),
         { ...card, tapped: false, attacking: false, summoningSick: card.isCreature && !cardKw.haste },
       ]);
+      // Even in fast-cast mode, if the permanent has an ETB trigger, push its ETB trigger onto the Stack!
+      const etbTrigger = detectPermanentETBTrigger(card);
+      if (etbTrigger) {
+        setStackItems((prev) => [...prev, etbTrigger]);
+        setInterruptResetNonce((n) => n + 1);
+      }
     } else {
       setGraveyard((prev) => [card, ...prev]);
     }
@@ -3880,9 +4159,24 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
       { targetSpellUncounterable: cmdUncounterable }
     );
 
-    if (reaction.counteredByBotName && reaction.counterSpellName) {
+    const castTriggers = detectBoardTriggersForEvent(
+      {
+        kind: 'cast-spell',
+        sourceCardName: cmd.name,
+        sourceTypeLine: cmd.typeLine,
+        isNonCreatureSpell: !cmd.isCreature,
+      },
+      battlefield
+    );
+
+    const shouldUseVisualStack =
+      queueAllSpellsOnStack ||
+      Boolean(reaction.counteredByBotName && reaction.counterSpellName) ||
+      castTriggers.length > 0 ||
+      stackItems.length > 0;
+
+    if (shouldUseVisualStack) {
       const playerItemId = createStackItemId('player-cmd');
-      const counterMeta = findMeta(reaction.counterSpellName);
       const playerCmdItem: StackItem = {
         id: playerItemId,
         controller: 'player',
@@ -3893,39 +4187,57 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
         typeLine: cmd.typeLine,
         meta: cmd.meta,
         mechanic: 'commander',
-        mechanicBadge: 'Commander',
+        mechanicBadge: 'Commander Spell',
         uncounterable: cmdUncounterable,
         countered: false,
-        targetSummary: `Your Battlefield (${cmd.power}/${Number(cmd.meta?.toughness) || Math.max(2, cmd.power)} Commander)`,
+        targetSummary: `Enters Your Battlefield (${cmd.power}/${Number(cmd.meta?.toughness) || Math.max(2, cmd.power)} Commander)`,
         playerCardPayload: {
           ...cmd,
           toughness: Number(cmd.meta?.toughness) || Math.max(2, cmd.power),
           fromCommandZone: true,
         },
       };
-      const botCounterItem: StackItem = {
-        id: createStackItemId('bot-counter'),
-        controller: 'bot',
-        controllerBotId: reaction.counteredByBotId || undefined,
-        controllerName: reaction.counteredByBotName,
-        seatLabel: `Seat ${reaction.counteredBySeatNumber || 2} · ${reaction.counteredByBotName}`,
-        cardName: reaction.counterSpellName,
-        cmc: reaction.counterSpellCmc || 2,
-        typeLine: counterMeta?.typeLine || 'Instant',
-        meta: counterMeta,
-        mechanic: 'counterspell',
-        mechanicBadge: 'Counterspell',
-        uncounterable: isSpellUncounterable(reaction.counterSpellName, counterMeta),
-        countered: false,
-        targetSummary: `Counter Your Commander ${cmd.name}`,
-        targetStackItemId: playerItemId,
-        botReactionNote: reaction.counterReason || undefined,
-      };
-      setStackItems([playerCmdItem, botCounterItem]);
-      playTabletopSound(soundEnabled, 'combat');
-      appendLog(
-        `Cast Commander ${cmd.name} (${totalCost} mana) — ${reaction.counteredByBotName} put ${reaction.counterSpellName} on the Stack! Fight back or resolve.`
-      );
+
+      const addedBatch: StackItem[] = [playerCmdItem, ...castTriggers];
+
+      if (reaction.counteredByBotName && reaction.counterSpellName) {
+        const counterMeta = findMeta(reaction.counterSpellName);
+        const botCounterItem: StackItem = {
+          id: createStackItemId('bot-counter'),
+          controller: 'bot',
+          controllerBotId: reaction.counteredByBotId || undefined,
+          controllerName: reaction.counteredByBotName,
+          seatLabel: `Seat ${reaction.counteredBySeatNumber || 2} · ${reaction.counteredByBotName}`,
+          cardName: reaction.counterSpellName,
+          cmc: reaction.counterSpellCmc || 2,
+          typeLine: counterMeta?.typeLine || 'Instant',
+          meta: counterMeta,
+          mechanic: 'counterspell',
+          mechanicBadge: 'Counterspell',
+          uncounterable: isSpellUncounterable(reaction.counterSpellName, counterMeta),
+          countered: false,
+          targetSummary: `Counter Your Commander ${cmd.name}`,
+          targetStackItemId: playerItemId,
+          botReactionNote: reaction.counterReason || undefined,
+        };
+        addedBatch.push(botCounterItem);
+        playTabletopSound(soundEnabled, 'combat');
+        appendLog(
+          `[Stack] Cast Commander ${cmd.name} (${totalCost} mana) — ${reaction.counteredByBotName} put ${reaction.counterSpellName} on the Stack!`
+        );
+      } else {
+        playTabletopSound(soundEnabled, 'cast');
+        appendLog(
+          `[Stack] Cast Commander ${cmd.name} (${totalCost} mana) onto the Stack${
+            castTriggers.length > 0
+              ? ` — triggered ${castTriggers.map((t) => t.cardName).join(', ')} on top`
+              : ''
+          }.`
+        );
+      }
+
+      setStackItems((prev) => [...prev, ...addedBatch]);
+      setInterruptResetNonce((n) => n + 1);
       return;
     }
 
@@ -4010,6 +4322,22 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           'Combat'
         );
         return;
+      }
+      // Check if declaring this creature as an attacker triggers an Attack Triggered Ability (CR 508.3a)!
+      const attackTriggers = detectBoardTriggersForEvent(
+        { kind: 'attack', attackingUids: [uid] },
+        [target]
+      );
+      if (attackTriggers.length > 0) {
+        setStackItems((prev) => [...prev, ...attackTriggers]);
+        setInterruptResetNonce((n) => n + 1);
+        appendLog(
+          `[Stack] Declaring ${target.name} as an attacker triggered ${attackTriggers
+            .map((t) => t.cardName)
+            .join(', ')}!`,
+          turn,
+          'Combat'
+        );
       }
     }
     setBattlefield((prev) =>
@@ -5820,6 +6148,14 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
             onMovePlayerZoneCard={handleMovePlayerZoneCard}
             onDragAttackOpponent={handleDragAttackOpponent}
             stackItems={stackItems}
+            resolvedStackHistory={resolvedStackHistory}
+            queueAllSpellsOnStack={queueAllSpellsOnStack}
+            onToggleQueueAllSpellsOnStack={() =>
+              setQueueAllSpellsOnStack((prev) => !prev)
+            }
+            onReorderStackItem={handleReorderStackItem}
+            onQueueManualTrigger={handleQueueManualTrigger}
+            onClearResolvedHistory={() => setResolvedStackHistory([])}
             activatedAbilities={availableActivatedAbilities}
             combatFogActive={combatFogActive}
             totalAvailableMana={totalAvailableMana}
@@ -5889,8 +6225,8 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
             </div>
           )}
 
-          {hasActiveStack && (
-            <div className="space-y-3">
+          <div className="space-y-3">
+            {hasActiveStack && (
               <InterruptResponseBanner
                 theme="light"
                 stackItems={stackItems}
@@ -5925,38 +6261,53 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                 onTapAllUntappedLands={handleTapAllUntappedLands}
                 onInspectCard={(name) => onInspectCard(name)}
               />
-              <TabletopStackPanel
-                theme="light"
-                stackItems={stackItems}
-                handCards={hand}
-                playerCreatures={battlefield
-                  .filter((p) => p.isCreature)
-                  .map((p) => {
-                    const eff = getEffectivePermanentStats(p);
-                    return {
-                      uid: p.uid,
-                      name: p.name,
-                      power: eff.power,
-                      toughness: eff.toughness,
-                      isCommander: p.isCommander,
-                      protectedUntilEot: p.protectedUntilEot,
-                    };
-                  })}
-                liveBots={liveBots}
-                activatedAbilities={availableActivatedAbilities}
-                totalAvailableMana={totalAvailableMana}
-                totalManaPool={totalManaPool}
-                untappedLandsCount={untappedLandsCount}
-                hasCommanderInPlay={hasCommanderInPlayNow}
-                onCastResponse={handleCastStackResponse}
-                onActivateAbility={handleActivateAbility}
-                onResolveTop={() => resolveStack(false)}
-                onResolveAll={() => resolveStack(true)}
-                onTapAllUntappedLands={handleTapAllUntappedLands}
-                onInspectCard={(name) => onInspectCard(name)}
-              />
-            </div>
-          )}
+            )}
+            <TabletopStackPanel
+              theme="light"
+              stackItems={stackItems}
+              handCards={hand}
+              playerCreatures={battlefield
+                .filter((p) => p.isCreature)
+                .map((p) => {
+                  const eff = getEffectivePermanentStats(p);
+                  return {
+                    uid: p.uid,
+                    name: p.name,
+                    power: eff.power,
+                    toughness: eff.toughness,
+                    isCommander: p.isCommander,
+                    protectedUntilEot: p.protectedUntilEot,
+                  };
+                })}
+              boardPermanents={battlefield.map((p) => ({
+                uid: p.uid,
+                name: p.name,
+                typeLine: p.typeLine,
+                isCreature: p.isCreature,
+                isLand: p.isLand,
+              }))}
+              liveBots={liveBots}
+              activatedAbilities={availableActivatedAbilities}
+              resolvedStackHistory={resolvedStackHistory}
+              queueAllSpellsOnStack={queueAllSpellsOnStack}
+              onToggleQueueAllSpellsOnStack={() =>
+                setQueueAllSpellsOnStack((prev) => !prev)
+              }
+              onReorderStackItem={handleReorderStackItem}
+              onQueueManualTrigger={handleQueueManualTrigger}
+              onClearResolvedHistory={() => setResolvedStackHistory([])}
+              totalAvailableMana={totalAvailableMana}
+              totalManaPool={totalManaPool}
+              untappedLandsCount={untappedLandsCount}
+              hasCommanderInPlay={hasCommanderInPlayNow}
+              onCastResponse={handleCastStackResponse}
+              onActivateAbility={handleActivateAbility}
+              onResolveTop={() => resolveStack(false)}
+              onResolveAll={() => resolveStack(true)}
+              onTapAllUntappedLands={handleTapAllUntappedLands}
+              onInspectCard={(name) => onInspectCard(name)}
+            />
+          </div>
       {/* Mana Pool & Battlefield Summary Row */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_1fr] border-b border-zinc-100 pb-5">
         {/* Mana Pool Controls */}
