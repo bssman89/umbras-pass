@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Power, X } from 'lucide-react';
+import { AlertTriangle, Power, RotateCcw, X } from 'lucide-react';
 import type {
   BotLearningProfile,
   CardMetadata,
@@ -90,6 +90,7 @@ import {
 } from './utils/versionHistory';
 type LocalUserProfile = StoredLocalUserProfile;
 import { analyzeDeckClientSideFallback } from './utils/clientFallbackAnalyzer';
+import { terminatePlaytestWorker } from './utils/playtestWorkerClient';
 import {
   fetchNdjsonWithProgress,
   ServerReturnedError,
@@ -161,17 +162,23 @@ export default function App() {
   const [isExitModalOpen, setIsExitModalOpen] = useState(false);
   const [isExitingProgram, setIsExitingProgram] = useState(false);
   const [hasExitedProgram, setHasExitedProgram] = useState(false);
+  const [isImportResetModalOpen, setIsImportResetModalOpen] = useState(false);
+  const analysisAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    if (!isExitModalOpen) return;
+    if (!isExitModalOpen && !isImportResetModalOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !isExitingProgram) {
-        setIsExitModalOpen(false);
+      if (event.key === 'Escape') {
+        if (isImportResetModalOpen) {
+          setIsImportResetModalOpen(false);
+        } else if (!isExitingProgram) {
+          setIsExitModalOpen(false);
+        }
       }
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isExitModalOpen, isExitingProgram]);
+  }, [isExitModalOpen, isExitingProgram, isImportResetModalOpen]);
 
   // Quietly clear any leftover Firebase Auth user from prior Google sessions without blocking initial render
   useEffect(() => {
@@ -757,6 +764,10 @@ export default function App() {
       appendSnapshot(preUpdateSnapshot, true);
     }
 
+    analysisAbortRef.current?.abort();
+    const controller = new AbortController();
+    analysisAbortRef.current = controller;
+
     setIsAnalyzing(true);
     setAnalysisProgress({
       percent: 8,
@@ -777,7 +788,8 @@ export default function App() {
               format: effectiveFormat,
               goal: effectiveGoal,
             },
-            (update) => setAnalysisProgress(update)
+            (update) => setAnalysisProgress(update),
+            controller.signal
           );
           if (rawJson && typeof rawJson === 'object') {
             const normalized = normalizeDeckAnalysisResult(rawJson);
@@ -786,10 +798,17 @@ export default function App() {
             }
           }
         } catch (apiErr) {
+          if (apiErr instanceof Error && apiErr.name === 'AbortError') {
+            return;
+          }
           if (apiErr instanceof ServerReturnedError) {
             throw apiErr;
           }
         }
+      }
+
+      if (controller.signal.aborted) {
+        return;
       }
 
       if (!data) {
@@ -804,6 +823,9 @@ export default function App() {
           format: effectiveFormat,
           goal: effectiveGoal,
         });
+        if (controller.signal.aborted) {
+          return;
+        }
         setAnalysisProgress({
           percent: 84,
           stage: 'Computing mana sources & replacement plan...',
@@ -867,19 +889,52 @@ export default function App() {
       setActiveSection('analysis');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
+      if (controller.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Unexpected analysis error.');
       setActiveSection('import');
     } finally {
-      setIsAnalyzing(false);
+      if (analysisAbortRef.current === controller) {
+        analysisAbortRef.current = null;
+        setIsAnalyzing(false);
+      }
     }
   };
 
+  const handleConfirmResetToImport = () => {
+    analysisAbortRef.current?.abort();
+    analysisAbortRef.current = null;
+    terminatePlaytestWorker();
+    setIsImportResetModalOpen(false);
+    setIsAnalyzing(false);
+    setAnalysis(null);
+    setSelection(EMPTY_SELECTION);
+    setDeckText('');
+    setDeckName('');
+    setFormat('auto');
+    setGoal('bracket-3');
+    setError(null);
+    setInspectedCard(null);
+    setIsHistoryOpen(false);
+    setActiveSection('import');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const handleNavigate = (section: ActiveSection) => {
-    setActiveSection(section);
     if (section === 'import') {
+      if (analysis || isAnalyzing) {
+        setIsImportResetModalOpen(true);
+        return;
+      }
+      setActiveSection('import');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
+
+    setIsImportResetModalOpen(false);
+    const wasInImport = activeSection === 'import';
+    setActiveSection(section);
     if (!analysis) return;
 
     if (section === 'analysis') {
@@ -893,9 +948,20 @@ export default function App() {
         : section === 'playtest'
         ? 'playtest-section'
         : 'diagnosis-section';
-    window.dispatchEvent(
-      new CustomEvent<string>('deck-navigate-section', { detail: targetId })
-    );
+
+    const dispatchJump = () => {
+      window.dispatchEvent(
+        new CustomEvent<string>('deck-navigate-section', { detail: targetId })
+      );
+    };
+
+    if (wasInImport) {
+      window.requestAnimationFrame(() => {
+        window.setTimeout(dispatchJump, 30);
+      });
+    } else {
+      dispatchJump();
+    }
   };
 
   const handleReanalyzeUpdated = (updatedText: string) => {
@@ -955,9 +1021,12 @@ export default function App() {
     <FirestoreErrorBoundary>
       <div className="min-h-screen flex flex-col bg-zinc-100 text-zinc-900">
         <TopBar
-          hasAnalysis={Boolean(analysis)}
+          hasAnalysis={Boolean(analysis) || isAnalyzing}
           activeSection={activeSection}
           onNavigate={handleNavigate}
+          isImportResetWarningOpen={isImportResetModalOpen}
+          onConfirmImportReset={handleConfirmResetToImport}
+          onCancelImportReset={() => setIsImportResetModalOpen(false)}
           userDeckCount={totalUserDeckCount}
           onOpenUserDecks={() => setIsHistoryOpen(true)}
           onOpenDesktopModal={() => setIsDesktopModalOpen(true)}
@@ -1117,6 +1186,72 @@ export default function App() {
           onClose={() => setIsUpdatesModalOpen(false)}
           onRequestExitForInstall={() => setIsExitModalOpen(true)}
         />
+
+        {isImportResetModalOpen && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="import-reset-dialog-title"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+            onClick={() => setIsImportResetModalOpen(false)}
+          >
+            <div
+              className="relative w-full max-w-md rounded-xl border border-amber-200 bg-white p-6 shadow-2xl space-y-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-700">
+                    <AlertTriangle className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h2
+                      id="import-reset-dialog-title"
+                      className="font-display text-lg font-bold text-zinc-900"
+                    >
+                      Stop Bot Playtest &amp; Reset Program?
+                    </h2>
+                    <p className="mt-1 text-sm text-zinc-600 leading-relaxed">
+                      Clicking <span className="font-semibold text-zinc-900">Import Deck</span> will stop any active{' '}
+                      <span className="font-semibold text-zinc-900">Bot Playtest</span> or{' '}
+                      <span className="font-semibold text-zinc-900">Live Game vs AI Bots</span>, clear your current deck analysis workspace, and reset the program back to the Import Deck screen.
+                    </p>
+                    <p className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 leading-snug">
+                      Your saved snapshots in <span className="font-semibold text-zinc-800">My Decks</span> and adaptive{' '}
+                      <span className="font-semibold text-zinc-800">Bot Learning</span> memory will be kept.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsImportResetModalOpen(false)}
+                  aria-label="Cancel reset to Import Deck"
+                  className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 border-t border-zinc-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsImportResetModalOpen(false)}
+                  className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+                >
+                  Cancel &amp; Keep Playing
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmResetToImport}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-amber-700 px-4 py-2 text-xs font-semibold text-white hover:bg-amber-800 cursor-pointer"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>Stop Playtest &amp; Reset Program</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {isExitModalOpen && (
           <div

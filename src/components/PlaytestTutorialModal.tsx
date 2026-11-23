@@ -173,7 +173,7 @@ export const PlaytestTutorialModal: React.FC<PlaytestTutorialModalProps> = ({
             )}
             {activeStep === 'learning' && (
               <p className="text-zinc-600">
-                Bots remember previous matches against your deck under your account—tracking your threats, adapting their strategy, and taking direct coaching from you.
+                Bots remember previous matches against your deck—tracking your threats, adapting their strategy, and taking direct coaching from you.
               </p>
             )}
           </div>

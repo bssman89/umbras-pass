@@ -1725,7 +1725,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                 {mode} AI Opponents ({botCount} {botCount === 1 ? 'Bot' : 'Bots'})
               </span>
               <span className="mx-1.5 text-zinc-300" aria-hidden="true">·</span>
-              <span>Each bot retains matchup lessons per archetype or custom decklist under your private account.</span>
+              <span>Each bot retains matchup lessons per archetype or custom decklist.</span>
               <span className="mx-1.5 text-zinc-300" aria-hidden="true">·</span>
               <button
                 type="button"

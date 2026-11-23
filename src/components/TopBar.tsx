@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  AlertTriangle,
   BarChart3,
   BookOpen,
   Bot,
@@ -18,6 +19,7 @@ import {
   Mail,
   MessageSquare,
   Power,
+  RotateCcw,
   Scale,
   Send,
   Settings,
@@ -111,6 +113,9 @@ interface TopBarProps {
   hasAnalysis: boolean;
   activeSection: ActiveSection;
   onNavigate: (section: ActiveSection) => void;
+  isImportResetWarningOpen?: boolean;
+  onConfirmImportReset?: () => void;
+  onCancelImportReset?: () => void;
   userDeckCount: number;
   onOpenUserDecks: () => void;
   onOpenDesktopModal: () => void;
@@ -124,6 +129,9 @@ export const TopBar: React.FC<TopBarProps> = ({
   hasAnalysis,
   activeSection,
   onNavigate,
+  isImportResetWarningOpen = false,
+  onConfirmImportReset,
+  onCancelImportReset,
   userDeckCount,
   onOpenUserDecks,
   onOpenDesktopModal,
@@ -297,6 +305,11 @@ export const TopBar: React.FC<TopBarProps> = ({
         <button
           type="button"
           onClick={() => onNavigate('import')}
+          title={
+            hasAnalysis
+              ? 'Warning: Returning to Import Deck will stop your current Bot Playtest and reset the program'
+              : 'Return to Import Deck'
+          }
           aria-label="Umbras Pass — Return to Import Deck"
           className="order-1 inline-flex min-w-0 flex-1 sm:flex-initial items-center gap-2.5 sm:gap-3 text-left cursor-pointer sm:shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600"
         >
@@ -348,7 +361,13 @@ export const TopBar: React.FC<TopBarProps> = ({
                   setBlockedTipSection(null);
                   onNavigate(item.id);
                 }}
-                title={item.disabled ? 'Import and analyze a deck first to open this section' : item.label}
+                title={
+                  item.disabled
+                    ? 'Import and analyze a deck first to open this section'
+                    : hasAnalysis && item.id === 'import'
+                    ? 'Warning: Clicking Import Deck will stop your current Bot Playtest and reset the program to import a new deck'
+                    : item.label
+                }
                 className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                   item.disabled
                     ? 'opacity-45 cursor-not-allowed text-zinc-500 hover:text-zinc-700'
@@ -1162,6 +1181,47 @@ export const TopBar: React.FC<TopBarProps> = ({
             >
               <X className="h-3.5 w-3.5" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Active Session Warning Banner when clicking Import Deck */}
+      {hasAnalysis && isImportResetWarningOpen && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          className="border-t border-amber-300 bg-amber-50 px-4 sm:px-6 py-2.5"
+        >
+          <div className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 text-amber-950 min-w-0">
+              <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0" />
+              <p className="leading-snug">
+                <span className="font-bold">Warning:</span> Returning to{' '}
+                <span className="font-semibold">Import Deck</span> will stop your active{' '}
+                <span className="font-semibold">Bot Playtest / Live Game</span> and reset the program so you can import a new deck.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {onCancelImportReset && (
+                <button
+                  type="button"
+                  onClick={onCancelImportReset}
+                  className="rounded-md border border-amber-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+                >
+                  Cancel &amp; Keep Playing
+                </button>
+              )}
+              {onConfirmImportReset && (
+                <button
+                  type="button"
+                  onClick={onConfirmImportReset}
+                  className="inline-flex items-center gap-1 rounded-md bg-amber-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-amber-800 cursor-pointer"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  <span>Stop Playtest &amp; Reset</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
