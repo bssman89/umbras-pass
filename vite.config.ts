@@ -57,9 +57,15 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       'react',
+      'react/jsx-runtime',
+      'react/jsx-dev-runtime',
       'react-dom',
       'react-dom/client',
       'react-is',
+      'use-sync-external-store',
+      'use-sync-external-store/shim',
+      'react-redux',
+      '@reduxjs/toolkit',
       'lucide-react',
       'recharts',
       'firebase/app',
@@ -68,6 +74,7 @@ export default defineConfig({
     ],
   },
   resolve: {
+    dedupe: ['react', 'react-dom', 'react-is', 'scheduler'],
     alias: {
       '@/firebase-applet-config.json': firebaseConfigTarget,
       '@': path.resolve(projectDir, '.'),
@@ -83,7 +90,9 @@ export default defineConfig({
           if (
             id.includes('/node_modules/react/') ||
             id.includes('/node_modules/react-dom/') ||
-            id.includes('/node_modules/scheduler/')
+            id.includes('/node_modules/react-is/') ||
+            id.includes('/node_modules/scheduler/') ||
+            id.includes('/node_modules/use-sync-external-store/')
           ) {
             return 'react-vendor';
           }

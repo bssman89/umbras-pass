@@ -14,6 +14,7 @@
 - Includes built-in **Host Local IP Detection**, a live **`Test Port Reachability`** tool, and copy-pasteable **Router Port-Forwarding & OS Firewall** instructions (Windows PowerShell + Linux/macOS UFW).
 - Secured with a 6-character Room Code, scrypt-hashed Session Passcode, and **Host Lobby Approval** before guests take a tabletop seat.
 - Clean, streamlined Multiplayer Configuration screen for fast hosting and scanning/joining open sessions.
+- **Persistent 4-Seat Lobby Life Total Tracker**: Adjust all 4 seats (`-5`, `-1`, `+1`, `+5`) right in the lobby with live multiplayer sync, format-aware resets (`40`/`20`), carry-over into match start, and a high-contrast **`Danger Zone`** alert when a seat drops below `10` life.
 
 ### 🃏 Free-Form Drag-and-Drop Playmat Interface
 - Drag and arrange permanents **anywhere** on your playmat—and reposition bot creatures on bot playmats—in both **Playtest** and **Multiplayer** modes.
@@ -24,8 +25,9 @@
 - **Per-User & Per-Tabletop Playmats**: Customize individual player seat mats and full tabletop backgrounds with built-in themes, art presets, or custom image URLs synced live in multiplayer rooms.
 - **Custom Card Art, Proxies & Tokens**: Apply custom card images, create playtest proxies with custom frames/stats, and spawn custom tokens directly onto the battlefield.
 
-### 🧭 Streamlined Playtest Tab & Fixes
+### 🧭 Streamlined Playtest Tab, Settings & Fixes
 - Renamed **Bot Playtest** to **Playtest** and merged Playtest & Live AI Bot setup controls into a cleaner configuration flow.
+- Added the official website link (**`https://umbraspass.org/`**) inside **Settings → About**.
 - Fixed the **Workspace Sync Error** (`"Rendered more hooks than during the previous render"`).
 - Fixed card artwork loading so Scryfall card images and custom proxies appear cleanly on every card.
 

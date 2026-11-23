@@ -11,7 +11,7 @@ export function isDynamicImportError(error: unknown): boolean {
         ? error
         : '';
 
-  return /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError|Loading chunk \d+ failed|Outdated Optimize Dep/i.test(
+  return /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|ChunkLoadError|Loading chunk \d+ failed|Outdated Optimize Dep|Cannot read properties of null \(reading '(?:useMemo|useState|useEffect|useRef|useCallback|useContext|useReducer)'\)|Invalid hook call/i.test(
     message
   );
 }

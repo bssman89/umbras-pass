@@ -13,6 +13,10 @@
   - Added a live **`Test Port Reachability`** checker for verifying local LAN listeners or optional public IP / DDNS external router forwarding on TCP port `3000`.
   - Added a collapsible **Router Port-Forwarding Guide** with copy-pasteable NAT rule values, step-by-step setup instructions, and tabbed **Windows PowerShell** / **Linux & macOS (UFW)** firewall commands.
 - **Session Security**: Protected every hosted room with a 6-character Room Code, scrypt-hashed Session Passcode, and a **Host Lobby Approval Queue** before any guest enters a tabletop seat.
+- **Persistent 4-Seat Lobby Life Total Tracker (`LobbyLifeTracker`)**:
+  - Tracks life totals across all 4 seats (`Seat #1`–`Seat #4`) directly inside the multiplayer lobby with quick **`-5`**, **`-1`**, **`+1`**, and **`+5`** buttons, per-seat reset, and host **`Reset All`** (`40` life for Commander/Brawl/3+ seat pods, `20` for 1v1).
+  - Highlights any seat below `10` life with a high-contrast **`Danger Zone`** visual indicator (red border, tinted surface, warning icon, and explicit status label).
+  - Synchronizes live across connected clients over SSE (`POST /api/multiplayer/rooms/:roomCode/seat-life`), persists per room in `localStorage`, survives seat reconfigurations, and carries customized totals into match start.
 
 #### 2. Free-Form Drag-and-Drop Playmats (Playtest & Multiplayer)
 - **Drag Cards Anywhere on Your Playmat**: Replaced rigid row-locked lanes with open 2D playmat canvases in both **Playtest** and **Multiplayer** (`playmatX`, `playmatY`, `playmatZ`), allowing 60fps pointer dragging of any permanent without interfering with `Tap`, `Attack`, `GY`, `+1/+1` counter, or inspect actions.
@@ -25,9 +29,10 @@
 #### 4. Custom Card Images, Playtest Proxies & Custom Tokens
 - Added **Custom Art, Proxies & Tokens** support so each user can override card artwork, author full playtest proxy cards (custom title, type line, mana cost, stats, and frame borders), and create/spawn custom tokens onto the battlefield in both Playtest and Multiplayer matches.
 
-#### 5. Streamlined Playtest Tab & Merged Bot Configuration
+#### 5. Streamlined Playtest Tab, Settings & Merged Bot Configuration
 - Renamed the top navigation button from **Bot Playtest** to **Playtest** to reflect unified goldfishing, AI pod testing, and multiplayer play.
 - Merged and decluttered the **Playtest Setup & Live Game vs AI Bots** configuration panels for faster, clearer pod setup.
+- Added the official website link (**`https://umbraspass.org/`**) to the **About Umbras Pass** section inside the **Settings** menu.
 
 ### 🐛 Bug Fixes & Reliability
 - **Workspace Sync Hook Ordering Fix**: Resolved the `"Rendered more hooks than during the previous render"` error triggered when syncing private user deck data.

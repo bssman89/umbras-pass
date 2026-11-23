@@ -7,7 +7,7 @@
 <!-- Quick Navigation -->
 - [Key Features](#key-features)
 - [Planned Future Updates & Features](#planned-future-updates--features)
-- [Screenshots](#screenshots)
+- [Program Screenshots](#program-screenshots)
 - [Getting Started](#getting-started)
   - [Option A: Windows App (No Coding Required)](#option-a-windows-app-no-coding-required)
   - [Option B: Run from Source (Developers)](#option-b-run-from-source-developers)
@@ -40,23 +40,31 @@
 ## Program Screenshots
 
 ### Deck Importer & Sample Decks
-Import from any major deckbuilder or test immediately with pre-loaded decks.
+Import from any major deckbuilder, load sample lists into the editor, or jump directly into **Instant Playtest** or **Multiplayer**.
 ![Umbras Pass Deck Importer](docs/screenshots/02-deck-importer.png)
 
 ### Mana & Land Analysis Dashboard
-Optimize land counts, color sources, and early-game tempo.
+Optimize land counts, color sources, ramp/draw/removal targets, and early-game tempo.
 ![Umbras Pass Mana & Land Analysis Dashboard](docs/screenshots/03-analysis-dashboard.png)
 
-### Advanced Deck Metrics
-Inspect stacked mana curves, playability percentages, and CMC benchmarks.
-![Umbras Pass Advanced Deck Metrics](docs/screenshots/04-advanced-deck-metrics.png)
+### Balance, Synergy & Deep Deck Metrics
+Inspect stacked mana curves, cumulative playability percentages, color pip breakdowns, and CMC benchmarks.
+![Umbras Pass Balance, Synergy & Deep Metrics](docs/screenshots/04-advanced-deck-metrics.png)
 
 ### Live Tabletop & Interactive Playtest vs. Adaptive AI Bots
-Playtest 1v1 or 4-player Commander pods with drag-and-drop playmats and bots that learn your deck's threats.
-![Umbras Pass Live Tabletop VS AI Bots](docs/screenshots/05-live-tabletop-playtest.png)
+Playtest 1v1 or 4-player Commander pods with free-form drag-and-drop playmats, visual LIFO Stack resolution, and adaptive AI bots.
+![Umbras Pass Live Tabletop vs AI Bots](docs/screenshots/05-live-tabletop-playtest.png)
+
+### Multiplayer Tabletop Setup (Offline LAN & Self-Hosted Online)
+Host or join 1–4 player hybrid pods with built-in local IP detection, port reachability testing, and router port-forwarding guides.
+![Umbras Pass Multiplayer Tabletop Setup](docs/screenshots/06-multiplayer-setup.png)
+
+### Multiplayer Pod Lobby & 4-Seat Persistent Life Total Tracker
+Manage 1–4 player/bot seats, scrypt-protected invite codes, and live-synced 4-seat life totals with `< 10` life **Danger Zone** alerts before launching the match.
+![Umbras Pass Multiplayer Lobby & Life Tracker](docs/screenshots/07-multiplayer-lobby.png)
 
 ### One-Click `.gguf` AI Setup
-Guided first-time setup downloads and configures the local AI automatically.
+Guided first-time setup downloads and configures the local AI automatically (optional—built-in rules AI works immediately).
 ![Umbras Pass One-Time GGUF Setup Screen](docs/screenshots/01-gguf-startup-setup.png)
 
 ---
