@@ -2,9 +2,10 @@
 
 **Umbras Pass** is a free, standalone *Magic: The Gathering* deck analyzer, mana base optimizer, and interactive 1–4 player tabletop simulator. It features adaptive AI opponents powered by a local `.gguf` language model—meaning **100% private, offline AI with no cloud API keys or subscriptions required**—alongside **Offline LAN & Self-Hosted Online Multiplayer** with friends and AI bots.
 
-> **Latest Release — v1.2.0:** Free-form drag-and-drop playmats, 1–4 player LAN & Self-Hosted Public IPv4 Multiplayer with strict localhost firewall protections, animated **d20** turn-order rolls, enlarged tabletop play areas, custom playmats & card proxies/tokens, and Scryfall artwork & sync fixes. See **[CHANGELOG.md](CHANGELOG.md)** and **[RELEASE_NOTES_v1.2.0.md](RELEASE_NOTES_v1.2.0.md)**.
+> **Latest Release — v1.2.0 (Updated 2026-11-23):** Free-form drag-and-drop playmats, 1–4 player LAN & Self-Hosted Public IPv4 Multiplayer with strict localhost firewall protections, animated **d20** turn-order rolls, enlarged tabletop play areas, custom playmats & card proxies/tokens, and stability fixes. See **[CHANGELOG.md](CHANGELOG.md)**, **[RELEASE_NOTES_v1.2.0.md](RELEASE_NOTES_v1.2.0.md)**, and the **[Documentation Wiki](docs/wiki/Home.md)** · **[umbraspass.org](https://umbraspass.org/)**.
 
 <!-- Quick Navigation -->
+- [What's New & Latest Updates](#whats-new--latest-updates)
 - [Key Features](#key-features)
 - [Planned Future Updates & Features](#planned-future-updates--features)
 - [Program Screenshots](#program-screenshots)
@@ -13,17 +14,27 @@
   - [Option B: Run from Source (Developers)](#option-b-run-from-source-developers)
 - [Manual AI Model Setup (Optional)](#manual-ai-model-setup-optional)
 - [Troubleshooting & FAQ](#troubleshooting--faq)
-- [Developer Reference & Building Releases](#developer-reference-tech-stack--building-windows-releases-click-to-expand)
+- [Developer Reference & Building Releases](#developer-reference)
 - [Disclaimer](#disclaimer)
+
+---
+
+## What's New & Latest Updates
+
+- **Self-Hosted Public IPv4 Multiplayer & Localhost Firewall:** Automatically binds port `3000` on `0.0.0.0` for router port forwarding, adds on-demand **Host Public IPv4 Detection**, direct `UP-XXXX` room code / seat invite URLs, scrypt-hashed passcodes + **Host Lobby Approval**, hidden public/WAN room directories, sanitized remote errors, and strict **`localhost`-only firewall rules** protecting local decks, OS paths, diagnostics, and `.gguf` AI routes.
+- **Animated d20 Turn-Order Roll-Off:** Interactive 20-sided die roll-off stage and launch modal across **Live Play vs AI Bots** and **Multiplayer Lobbies**, complete with automatic sudden-death tie-breakers, sound cues, and one-click table chat sharing.
+- **Enlarged & Refined Tabletop Play Area GUI:** Upsized permanent and hand card tiles, taller art frames, fanned hidden-hand card backs, live 2/3/4-seat turn-order strips, expanded free-form playmats, and full vertical MTG card tiles inside Online, LAN, Live Bot, Solo Goldfish, and Match Replay sessions.
+- **Streamlined Playtest Arena & Program-Wide UI Polish:** Cleaner navigation, larger touch targets (`min-h-[38px]`–`44px`), redesigned Live Bot pod setup & Playtest/Multiplayer Guide, and crisp contrast across every panel.
+- **React `useMemo` Stability Fix:** Added Vite single-instance deduplication (`react`, `react-dom`, `react-is`, `scheduler`) to prevent `"Cannot read properties of null (reading 'useMemo')"` errors.
 
 ---
 
 ## Key Features
 
-- **Universal Deck Importer:** Paste or import decklists directly from **MTG Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox (CSV), MTGO, or Cockatrice**, or jump right in with built-in sample decks.
-- **Karsten-Calibrated Mana Analysis & Metrics:** Automatically checks land counts, ramp targets, color pip distributions, tapped-land tempo warnings, stacked mana curves, cumulative playability odds, and average/median CMC benchmarks.
-- **Free-Form Drag-and-Drop Playmats & Animated d20 Roll-Off (Playtest):** Streamlined **Playtest & Tabletop Arena** merging solo goldfishing, Live AI Bot pods, and replay visualization on an enlarged 2D felt canvas. Roll an animated **d20** (with automatic tie-breakers) to decide who goes first, drag permanents freely anywhere on your playmat or bot playmats, drop cards from Hand/Command Zone/Graveyard/Exile to exact coordinates, toggle **Zone Guides**, or click **Tidy Board** for clean spacing.
-- **1–4 Player Hybrid Multiplayer (Offline LAN & Self-Hosted Public IPv4):** Host or join local Wi-Fi/Ethernet or router port-forwarded public IPv4 pods mixing human friends and adaptive AI bots (`0.0.0.0:3000` automatic binding). Protected by **strict localhost-only firewall rules** on private deck/AI/OS routes, hidden WAN room directories, rate-limited non-PII room code lookups, scrypt-hashed session passcodes, and a **Host Lobby Approval Queue**, plus built-in **Local & Public IPv4 Detection**, **Port Reachability Self-Test**, and copy-pasteable **Router Port-Forwarding & OS Firewall Guides**.
+- **Universal Deck Importer:** Paste text, import by URL, or upload `.txt` / `.csv` / `.dek` files from **MTG Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox (CSV), MTGO, Cockatrice, Scryfall, Deckstats, TappedOut, CubeCobra, MTGTop8, Pastebin, or GitHub Gists**, or jump right in with built-in sample decks.
+- **Karsten-Calibrated Mana Analysis & Metrics:** Supports **8 MTG formats** (Commander, Standard, Modern, Pioneer, Pauper, Legacy, Vintage, and Brawl) plus Commander Bracket calibration. Automatically checks land counts, ramp/draw/removal targets, color pip distributions, tapped-land tempo warnings, stacked mana curves, cumulative playability odds, Synergy Audits, Card Inspector pricing/printings, and global hover card zoom previews.
+- **Free-Form Drag-and-Drop Playmats & Animated d20 Roll-Off (Playtest):** Unified **Playtest & Tabletop Arena** merging solo goldfishing, Live AI Bot pods (with adaptive Indignance memory), and round-by-round replay visualization on an enlarged 2D felt canvas. Roll an animated **d20** (with automatic tie-breakers) to decide who goes first, drag permanents freely anywhere on your playmat or bot playmats, drop cards from Hand/Command Zone/Graveyard/Exile to exact coordinates, toggle **Zone Guides**, or click **Tidy Board** for clean spacing.
+- **1–4 Player Hybrid Multiplayer (Offline LAN & Self-Hosted Public IPv4):** Host or join local Wi-Fi/Ethernet or router port-forwarded public IPv4 pods mixing human friends and adaptive AI bots (`0.0.0.0:3000` automatic binding). Protected by **strict localhost-only firewall rules** on private deck/AI/OS routes, hidden WAN room directories, rate-limited non-PII room code lookups, scrypt-hashed session passcodes, and a **Host Lobby Approval Queue**, plus built-in **Local & Public IPv4 Detection**, **Port Reachability Self-Test**, synced **4-Seat Lobby Life Tracker** (`< 10` life **Danger Zone** alerts), and copy-pasteable **Router Port-Forwarding & OS Firewall Guides**.
 - **Custom Tabletop Playmats & Backgrounds:** Customize per-user seat playmats and table-wide themes using built-in artwork presets or your own custom image URLs, synced live across multiplayer rooms.
 - **Custom Card Images, Proxies & Custom Tokens:** Override card artwork, create full playtest proxies, apply custom frame borders, and spawn custom tokens directly onto the battlefield in both Playtest and Multiplayer sessions.
 - **Visual LIFO Stack & Official CR Rules Engine:** Real-time MTG Arena/MTGO-style visual Stack (`CR 405`), automatic trigger detection (`CR 603`), trigger reordering, London Mulligan, Commander tax tracking, First Strike/Double Strike & Trample+Deathtouch combat (`CR 510`), and Scryfall card artwork zoom previews.
@@ -142,19 +153,21 @@ If you prefer to download the AI model manually or already have `.gguf` files on
 
 ---
 
+<a id="developer-reference"></a>
 <details>
 <summary><strong>Developer Reference, Tech Stack & Building Windows Releases (Click to Expand)</strong></summary>
 
 ### Tech Stack
-- **Frontend:** React, TypeScript, Vite (`vite-plugin-pwa`), Tailwind CSS, Lucide Icons, Motion, Recharts
-- **Backend & Local AI:** Node.js, Express, `node-llama-cpp` (CPU/GPU `.gguf` inference), Scryfall API proxy
+- **Frontend:** React 19, TypeScript, Vite (`vite-plugin-pwa`), Tailwind CSS v4, Lucide Icons, Motion, Recharts
+- **Backend & Local AI:** Node.js, Express, `node-llama-cpp` (CPU/GPU `.gguf` inference), SSE multiplayer sync, Scryfall API proxy
 - **Desktop Packaging & Optional Sync:** Electron (`electron-builder`), Firebase
 
 ### Useful npm Scripts
 | Command | Description |
 | --- | --- |
 | `npm run setup:gguf` | Installs npm dependencies and downloads `Qwen3-4B-Q4_K_M.gguf` into `./models/` |
-| `npm run dev` | Starts the Express + Vite development server on `http://localhost:3000` |
+| `npm run dev` | Starts the Express + Vite development server on `0.0.0.0:3000` (`http://localhost:3000`) |
+| `npm start` | Starts the production Node/Express server (`node server.ts`) on `0.0.0.0:3000` |
 | `npm run build` | Builds the production frontend (`dist/`) |
 | `npm run build:server` | Bundles the Node/Express backend (`dist-server/`) |
 | `npm run lint` | Runs TypeScript type checking (`tsc --noEmit`) |

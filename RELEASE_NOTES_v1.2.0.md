@@ -9,27 +9,24 @@
 
 ## What's New in v1.2.0
 
-### 🌐 1–4 Player Multiplayer Tabletop (Offline LAN & Self-Hosted Online)
-- Host or join **1–4 player hybrid pods** with human friends and adaptive AI bots over home Wi-Fi/Ethernet (**Offline LAN**) or remote port-forwarded sessions (**Self-Hosted Online**).
-- Includes built-in **Host Local IP Detection**, a live **`Test Port Reachability`** tool, and copy-pasteable **Router Port-Forwarding & OS Firewall** instructions (Windows PowerShell + Linux/macOS UFW).
-- Secured with a 6-character Room Code, scrypt-hashed Session Passcode, and **Host Lobby Approval** before guests take a tabletop seat.
-- Clean, streamlined Multiplayer Configuration screen for fast hosting and scanning/joining open sessions.
-- **Persistent 4-Seat Lobby Life Total Tracker**: Adjust all 4 seats (`-5`, `-1`, `+1`, `+5`) right in the lobby with live multiplayer sync, format-aware resets (`40`/`20`), carry-over into match start, and a high-contrast **`Danger Zone`** alert when a seat drops below `10` life.
+### 🌐 1–4 Player Multiplayer Tabletop (Offline LAN & Self-Hosted Public IPv4)
+- Host or join **1–4 player hybrid pods** with human friends and adaptive AI bots over home Wi-Fi/Ethernet (**Offline LAN**) or router port-forwarded **Self-Hosted Public IPv4** (`0.0.0.0:3000` automatic binding).
+- Includes built-in **Local & Public IPv4 Detection**, direct `UP-XXXX` room code / seat invite URL joining, a live **`Test Port Reachability`** tool, and copy-pasteable **Router Port-Forwarding & OS Firewall** instructions (Windows PowerShell + Linux/macOS UFW).
+- **Localhost Firewall & Anti-Leak Security**: Private host routes (local deck analysis, `.gguf` AI endpoints, OS file paths, room creation, and diagnostics) are locked strictly to `localhost` (`127.0.0.1` / `::1`), the active room list is hidden from public/WAN callers, remote errors are sanitized, and guests require your Room Code, scrypt-hashed Session Passcode, and **Host Lobby Approval** before entering a seat.
+- Clean, streamlined Multiplayer Configuration screen plus a **Persistent 4-Seat Lobby Life Total Tracker** (`-5`, `-1`, `+1`, `+5`, format-aware resets, carry-over into match start, and `< 10` life **Danger Zone** alerts).
 
-### 🃏 Free-Form Drag-and-Drop Playmat Interface
-- Drag and arrange permanents **anywhere** on your playmat—and reposition bot creatures on bot playmats—in both **Playtest** and **Multiplayer** modes.
-- Drag cards directly from Hand, Command Zone, Graveyard, or Exile to drop them at exact board coordinates, or drag untapped attackers onto opponent seats to attack.
-- Includes toggleable **`Zone Guides`**, one-click **`Tidy Board`**, and automatic non-overlapping card placement and combat advance animations for AI bots.
+### 🎲 Animated d20 Turn-Order Roll-Off & Enlarged Tabletop Play Area
+- Added an animated **20-sided die (`d20`) roll-off** stage and launch modal in **Live Play vs AI Bots** and **Multiplayer Lobbies**, complete with automatic sudden-death tie-breakers, sound cues, and one-click chat sharing.
+- Enlarged playmats, permanent & hand card tiles, fanned card-back hand counts, 2/3/4-seat turn-order strips, full vertical MTG card tiles inside opponent/bot playmats, and expanded chat/log drawers across **Live vs AI Bots**, **Solo Goldfish**, **Online/LAN Multiplayer**, and **Match Replay**.
 
-### 🎨 Custom Tabletop Playmats, Backgrounds, Proxies & Tokens
-- **Per-User & Per-Tabletop Playmats**: Customize individual player seat mats and full tabletop backgrounds with built-in themes, art presets, or custom image URLs synced live in multiplayer rooms.
-- **Custom Card Art, Proxies & Tokens**: Apply custom card images, create playtest proxies with custom frames/stats, and spawn custom tokens directly onto the battlefield.
+### 🃏 Free-Form Drag-and-Drop Playmats & Custom Cosmetics
+- Drag and arrange permanents **anywhere** on your playmat—and reposition bot creatures on bot playmats—with toggleable **`Zone Guides`**, one-click **`Tidy Board`**, and automatic non-overlapping card placement.
+- Customize per-seat playmats, table-wide backgrounds, custom card art/proxies, frame borders, and custom battlefield tokens synced live across multiplayer rooms.
 
-### 🧭 Streamlined Playtest Tab, Settings & Fixes
-- Renamed **Bot Playtest** to **Playtest** and merged Playtest & Live AI Bot setup controls into a cleaner configuration flow.
+### 🧭 Streamlined Playtest Arena, Settings & Fixes
+- Streamlined the **Playtest & Tabletop Arena** navigation, Live Bot configuration, and **Playtest & Multiplayer Guide** with larger, clearer controls across the entire UI.
 - Added the official website link (**`https://umbraspass.org/`**) inside **Settings → About**.
-- Fixed the **Workspace Sync Error** (`"Rendered more hooks than during the previous render"`).
-- Fixed card artwork loading so Scryfall card images and custom proxies appear cleanly on every card.
+- Fixed the React `"Cannot read properties of null (reading 'useMemo')"` error via Vite single-instance deduplication, resolved the Workspace Sync hook ordering error, and fixed Scryfall card artwork hydration.
 
 ---
 
