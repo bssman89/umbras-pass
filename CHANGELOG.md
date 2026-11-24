@@ -1,6 +1,6 @@
 # Changelog — Umbra's Pass
 
-## [Unreleased] — Latest Improvements (2026-11-23)
+## [v1.2.1] — Version 1.2.1 (2026-11-23)
 ### Public IPv4 Online Hosting & Security Hardening, Animated d20 Turn-Order Rolls, Enlarged Tabletop Play Area, and Program-Wide GUI Refinements
 
 ### ✨ New Features & Enhancements

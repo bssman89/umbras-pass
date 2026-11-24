@@ -1,8 +1,8 @@
 # Welcome to the Umbras Pass Wiki
 
-**Umbras Pass** is an open-source, standalone *Magic: The Gathering* deck analyzer, Karsten-calibrated mana base optimizer, and live tabletop playtest simulator built by **BizRoomba (`bssman89`)**.
+**Umbras Pass** (v1.2.1) is an open-source, standalone *Magic: The Gathering* deck analyzer, Karsten-calibrated mana base optimizer, and interactive 1–4 player tabletop simulator built by **BizRoomba (`bssman89`)**.
 
-It supports **100% private, offline AI** via local `.gguf` language models (`node-llama-cpp`)—with zero cloud API keys or subscriptions required—and automatically falls back to a fast, built-in deterministic rules engine whenever no `.gguf` model is loaded.
+It supports **100% private, offline AI** via local `.gguf` language models (`node-llama-cpp`)—with zero cloud API keys or subscriptions required—alongside **Offline LAN & Self-Hosted Public IPv4 Multiplayer** with friends and AI bots.
 
 ![Umbras Pass Mana & Land Analysis Dashboard](https://raw.githubusercontent.com/bssman89/umbras-pass/main/docs/screenshots/03-analysis-dashboard.png)
 
@@ -15,7 +15,7 @@ It supports **100% private, offline AI** via local `.gguf` language models (`nod
 | **[Getting Started](Getting-Started)** | Installing the Windows `.exe` or running from source with `setup-gguf` |
 | **[Deck Importer & Formats](Deck-Importer-and-Formats)** | Importing from Arena, Moxfield, Archidekt, ManaBox CSV, URLs, formats & Brackets |
 | **[Mana & Deck Analysis](Mana-and-Deck-Analysis)** | Land/source math, Turn-T castability, Synergy Audit, Deep Metrics, Hover Zoom & exports |
-| **[Bot Playtest & Live Tabletop](Bot-Playtest-and-Live-Tabletop)** | 1v1 and 4-Player Commander pods, Stack interrupts, zones, tokens & adaptive bot memory |
+| **[Bot Playtest & Live Tabletop](Bot-Playtest-and-Live-Tabletop)** | 1v1 and 4-Player Commander pods, animated d20 rolls, Stack interrupts, zones, tokens & adaptive bot memory |
 | **[Local AI (.gguf) Setup](Local-AI-GGUF-Setup)** | `Qwen3-1.7B / 4B / 8B` tiers, Hugging Face downloads, manual `models/` setup & CPU/GPU tuning |
 | **[Settings & Workspace](Settings-and-Workspace)** | TopBar sections, `My Decks`, local/Firebase profiles, Settings tabs & release updater |
 | **[Building from Source & Releases](Building-from-Source-and-Releases)** | `npm` scripts, Electron/NSIS Windows `.exe` packaging, GitHub Actions & publishing this Wiki |
@@ -26,11 +26,11 @@ It supports **100% private, offline AI** via local `.gguf` language models (`nod
 
 ## Core Capabilities at a Glance
 
-- **Universal Deck Importer:** Paste text, import by URL, or upload `.txt` / `.csv` / `.dek` files from MTG Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox, MTGO, Cockatrice, Deckstats, TappedOut, CubeCobra, MTGTop8, and Pastebin.
-- **Karsten-Calibrated Mana & Curve Engine:** Diagnoses land counts, tapped-land tempo, color pip distributions, Turn-T castability odds, ramp/draw/removal/board-wipe counts, and synergy gaps.
-- **Interactive Card Previews:** Global hover card zoom overlay across analyzer panels, decklists, and tabletop zones, plus a Card Inspector for alternate printings and marketplace prices.
-- **Live Tabletop Simulator:** Playtest turn-by-turn in **1v1** or **4-Player Commander Pod (1v3)** modes with phase progression, stack response windows, tokens/counters, Graveyard/Exile/Command Zone viewers, and adaptive AI bots.
-- **Standalone Desktop & Web Modes:** Run as a packaged Windows desktop app (`Umbras-Pass-Setup-*.exe` or Portable `.exe`) or locally in any browser at `http://localhost:3000`.
+- **Universal Deck Importer:** Paste text, import by URL, or upload `.txt` / `.csv` / `.dek` files from MTG Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox, MTGO, Cockatrice, Scryfall, Deckstats, TappedOut, CubeCobra, MTGTop8, Pastebin, and GitHub Gists.
+- **Karsten-Calibrated Mana & Curve Engine:** Diagnoses land counts, tapped-land tempo, color pip distributions, Turn-T castability odds, ramp/draw/removal/board-wipe counts, synergy gaps, and 8 MTG formats.
+- **Offline LAN & Self-Hosted Public IPv4 Multiplayer:** 1–4 player hybrid pods with automatic `0.0.0.0:3000` binding, router port-forwarding guides, strict `localhost` firewall protections, hidden WAN room directories, scrypt passcodes, Host Lobby Approval, and a synced 4-seat lobby life tracker.
+- **Free-Form Playmats & Animated d20 Roll-Off:** Drag permanents anywhere on enlarged 2D playmats, use zone guides and tidy board, and roll an animated d20 with tie-breakers to decide who goes first.
+- **Interactive Card Previews & Visual Stack:** Global hover card zoom overlay, Card Inspector pricing/printings, and a real-time MTG Arena-style visual Stack (`CR 405`) with automatic trigger detection (`CR 603`).
 
 ---
 

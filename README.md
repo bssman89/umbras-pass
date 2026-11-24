@@ -2,7 +2,7 @@
 
 **Umbras Pass** is a free, standalone *Magic: The Gathering* deck analyzer, mana base optimizer, and interactive 1–4 player tabletop simulator. It features adaptive AI opponents powered by a local `.gguf` language model—meaning **100% private, offline AI with no cloud API keys or subscriptions required**—alongside **Offline LAN & Self-Hosted Online Multiplayer** with friends and AI bots.
 
-> **Latest Release — v1.2.0 (Updated 2026-11-23):** Free-form drag-and-drop playmats, 1–4 player LAN & Self-Hosted Public IPv4 Multiplayer with strict localhost firewall protections, animated **d20** turn-order rolls, enlarged tabletop play areas, custom playmats & card proxies/tokens, and stability fixes. See **[CHANGELOG.md](CHANGELOG.md)**, **[RELEASE_NOTES_v1.2.0.md](RELEASE_NOTES_v1.2.0.md)**, and the **[Documentation Wiki](docs/wiki/Home.md)** · **[umbraspass.org](https://umbraspass.org/)**.
+> **Latest Release — v1.2.1 (Updated 2026-11-23):** Free-form drag-and-drop playmats, 1–4 player LAN & Self-Hosted Public IPv4 Multiplayer with strict localhost firewall protections, animated **d20** turn-order rolls, enlarged tabletop play areas, custom playmats & card proxies/tokens, and stability fixes. See **[CHANGELOG.md](CHANGELOG.md)**, **[RELEASE_NOTES_v1.2.1.md](RELEASE_NOTES_v1.2.1.md)**, and the **[Documentation Wiki](docs/wiki/Home.md)** · **[umbraspass.org](https://umbraspass.org/)**.
 
 <!-- Quick Navigation -->
 - [What's New & Latest Updates](#whats-new--latest-updates)
@@ -178,7 +178,7 @@ If you prefer to download the AI model manually or already have `.gguf` files on
 | `npm run dist:win:qwen4b` | Downloads `Qwen3-4B-Q4_K_M.gguf` (if missing) and packages a complete offline Windows bundle |
 
 ### Building & Sharing Windows `.exe` Releases
-- **Standalone `.exe` (no bundled model):** Run `npm run dist:win` (or push a Git tag like `v1.2.0` to trigger GitHub Actions). Users will see the one-time startup screen to auto-download their `.gguf` model.
+- **Standalone `.exe` (no bundled model):** Run `npm run dist:win` (or push a Git tag like `v1.2.1` to trigger GitHub Actions). Users will see the one-time startup screen to auto-download their `.gguf` model.
 - **Offline bundle with `.gguf` included:** Run `npm run dist:win:qwen4b`, then zip and share the entire `dist-electron/win-unpacked/` folder so `models/` stays next to the `.exe`.
 
 ### Security & Repository Hygiene
