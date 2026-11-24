@@ -449,23 +449,23 @@ export const CustomCardProxyTokenModal: React.FC<
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={() => {
                 commitPreferences(createDefaultCustomCardTokenPreferences());
                 setStatusNotice('Reset custom card proxies and token visuals to defaults.');
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 cursor-pointer"
+              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-800 cursor-pointer"
             >
-              <RotateCcw className="h-3.5 w-3.5" />
+              <RotateCcw className="h-4 w-4" />
               <span>Reset Defaults</span>
             </button>
             <button
               type="button"
               onClick={onClose}
               aria-label="Close Custom Card & Token Studio"
-              className="rounded-lg border border-zinc-700 bg-zinc-900 p-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-white cursor-pointer"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-white cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>
@@ -473,18 +473,18 @@ export const CustomCardProxyTokenModal: React.FC<
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-800 bg-zinc-900/50 px-5 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-zinc-800 bg-zinc-900/50 px-5 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setActiveTab('card-art')}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors ${
+              className={`inline-flex min-h-[38px] items-center gap-2 rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-semibold cursor-pointer transition-colors ${
                 activeTab === 'card-art'
                   ? 'border-sky-400 bg-sky-500/20 text-white'
                   : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              <ImageIcon className="h-3.5 w-3.5 text-sky-400" />
+              <ImageIcon className="h-4 w-4 text-sky-400" />
               <span>1. Custom Card Art &amp; Skins ({savedProxiesList.length})</span>
             </button>
 
@@ -494,26 +494,26 @@ export const CustomCardProxyTokenModal: React.FC<
                 setActiveTab('playtest-proxies');
                 setBadgeLabelInput('PROXY');
               }}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors ${
+              className={`inline-flex min-h-[38px] items-center gap-2 rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-semibold cursor-pointer transition-colors ${
                 activeTab === 'playtest-proxies'
                   ? 'border-violet-400 bg-violet-500/20 text-white'
                   : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              <Layers className="h-3.5 w-3.5 text-violet-400" />
+              <Layers className="h-4 w-4 text-violet-400" />
               <span>2. Playtest Proxy Builder</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTab('custom-tokens')}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors ${
+              className={`inline-flex min-h-[38px] items-center gap-2 rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-semibold cursor-pointer transition-colors ${
                 activeTab === 'custom-tokens'
                   ? 'border-amber-400 bg-amber-500/20 text-white'
                   : 'border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+              <Sparkles className="h-4 w-4 text-amber-400" />
               <span>
                 3. Custom Token Visuals &amp; Spawner ({preferences.customTokens.length})
               </span>
@@ -542,15 +542,15 @@ export const CustomCardProxyTokenModal: React.FC<
                 {/* Quick Deck Card Selector */}
                 {uniqueDeckCards.length > 0 && (
                   <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3.5 space-y-2">
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                       <span className="font-bold text-zinc-200">
                         Quick-Select Card from Your Active Deck
                       </span>
-                      <span className="text-[11px] text-zinc-400">
+                      <span className="text-xs text-zinc-400">
                         Click any card to customize its image or create a proxy
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                    <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto">
                       {uniqueDeckCards.map((cName) => {
                         const hasCustom = Boolean(
                           preferences.cardProxies[normalizeCardLookupKey(cName)]
@@ -563,7 +563,7 @@ export const CustomCardProxyTokenModal: React.FC<
                             key={cName}
                             type="button"
                             onClick={() => handleSelectCardForEdit(cName)}
-                            className={`rounded-md border px-2 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+                            className={`min-h-[34px] rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                               isCurrent
                                 ? 'border-sky-400 bg-sky-500/25 text-white font-bold'
                                 : hasCustom
@@ -584,7 +584,7 @@ export const CustomCardProxyTokenModal: React.FC<
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4 space-y-3.5">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
                         Target Card Name (or New Proxy Name)
                       </label>
                       <input
@@ -592,12 +592,12 @@ export const CustomCardProxyTokenModal: React.FC<
                         value={cardNameInput}
                         onChange={(e) => setCardNameInput(e.target.value)}
                         placeholder="e.g., Sol Ring or Custom Playtest Dragon"
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white"
+                        className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs sm:text-sm text-white"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
                         Alternate / Skin Display Title (Optional)
                       </label>
                       <input
@@ -605,7 +605,7 @@ export const CustomCardProxyTokenModal: React.FC<
                         value={displayTitleInput}
                         onChange={(e) => setDisplayTitleInput(e.target.value)}
                         placeholder="e.g., Astral Mana Dynamo (shows over card name)"
-                        className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white"
+                        className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs sm:text-sm text-white"
                       />
                     </div>
                   </div>
@@ -615,14 +615,14 @@ export const CustomCardProxyTokenModal: React.FC<
                     <label className="block text-xs font-semibold text-zinc-300">
                       Custom Card Artwork URL or Local Image Upload
                     </label>
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-12">
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-12">
                       <div className="sm:col-span-8">
                         <input
                           type="url"
                           value={imageUrlInput}
                           onChange={(e) => setImageUrlInput(e.target.value)}
                           placeholder="https://cards.scryfall.io/art_crop/... or data:image/..."
-                          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white"
+                          className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs sm:text-sm text-white"
                         />
                       </div>
                       <div className="sm:col-span-4">
@@ -636,9 +636,9 @@ export const CustomCardProxyTokenModal: React.FC<
                         <button
                           type="button"
                           onClick={() => cardFileInputRef.current?.click()}
-                          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:border-sky-400 cursor-pointer"
+                          className="inline-flex min-h-[38px] w-full items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950 px-3.5 py-2 text-xs sm:text-sm font-semibold text-sky-200 hover:border-sky-400 cursor-pointer"
                         >
-                          <Upload className="h-3.5 w-3.5 text-sky-400" />
+                          <Upload className="h-4 w-4 text-sky-400" />
                           <span>Upload Local Image</span>
                         </button>
                       </div>
@@ -646,16 +646,16 @@ export const CustomCardProxyTokenModal: React.FC<
 
                     {/* Offline Built-in SVG Art Presets */}
                     <div className="pt-1">
-                      <span className="block text-[11px] text-zinc-400 mb-1.5">
+                      <span className="block text-xs text-zinc-400 mb-1.5">
                         Or pick an offline-ready procedural SVG artwork (works over Offline LAN):
                       </span>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-2">
                         {BUILTIN_TOKEN_ART_PRESETS.map((art) => (
                           <button
                             key={art.id}
                             type="button"
                             onClick={() => setImageUrlInput(art.imageUri)}
-                            className={`rounded border px-2 py-1 text-[11px] font-medium cursor-pointer ${
+                            className={`min-h-[34px] rounded-lg border px-3 py-1.5 text-xs font-medium cursor-pointer ${
                               imageUrlInput === art.imageUri
                                 ? 'border-sky-400 bg-sky-500/20 text-white'
                                 : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
@@ -671,16 +671,16 @@ export const CustomCardProxyTokenModal: React.FC<
                   {/* Frame Style & Badge Selector */}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
                         Proxy / Custom Art Frame Treatment
                       </label>
-                      <div className="grid grid-cols-2 gap-1.5">
+                      <div className="grid grid-cols-2 gap-2">
                         {FRAME_STYLE_OPTIONS.map((fOpt) => (
                           <button
                             key={fOpt.id}
                             type="button"
                             onClick={() => setFrameStyleInput(fOpt.id)}
-                            className={`rounded border px-2.5 py-1.5 text-[11px] font-semibold text-left cursor-pointer ${
+                            className={`min-h-[36px] rounded-lg border px-3 py-1.5 text-xs font-semibold text-left cursor-pointer ${
                               frameStyleInput === fOpt.id
                                 ? 'border-sky-400 bg-sky-500/20 text-white'
                                 : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
@@ -693,17 +693,17 @@ export const CustomCardProxyTokenModal: React.FC<
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-zinc-300 mb-1">
+                      <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
                         Card Tag Badge
                       </label>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-2">
                         {(['ALT ART', 'PROXY', 'PLAYTEST'] as const).map(
                           (bTag) => (
                             <button
                               key={bTag}
                               type="button"
                               onClick={() => setBadgeLabelInput(bTag)}
-                              className={`flex-1 rounded border px-2.5 py-1.5 text-[11px] font-bold cursor-pointer ${
+                              className={`min-h-[36px] flex-1 rounded-lg border px-3 py-1.5 text-xs font-bold cursor-pointer ${
                                 badgeLabelInput === bTag
                                   ? 'border-amber-400 bg-amber-500/20 text-amber-200'
                                   : 'border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-zinc-200'
@@ -720,12 +720,12 @@ export const CustomCardProxyTokenModal: React.FC<
                   {/* Full Playtest Proxy Stats & Rules Text Section */}
                   {activeTab === 'playtest-proxies' && (
                     <div className="border-t border-zinc-800 pt-3.5 space-y-3">
-                      <div className="text-xs font-bold text-violet-300">
+                      <div className="text-xs sm:text-sm font-bold text-violet-300">
                         Playtest Proxy Rules &amp; Combat Stats
                       </div>
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         <div>
-                          <label className="block text-[11px] text-zinc-400 mb-1">
+                          <label className="block text-xs text-zinc-400 mb-1">
                             Type Line
                           </label>
                           <input
@@ -733,11 +733,11 @@ export const CustomCardProxyTokenModal: React.FC<
                             value={typeLineInput}
                             onChange={(e) => setTypeLineInput(e.target.value)}
                             placeholder="Legendary Creature — Dragon"
-                            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-xs text-white"
+                            className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-white"
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] text-zinc-400 mb-1">
+                          <label className="block text-xs text-zinc-400 mb-1">
                             Mana Cost
                           </label>
                           <input
@@ -745,11 +745,11 @@ export const CustomCardProxyTokenModal: React.FC<
                             value={manaCostInput}
                             onChange={(e) => setManaCostInput(e.target.value)}
                             placeholder="{2}{U}{R}"
-                            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-xs font-mono text-white"
+                            className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-mono text-white"
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] text-zinc-400 mb-1">
+                          <label className="block text-xs text-zinc-400 mb-1">
                             Mana Value (CMC)
                           </label>
                           <input
@@ -760,14 +760,14 @@ export const CustomCardProxyTokenModal: React.FC<
                             onChange={(e) =>
                               setCmcInput(Math.max(0, Number(e.target.value) || 0))
                             }
-                            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-xs font-mono text-white"
+                            className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-mono text-white"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
                         <div className="sm:col-span-8">
-                          <label className="block text-[11px] text-zinc-400 mb-1">
+                          <label className="block text-xs text-zinc-400 mb-1">
                             Oracle Rules Text
                           </label>
                           <textarea
@@ -775,11 +775,11 @@ export const CustomCardProxyTokenModal: React.FC<
                             value={oracleTextInput}
                             onChange={(e) => setOracleTextInput(e.target.value)}
                             placeholder="Enter card rules text, triggered abilities, or keywords..."
-                            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-xs text-white"
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-white"
                           />
                         </div>
                         <div className="sm:col-span-2">
-                          <label className="block text-[11px] text-zinc-400 mb-1">
+                          <label className="block text-xs text-zinc-400 mb-1">
                             Power
                           </label>
                           <input
@@ -787,11 +787,11 @@ export const CustomCardProxyTokenModal: React.FC<
                             value={powerInput}
                             onChange={(e) => setPowerInput(e.target.value)}
                             placeholder="4"
-                            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-xs font-mono text-white"
+                            className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-mono text-white"
                           />
                         </div>
                         <div className="sm:col-span-2">
-                          <label className="block text-[11px] text-zinc-400 mb-1">
+                          <label className="block text-xs text-zinc-400 mb-1">
                             Toughness
                           </label>
                           <input
@@ -799,7 +799,7 @@ export const CustomCardProxyTokenModal: React.FC<
                             value={toughnessInput}
                             onChange={(e) => setToughnessInput(e.target.value)}
                             placeholder="4"
-                            className="w-full rounded border border-zinc-700 bg-zinc-950 px-2.5 py-1.5 text-xs font-mono text-white"
+                            className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-mono text-white"
                           />
                         </div>
                       </div>
@@ -807,15 +807,15 @@ export const CustomCardProxyTokenModal: React.FC<
                   )}
 
                   {/* Save & Multiplayer Spawn Action Buttons */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 pt-3.5">
                     <button
                       type="button"
                       onClick={() =>
                         handleSaveCardArtOrProxy(activeTab === 'playtest-proxies')
                       }
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-sky-600 px-4 py-2 text-xs font-bold text-white hover:bg-sky-500 cursor-pointer"
+                      className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-600 px-4 py-2 text-xs sm:text-sm font-bold text-white hover:bg-sky-500 cursor-pointer"
                     >
-                      <Check className="h-3.5 w-3.5" />
+                      <Check className="h-4 w-4" />
                       <span>
                         {activeTab === 'playtest-proxies'
                           ? 'Save Playtest Proxy & Sync to Table'
@@ -836,7 +836,7 @@ export const CustomCardProxyTokenModal: React.FC<
                                 | 'commandZone'
                             )
                           }
-                          className="rounded-lg border border-violet-400/50 bg-zinc-950 px-2.5 py-1.5 text-xs text-white"
+                          className="min-h-[40px] rounded-lg border border-violet-400/50 bg-zinc-950 px-3 py-2 text-xs sm:text-sm text-white"
                         >
                           <option value="hand">Into Your Hand</option>
                           <option value="battlefield">Onto Your Battlefield</option>
@@ -845,9 +845,9 @@ export const CustomCardProxyTokenModal: React.FC<
                         <button
                           type="button"
                           onClick={handleSaveAndSpawnProxyInMatch}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-violet-500 cursor-pointer"
+                          className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-violet-600 px-4 py-2 text-xs sm:text-sm font-bold text-white hover:bg-violet-500 cursor-pointer"
                         >
-                          <Plus className="h-3.5 w-3.5" />
+                          <Plus className="h-4 w-4" />
                           <span>Spawn Proxy into Active Match</span>
                         </button>
                       </div>
@@ -860,7 +860,7 @@ export const CustomCardProxyTokenModal: React.FC<
               <div className="lg:col-span-4 space-y-4">
                 {/* Live Card Tile Preview */}
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4 space-y-3">
-                  <div className="text-xs font-bold uppercase tracking-wider text-zinc-400">
+                  <div className="text-xs sm:text-sm font-bold text-zinc-300">
                     Live Custom Card / Proxy Preview
                   </div>
 
@@ -969,7 +969,7 @@ export const CustomCardProxyTokenModal: React.FC<
                               </div>
                             </button>
 
-                            <div className="flex items-center gap-1 shrink-0">
+                            <div className="flex items-center gap-1.5 shrink-0">
                               {onInjectProxyIntoMatch && (
                                 <button
                                   type="button"
@@ -977,7 +977,7 @@ export const CustomCardProxyTokenModal: React.FC<
                                     onInjectProxyIntoMatch(spawnTargetZone, entry)
                                   }
                                   title="Spawn this proxy into your active match"
-                                  className="rounded border border-violet-400/50 bg-violet-500/20 px-2 py-1 text-[10px] font-bold text-violet-200 hover:bg-violet-500/35 cursor-pointer"
+                                  className="min-h-[32px] rounded-md border border-violet-400/50 bg-violet-500/20 px-2.5 py-1 text-xs font-bold text-violet-200 hover:bg-violet-500/35 cursor-pointer"
                                 >
                                   Spawn
                                 </button>
@@ -986,9 +986,9 @@ export const CustomCardProxyTokenModal: React.FC<
                                 type="button"
                                 onClick={() => handleRemoveCardProxy(key)}
                                 aria-label={`Remove ${entry.cardName} custom proxy`}
-                                className="rounded border border-red-400/30 bg-red-950/30 p-1 text-red-300 hover:bg-red-900/50 cursor-pointer"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-400/30 bg-red-950/30 text-red-300 hover:bg-red-900/50 cursor-pointer"
                               >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <Trash2 className="h-4 w-4" />
                               </button>
                             </div>
                           </div>
@@ -1008,10 +1008,10 @@ export const CustomCardProxyTokenModal: React.FC<
               <div className="lg:col-span-7 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-200">
+                    <h3 className="text-xs sm:text-sm font-bold text-zinc-200">
                       Your Custom Token Visuals Gallery
                     </h3>
-                    <p className="text-[11px] text-zinc-400">
+                    <p className="text-xs text-zinc-400">
                       Click any token to edit its custom artwork or spawn 1–10× directly onto your battlefield.
                     </p>
                   </div>
@@ -1023,7 +1023,7 @@ export const CustomCardProxyTokenModal: React.FC<
                         key={q}
                         type="button"
                         onClick={() => setSpawnQuantity(q)}
-                        className={`rounded border px-2 py-0.5 text-xs font-bold cursor-pointer ${
+                        className={`min-h-[34px] rounded-md border px-3 py-1 text-xs font-bold cursor-pointer ${
                           spawnQuantity === q
                             ? 'border-amber-400 bg-amber-400 text-zinc-950'
                             : 'border-zinc-700 bg-zinc-900 text-zinc-300'
@@ -1039,7 +1039,7 @@ export const CustomCardProxyTokenModal: React.FC<
                   {preferences.customTokens.map((tok) => (
                     <div
                       key={tok.id}
-                      className={`rounded-xl border bg-zinc-900/80 p-3 flex flex-col justify-between gap-2.5 ${getCustomFrameBorderClass(
+                      className={`rounded-xl border bg-zinc-900/80 p-3.5 flex flex-col justify-between gap-2.5 ${getCustomFrameBorderClass(
                         tok.frameStyle
                       )}`}
                     >
@@ -1051,7 +1051,7 @@ export const CustomCardProxyTokenModal: React.FC<
                         />
                         <div className="min-w-0 flex-1 space-y-1">
                           <div className="flex items-center justify-between gap-1">
-                            <span className="font-bold text-xs text-white truncate">
+                            <span className="font-bold text-xs sm:text-sm text-white truncate">
                               {tok.name} Token
                             </span>
                             {tok.kind === 'creature' && (
@@ -1060,7 +1060,7 @@ export const CustomCardProxyTokenModal: React.FC<
                               </span>
                             )}
                           </div>
-                          <div className="text-[10px] text-sky-300 capitalize">
+                          <div className="text-xs text-sky-300 capitalize">
                             Token {tok.kind}
                             {tok.keywords.length > 0
                               ? ` · ${tok.keywords.join(', ')}`
@@ -1070,7 +1070,7 @@ export const CustomCardProxyTokenModal: React.FC<
                             <button
                               type="button"
                               onClick={() => handleLoadTokenIntoEditor(tok)}
-                              className="rounded border border-zinc-700 bg-zinc-950 px-2 py-0.5 text-[10px] font-semibold text-zinc-300 hover:border-sky-400 hover:text-white cursor-pointer"
+                              className="min-h-[32px] rounded-md border border-zinc-700 bg-zinc-950 px-3 py-1 text-xs font-semibold text-zinc-200 hover:border-sky-400 hover:text-white cursor-pointer"
                             >
                               Customize Art
                             </button>
@@ -1078,9 +1078,9 @@ export const CustomCardProxyTokenModal: React.FC<
                               type="button"
                               onClick={() => handleDeleteTokenBlueprint(tok.id)}
                               aria-label={`Delete ${tok.name} token preset`}
-                              className="rounded border border-zinc-800 bg-zinc-950 p-1 text-zinc-500 hover:text-red-300 cursor-pointer"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-zinc-800 bg-zinc-950 text-zinc-400 hover:text-red-300 cursor-pointer"
                             >
-                              <Trash2 className="h-3 w-3" />
+                              <Trash2 className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         </div>
@@ -1090,9 +1090,9 @@ export const CustomCardProxyTokenModal: React.FC<
                         <button
                           type="button"
                           onClick={() => handleSpawnCustomToken(tok, spawnQuantity)}
-                          className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-bold text-zinc-950 hover:bg-amber-300 cursor-pointer"
+                          className="inline-flex min-h-[38px] w-full items-center justify-center gap-1.5 rounded-lg bg-amber-400 px-3.5 py-2 text-xs font-bold text-zinc-950 hover:bg-amber-300 cursor-pointer"
                         >
-                          <Sparkles className="h-3.5 w-3.5" />
+                          <Sparkles className="h-4 w-4" />
                           <span>
                             Spawn {spawnQuantity}× {tok.name} on Battlefield
                           </span>
@@ -1105,13 +1105,13 @@ export const CustomCardProxyTokenModal: React.FC<
 
               {/* Right Column: Custom Token Visual Editor */}
               <div className="lg:col-span-5 rounded-xl border border-zinc-800 bg-zinc-900/70 p-4 space-y-3.5">
-                <div className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                <div className="text-xs sm:text-sm font-bold text-amber-300">
                   Create or Customize Token Visual
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="block text-[11px] text-zinc-300 mb-1">
+                    <label className="block text-xs text-zinc-300 mb-1">
                       Token Name
                     </label>
                     <input
@@ -1119,11 +1119,11 @@ export const CustomCardProxyTokenModal: React.FC<
                       value={tokenName}
                       onChange={(e) => setTokenName(e.target.value)}
                       placeholder="e.g., Treasure, Goblin, Eldrazi"
-                      className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white"
+                      className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-white"
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] text-zinc-300 mb-1">
+                    <label className="block text-xs text-zinc-300 mb-1">
                       Token Type
                     </label>
                     <select
@@ -1136,7 +1136,7 @@ export const CustomCardProxyTokenModal: React.FC<
                             | 'enchantment'
                         )
                       }
-                      className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white"
+                      className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-white"
                     >
                       <option value="creature">Token Creature</option>
                       <option value="artifact">Token Artifact</option>
@@ -1149,7 +1149,7 @@ export const CustomCardProxyTokenModal: React.FC<
                   <div className="space-y-2.5">
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] text-zinc-300 mb-1">
+                        <label className="block text-xs text-zinc-300 mb-1">
                           Power
                         </label>
                         <input
@@ -1160,11 +1160,11 @@ export const CustomCardProxyTokenModal: React.FC<
                           onChange={(e) =>
                             setTokenPower(Math.max(0, Number(e.target.value) || 0))
                           }
-                          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-mono text-white"
+                          className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-mono text-white"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] text-zinc-300 mb-1">
+                        <label className="block text-xs text-zinc-300 mb-1">
                           Toughness
                         </label>
                         <input
@@ -1177,16 +1177,16 @@ export const CustomCardProxyTokenModal: React.FC<
                               Math.max(1, Number(e.target.value) || 1)
                             )
                           }
-                          className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-mono text-white"
+                          className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs font-mono text-white"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="block text-[11px] text-zinc-300 mb-1">
+                      <label className="block text-xs text-zinc-300 mb-1">
                         Keywords
                       </label>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1.5">
                         {TOKEN_KEYWORDS.map((kw) => {
                           const has = tokenKeywords.includes(kw);
                           return (
@@ -1200,7 +1200,7 @@ export const CustomCardProxyTokenModal: React.FC<
                                     : [...prev, kw]
                                 )
                               }
-                              className={`rounded border px-2 py-0.5 text-[10px] font-semibold cursor-pointer ${
+                              className={`min-h-[32px] rounded-md border px-2.5 py-1 text-xs font-semibold cursor-pointer ${
                                 has
                                   ? 'border-sky-400 bg-sky-500/25 text-white'
                                   : 'border-zinc-800 bg-zinc-950 text-zinc-400'
@@ -1215,7 +1215,7 @@ export const CustomCardProxyTokenModal: React.FC<
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-[11px] text-zinc-300 mb-1">
+                    <label className="block text-xs text-zinc-300 mb-1">
                       Utility Token Ability
                     </label>
                     <select
@@ -1230,7 +1230,7 @@ export const CustomCardProxyTokenModal: React.FC<
                             | 'none'
                         )
                       }
-                      className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white"
+                      className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-white"
                     >
                       <option value="treasure">Treasure (+1 Mana)</option>
                       <option value="food">Food (+3 Life)</option>
@@ -1242,7 +1242,7 @@ export const CustomCardProxyTokenModal: React.FC<
                 )}
 
                 <div className="space-y-2">
-                  <label className="block text-[11px] text-zinc-300">
+                  <label className="block text-xs text-zinc-300">
                     Custom Token Image URL or Upload
                   </label>
                   <input
@@ -1250,7 +1250,7 @@ export const CustomCardProxyTokenModal: React.FC<
                     value={tokenImageUrl}
                     onChange={(e) => setTokenImageUrl(e.target.value)}
                     placeholder="https://... or data:image/..."
-                    className="w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs text-white"
+                    className="min-h-[38px] w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-xs text-white"
                   />
                   <div className="flex items-center gap-2">
                     <input
@@ -1263,24 +1263,24 @@ export const CustomCardProxyTokenModal: React.FC<
                     <button
                       type="button"
                       onClick={() => tokenFileInputRef.current?.click()}
-                      className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-sky-200 hover:border-sky-400 cursor-pointer"
+                      className="inline-flex min-h-[38px] w-full items-center justify-center gap-2 rounded-lg border border-zinc-700 bg-zinc-950 px-3.5 py-2 text-xs font-semibold text-sky-200 hover:border-sky-400 cursor-pointer"
                     >
-                      <Upload className="h-3.5 w-3.5 text-sky-400" />
+                      <Upload className="h-4 w-4 text-sky-400" />
                       <span>Upload Custom Token Image</span>
                     </button>
                   </div>
 
                   <div className="pt-1">
-                    <span className="block text-[10px] text-zinc-400 mb-1">
+                    <span className="block text-xs text-zinc-400 mb-1.5">
                       Built-in Offline Token Artworks:
                     </span>
-                    <div className="flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-1.5">
                       {BUILTIN_TOKEN_ART_PRESETS.map((art) => (
                         <button
                           key={art.id}
                           type="button"
                           onClick={() => setTokenImageUrl(art.imageUri)}
-                          className={`rounded border px-2 py-0.5 text-[10px] cursor-pointer ${
+                          className={`min-h-[32px] rounded-md border px-2.5 py-1 text-xs cursor-pointer ${
                             tokenImageUrl === art.imageUri
                               ? 'border-amber-400 bg-amber-500/20 text-white'
                               : 'border-zinc-800 bg-zinc-950 text-zinc-400'
@@ -1297,9 +1297,9 @@ export const CustomCardProxyTokenModal: React.FC<
                   <button
                     type="button"
                     onClick={handleSaveTokenBlueprint}
-                    className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold text-white hover:bg-sky-500 cursor-pointer"
+                    className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-sky-600 px-3.5 py-2 text-xs sm:text-sm font-bold text-white hover:bg-sky-500 cursor-pointer"
                   >
-                    <Check className="h-3.5 w-3.5" />
+                    <Check className="h-4 w-4" />
                     <span>Save Token Visual</span>
                   </button>
 
@@ -1321,9 +1321,9 @@ export const CustomCardProxyTokenModal: React.FC<
                           frameStyle: tokenFrameStyle,
                         });
                       }}
-                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-400 px-3 py-2 text-xs font-bold text-zinc-950 hover:bg-amber-300 cursor-pointer"
+                      className="inline-flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-lg bg-amber-400 px-3.5 py-2 text-xs sm:text-sm font-bold text-zinc-950 hover:bg-amber-300 cursor-pointer"
                     >
-                      <Crown className="h-3.5 w-3.5" />
+                      <Crown className="h-4 w-4" />
                       <span>Save &amp; Spawn ({spawnQuantity}×)</span>
                     </button>
                   )}
@@ -1334,14 +1334,14 @@ export const CustomCardProxyTokenModal: React.FC<
         </div>
 
         {/* Modal Footer */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 bg-zinc-900/95 px-5 py-3.5 text-xs">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800 bg-zinc-900/95 px-5 py-4 text-xs">
           <span className="text-zinc-400">
             Custom card images, playtest proxies, and token visuals are saved per user and sync automatically with your multiplayer deck &amp; battlefield.
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-emerald-500 px-4 py-1.5 text-xs font-bold text-zinc-950 hover:bg-emerald-400 cursor-pointer"
+            className="min-h-[40px] rounded-lg bg-emerald-500 px-5 py-2 text-xs sm:text-sm font-bold text-zinc-950 hover:bg-emerald-400 cursor-pointer"
           >
             Done
           </button>

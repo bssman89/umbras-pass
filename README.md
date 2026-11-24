@@ -2,7 +2,7 @@
 
 **Umbras Pass** is a free, standalone *Magic: The Gathering* deck analyzer, mana base optimizer, and interactive 1–4 player tabletop simulator. It features adaptive AI opponents powered by a local `.gguf` language model—meaning **100% private, offline AI with no cloud API keys or subscriptions required**—alongside **Offline LAN & Self-Hosted Online Multiplayer** with friends and AI bots.
 
-> **Latest Release — v1.2.0:** Free-form drag-and-drop playmats, 1–4 player LAN & Self-Hosted Online Multiplayer, custom playmats & card proxies/tokens, streamlined Playtest setup, and Scryfall artwork & sync fixes. See **[CHANGELOG.md](CHANGELOG.md)** and **[RELEASE_NOTES_v1.2.0.md](RELEASE_NOTES_v1.2.0.md)**.
+> **Latest Release — v1.2.0:** Free-form drag-and-drop playmats, 1–4 player LAN & Self-Hosted Public IPv4 Multiplayer with strict localhost firewall protections, animated **d20** turn-order rolls, enlarged tabletop play areas, custom playmats & card proxies/tokens, and Scryfall artwork & sync fixes. See **[CHANGELOG.md](CHANGELOG.md)** and **[RELEASE_NOTES_v1.2.0.md](RELEASE_NOTES_v1.2.0.md)**.
 
 <!-- Quick Navigation -->
 - [Key Features](#key-features)
@@ -22,8 +22,8 @@
 
 - **Universal Deck Importer:** Paste or import decklists directly from **MTG Arena, Moxfield, Archidekt, MTGGoldfish, ManaBox (CSV), MTGO, or Cockatrice**, or jump right in with built-in sample decks.
 - **Karsten-Calibrated Mana Analysis & Metrics:** Automatically checks land counts, ramp targets, color pip distributions, tapped-land tempo warnings, stacked mana curves, cumulative playability odds, and average/median CMC benchmarks.
-- **Free-Form Drag-and-Drop Playmats (Playtest):** Streamlined **Playtest** tab merging goldfishing and Live AI Bot pods with a unified 2D canvas. Drag permanents freely anywhere on your playmat or bot playmats, drop cards from Hand/Command Zone/Graveyard/Exile to exact board coordinates, toggle **Zone Guides**, or click **Tidy Board** for automatic non-overlapping spacing.
-- **1–4 Player Hybrid Multiplayer (Offline LAN & Self-Hosted Online):** Host or join local Wi-Fi/Ethernet or port-forwarded online pods mixing human friends and adaptive AI bots. Protected by 6-character room codes, scrypt-hashed session passcodes, and a **Host Lobby Approval Queue**, plus built-in **Local IP Detection**, **Port Reachability Self-Test**, and copy-pasteable **Router Port-Forwarding & OS Firewall Guides**.
+- **Free-Form Drag-and-Drop Playmats & Animated d20 Roll-Off (Playtest):** Streamlined **Playtest & Tabletop Arena** merging solo goldfishing, Live AI Bot pods, and replay visualization on an enlarged 2D felt canvas. Roll an animated **d20** (with automatic tie-breakers) to decide who goes first, drag permanents freely anywhere on your playmat or bot playmats, drop cards from Hand/Command Zone/Graveyard/Exile to exact coordinates, toggle **Zone Guides**, or click **Tidy Board** for clean spacing.
+- **1–4 Player Hybrid Multiplayer (Offline LAN & Self-Hosted Public IPv4):** Host or join local Wi-Fi/Ethernet or router port-forwarded public IPv4 pods mixing human friends and adaptive AI bots (`0.0.0.0:3000` automatic binding). Protected by **strict localhost-only firewall rules** on private deck/AI/OS routes, hidden WAN room directories, rate-limited non-PII room code lookups, scrypt-hashed session passcodes, and a **Host Lobby Approval Queue**, plus built-in **Local & Public IPv4 Detection**, **Port Reachability Self-Test**, and copy-pasteable **Router Port-Forwarding & OS Firewall Guides**.
 - **Custom Tabletop Playmats & Backgrounds:** Customize per-user seat playmats and table-wide themes using built-in artwork presets or your own custom image URLs, synced live across multiplayer rooms.
 - **Custom Card Images, Proxies & Custom Tokens:** Override card artwork, create full playtest proxies, apply custom frame borders, and spawn custom tokens directly onto the battlefield in both Playtest and Multiplayer sessions.
 - **Visual LIFO Stack & Official CR Rules Engine:** Real-time MTG Arena/MTGO-style visual Stack (`CR 405`), automatic trigger detection (`CR 603`), trigger reordering, London Mulligan, Commander tax tracking, First Strike/Double Strike & Trample+Deathtouch combat (`CR 510`), and Scryfall card artwork zoom previews.
@@ -52,15 +52,15 @@ Inspect stacked mana curves, cumulative playability percentages, color pip break
 ![Umbras Pass Balance, Synergy & Deep Metrics](docs/screenshots/04-advanced-deck-metrics.png)
 
 ### Live Tabletop & Interactive Playtest vs. Adaptive AI Bots
-Playtest 1v1 or 4-player Commander pods with free-form drag-and-drop playmats, visual LIFO Stack resolution, and adaptive AI bots.
+Playtest 1v1 or 4-player Commander pods with enlarged free-form drag-and-drop playmats, animated **d20** turn-order rolls, visual LIFO Stack resolution, and adaptive AI bots.
 ![Umbras Pass Live Tabletop vs AI Bots](docs/screenshots/05-live-tabletop-playtest.png)
 
-### Multiplayer Tabletop Setup (Offline LAN & Self-Hosted Online)
-Host or join 1–4 player hybrid pods with built-in local IP detection, port reachability testing, and router port-forwarding guides.
+### Multiplayer Tabletop Setup (Offline LAN & Self-Hosted Public IPv4)
+Host or join 1–4 player hybrid pods with automatic `0.0.0.0:3000` binding, local & public IPv4 detection, port reachability testing, and router port-forwarding guides.
 ![Umbras Pass Multiplayer Tabletop Setup](docs/screenshots/06-multiplayer-setup.png)
 
 ### Multiplayer Pod Lobby & 4-Seat Persistent Life Total Tracker
-Manage 1–4 player/bot seats, scrypt-protected invite codes, and live-synced 4-seat life totals with `< 10` life **Danger Zone** alerts before launching the match.
+Manage 1–4 player/bot seats, scrypt-protected invite codes, animated **d20** roll-offs, and live-synced 4-seat life totals with `< 10` life **Danger Zone** alerts before launching the match.
 ![Umbras Pass Multiplayer Lobby & Life Tracker](docs/screenshots/07-multiplayer-lobby.png)
 
 ### One-Click `.gguf` AI Setup
@@ -137,6 +137,8 @@ If you prefer to download the AI model manually or already have `.gguf` files on
   - `Qwen3-8B` (~5.0 GB) — Best strategic depth for gaming PCs with 16 GB+ RAM or dedicated GPUs.
 - **Where is my data stored?**
   Everything stays locally on your machine by default. Optional Firebase cloud sync is supported if you configure `.env` using `.env.example`.
+- **Is Self-Hosted Public IPv4 Multiplayer safe to open on port `3000`?**
+  Yes—private host features (local deck analysis, local `.gguf` AI routes, OS paths, network diagnostics, and room creation) are locked strictly to `localhost` (`127.0.0.1` / `::1`), the active room list is hidden from public/WAN callers, remote errors are sanitized, and guests must authenticate with your Room Code, scrypt-hashed Session Passcode, and Host Lobby Approval before entering a seat.
 
 ---
 

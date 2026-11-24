@@ -207,17 +207,17 @@ export const CardGalleryPanel: React.FC<CardGalleryPanelProps> = memo(({
       <div className="space-y-4">
         {enableProgressive && items.length > GALLERY_PAGE_SIZE && (
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="relative w-full sm:w-72">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+            <div className="relative w-full sm:w-80">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
               <input
                 type="text"
                 value={localFilter}
                 onChange={(e) => setLocalFilter(e.target.value)}
                 placeholder="Filter cards in this view..."
-                className="w-full rounded-lg border border-zinc-300 bg-white pl-8 pr-3 py-1.5 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
+                className="min-h-[40px] w-full rounded-lg border border-zinc-300 bg-white pl-9 pr-3.5 py-2 text-xs sm:text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
               />
             </div>
-            <span className="font-mono text-[11px] tabular-nums text-zinc-500">
+            <span className="font-mono text-xs tabular-nums text-zinc-500">
               Showing {visibleItems.length} of {filteredItems.length} cards
             </span>
           </div>
@@ -288,11 +288,11 @@ export const CardGalleryPanel: React.FC<CardGalleryPanelProps> = memo(({
                       {item.quantity ? `${item.quantity}x ` : ''}
                       {item.name}
                     </div>
-                    <div className="truncate text-[11px] text-zinc-500">
+                    <div className="truncate text-xs text-zinc-500">
                       {item.subtitle}
                       {item.meta?.setCode ? ` · ${item.meta.setCode}` : ''}
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-2 font-mono text-[11px] tabular-nums text-zinc-700">
+                    <div className="flex flex-wrap items-center gap-x-2 font-mono text-xs tabular-nums text-zinc-700">
                       <span>
                         TCG{' '}
                         {item.meta?.priceUsd !== null && item.meta?.priceUsd !== undefined
@@ -319,14 +319,14 @@ export const CardGalleryPanel: React.FC<CardGalleryPanelProps> = memo(({
             <button
               type="button"
               onClick={() => setVisibleLimit((prev) => prev + GALLERY_PAGE_SIZE)}
-              className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+              className="inline-flex min-h-[40px] items-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
             >
               Show Next {Math.min(GALLERY_PAGE_SIZE, filteredItems.length - visibleItems.length)} Cards
             </button>
             <button
               type="button"
               onClick={() => setVisibleLimit(filteredItems.length)}
-              className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs font-medium text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 cursor-pointer"
+              className="inline-flex min-h-[40px] items-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 cursor-pointer whitespace-nowrap shrink-0"
             >
               Show All ({filteredItems.length})
             </button>
@@ -373,11 +373,11 @@ export const CardGalleryPanel: React.FC<CardGalleryPanelProps> = memo(({
 
       <div className="rounded-xl border border-zinc-200 bg-white p-6 space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-100 pb-4">
-          <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
+          <div className="inline-flex flex-wrap items-center gap-1.5 rounded-xl bg-zinc-100 p-1.5">
             <button
               type="button"
               onClick={() => setActiveTab('suggestions')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`min-h-[38px] px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 activeTab === 'suggestions'
                   ? 'bg-white text-zinc-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
@@ -388,7 +388,7 @@ export const CardGalleryPanel: React.FC<CardGalleryPanelProps> = memo(({
             <button
               type="button"
               onClick={() => setActiveTab('deck')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`min-h-[38px] px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 activeTab === 'deck'
                   ? 'bg-white text-zinc-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
@@ -399,7 +399,7 @@ export const CardGalleryPanel: React.FC<CardGalleryPanelProps> = memo(({
             <button
               type="button"
               onClick={() => setActiveTab('database')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`min-h-[38px] px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 activeTab === 'database'
                   ? 'bg-white text-zinc-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
@@ -421,19 +421,19 @@ export const CardGalleryPanel: React.FC<CardGalleryPanelProps> = memo(({
           <div className="space-y-5">
             <form onSubmit={handleSearch} className="flex flex-col gap-3 sm:flex-row">
               <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder='Search any Magic card or Scryfall query (e.g. "Rhystic Study", "t:land id:ub")'
-                  className="w-full rounded-lg border border-zinc-300 bg-white pl-9 pr-3.5 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
+                  className="min-h-[42px] w-full rounded-lg border border-zinc-300 bg-white pl-10 pr-4 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
                 />
               </div>
               <button
                 type="submit"
                 disabled={searching || !searchQuery.trim()}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-sky-700 px-5 py-2 text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+                className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-lg bg-sky-700 px-5 py-2 text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
               >
                 {searching && <Loader2 className="h-4 w-4 animate-spin" />}
                 {searching ? 'Searching...' : 'Search Database'}

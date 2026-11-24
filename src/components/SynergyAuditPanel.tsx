@@ -378,11 +378,11 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
           </p>
         </div>
 
-        <div className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-100 p-1 shrink-0">
+        <div className="inline-flex flex-wrap items-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-100 p-1.5 shrink-0">
           <button
             type="button"
             onClick={() => setFilter('all')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`min-h-[38px] px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               filter === 'all'
                 ? 'bg-white text-zinc-900 shadow-sm'
                 : 'text-zinc-700 hover:text-zinc-900'
@@ -393,7 +393,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
           <button
             type="button"
             onClick={() => setFilter('color')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`min-h-[38px] px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               filter === 'color'
                 ? 'bg-white text-zinc-900 shadow-sm'
                 : 'text-zinc-700 hover:text-zinc-900'
@@ -404,7 +404,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
           <button
             type="button"
             onClick={() => setFilter('anti')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`min-h-[38px] px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               filter === 'anti'
                 ? 'bg-white text-zinc-900 shadow-sm'
                 : 'text-zinc-700 hover:text-zinc-900'
@@ -415,7 +415,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
           <button
             type="button"
             onClick={() => setFilter('strategy')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`min-h-[38px] px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               filter === 'strategy'
                 ? 'bg-white text-zinc-900 shadow-sm'
                 : 'text-zinc-700 hover:text-zinc-900'
@@ -431,7 +431,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
         {/* 1. Executive Scorecard Row */}
         <div className="grid grid-cols-2 divide-y divide-zinc-100 border-b border-zinc-200 sm:grid-cols-4 sm:divide-y-0 sm:divide-x">
           <div className="px-5 py-4">
-            <div className="text-[11px] font-medium text-zinc-500">
+            <div className="text-xs font-medium text-zinc-500">
               Audit Grade
             </div>
             <div className="mt-1 flex items-baseline gap-2 font-mono tabular-nums">
@@ -442,7 +442,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                 {report.scores.overallScore}/100
               </span>
             </div>
-            <div className="mt-0.5 text-[11px] text-zinc-500">
+            <div className="mt-0.5 text-xs text-zinc-500">
               {report.counts.critical > 0
                 ? `${report.counts.critical} critical · ${report.counts.total - report.counts.critical} advisory`
                 : report.counts.total > 0
@@ -452,14 +452,14 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
           </div>
 
           <div className="px-5 py-4">
-            <div className="text-[11px] font-medium text-zinc-500">
+            <div className="text-xs font-medium text-zinc-500">
               Color &amp; Mana Integrity
             </div>
             <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-zinc-900">
               {report.scores.colorHealth}
               <span className="text-xs font-normal text-zinc-500">/100</span>
             </div>
-            <div className="mt-0.5 text-[11px] text-zinc-500">
+            <div className="mt-0.5 text-xs text-zinc-500">
               {report.counts.colorIssues === 0
                 ? 'All pips & identity legal'
                 : `${report.counts.colorIssues} color/pip issue${report.counts.colorIssues === 1 ? '' : 's'}`}
@@ -467,35 +467,35 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
           </div>
 
           <div className="px-5 py-4">
-            <div className="text-[11px] font-medium text-zinc-500">
+            <div className="text-xs font-medium text-zinc-500">
               Strategy Cohesion
             </div>
             <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-sky-700">
               {report.scores.synergyCohesion}
               <span className="text-xs font-normal text-zinc-500">/100</span>
             </div>
-            <div className="mt-0.5 text-[11px] text-zinc-500 truncate">
+            <div className="mt-0.5 text-xs text-zinc-500 truncate">
               Themes: {report.detectedStrategy.primaryThemes.join(', ')}
             </div>
           </div>
 
-          <div className="px-5 py-4 flex flex-col justify-between gap-2 bg-zinc-50/50">
+          <div className="px-5 py-4 flex flex-col justify-between gap-2.5 bg-zinc-50/50">
             <div>
-              <div className="text-[11px] font-medium text-zinc-500">
+              <div className="text-xs font-medium text-zinc-500">
                 Fixes Staged in Export
               </div>
               <div className="mt-1 font-mono text-lg font-bold tabular-nums text-zinc-900">
                 {resolvedCount} / {report.counts.total}
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-2">
               {unresolvedWithFix.length > 0 && (
                 <button
                   type="button"
                   onClick={handleApplyTopFixes}
-                  className="inline-flex items-center gap-1 rounded-md bg-sky-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <Sparkles className="h-3 w-3" />
+                  <Sparkles className="h-3.5 w-3.5 shrink-0" />
                   Apply Top Fixes ({unresolvedWithFix.length})
                 </button>
               )}
@@ -504,9 +504,9 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                   type="button"
                   onClick={handleClearAuditFixes}
                   title="Clear staged audit swaps"
-                  className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <RotateCcw className="h-3 w-3" />
+                  <RotateCcw className="h-3.5 w-3.5 shrink-0" />
                   Reset
                 </button>
               )}
@@ -519,10 +519,10 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
           {/* Left: Per-Color Pip Demand vs Mana Sources */}
           <div className="p-5 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <h3 className="text-xs sm:text-sm font-bold text-zinc-700">
                 Color Pip Demand vs. Mana Sources
               </h3>
-              <span className="font-mono text-[11px] text-zinc-500">
+              <span className="font-mono text-xs text-zinc-500">
                 Identity: <strong className="text-zinc-800">{report.detectedStrategy.identityLabel}</strong>
               </span>
             </div>
@@ -555,18 +555,18 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                         <div className="flex items-center gap-2 min-w-0">
                           <span
-                            className={`inline-flex h-5 w-5 items-center justify-center rounded border font-mono text-[11px] font-bold shrink-0 ${style.bgClass}`}
+                            className={`inline-flex h-5 w-5 items-center justify-center rounded border font-mono text-xs font-bold shrink-0 ${style.bgClass}`}
                           >
                             {style.symbol}
                           </span>
                           <span className="font-semibold text-zinc-900">{row.label}</span>
-                          <span className="font-mono text-[11px] tabular-nums text-zinc-500">
+                          <span className="font-mono text-xs tabular-nums text-zinc-500">
                             {row.pips} pips · {row.spellCount} spells
                             {row.doublePipCards > 0 ? ` · ${row.doublePipCards} double-pip` : ''}
                           </span>
                         </div>
 
-                        <div className="flex items-center gap-2 font-mono text-[11px] tabular-nums shrink-0">
+                        <div className="flex items-center gap-2 font-mono text-xs tabular-nums shrink-0">
                           <span className="text-zinc-800 font-semibold">
                             {row.sources} / {row.recommendedSources} src
                           </span>
@@ -598,20 +598,20 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
 
           {/* Right: Active Theme Breakdown & Role Targets */}
           <div className="p-5 space-y-4">
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-2">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                <h3 className="text-xs sm:text-sm font-bold text-zinc-700">
                   Core Role Balance
                 </h3>
-                <span className="text-[11px] text-zinc-500">vs. Target</span>
+                <span className="text-xs text-zinc-500">vs. Target</span>
               </div>
               <div className="grid grid-cols-5 gap-2 text-center">
                 {report.roleSummary.map((role) => (
                   <div
                     key={role.role}
-                    className="rounded-lg border border-zinc-200 bg-zinc-50/70 px-2 py-2"
+                    className="rounded-lg border border-zinc-200 bg-zinc-50/70 px-2 py-2.5"
                   >
-                    <div className="truncate text-[10px] font-medium text-zinc-500">
+                    <div className="truncate text-xs font-medium text-zinc-500">
                       {role.role}
                     </div>
                     <div
@@ -625,7 +625,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                     >
                       {role.count}
                     </div>
-                    <div className="font-mono text-[9px] tabular-nums text-zinc-500">
+                    <div className="font-mono text-xs tabular-nums text-zinc-500">
                       {role.targetMin}–{role.targetMax}
                     </div>
                   </div>
@@ -635,7 +635,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
 
             {report.themeBreakdown.length > 0 && (
               <div className="space-y-2 border-t border-zinc-100 pt-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                <h3 className="text-xs sm:text-sm font-bold text-zinc-700">
                   Synergy Theme Density
                 </h3>
                 <div className="space-y-1.5">
@@ -646,11 +646,11 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="font-semibold text-zinc-800">{tb.label}</span>
-                        <span className="font-mono text-[11px] tabular-nums text-sky-700 font-semibold">
+                        <span className="font-mono text-xs tabular-nums text-sky-700 font-semibold">
                           {tb.cardCount} cards ({tb.sharePct}%)
                         </span>
                       </div>
-                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-zinc-600 truncate">
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-zinc-600 truncate">
                         {tb.topCards.slice(0, 2).map((tc, i) => (
                           <React.Fragment key={tc.name}>
                             {i > 0 && <span className="text-zinc-300">·</span>}
@@ -658,7 +658,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                               name={tc.name}
                               meta={tc.meta}
                               onInspect={onInspectCard}
-                              className="text-[11px] font-medium"
+                              className="text-xs font-medium"
                             />
                           </React.Fragment>
                         ))}
@@ -673,12 +673,12 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
 
         {/* 3. Top On-Plan Synergy Anchors */}
         {report.strongestSynergies.length > 0 && (
-          <div className="border-b border-zinc-200 bg-zinc-50/40 px-5 py-4 space-y-2.5">
+          <div className="border-b border-zinc-200 bg-zinc-50/40 px-5 py-4 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <div className="text-xs sm:text-sm font-bold text-zinc-700">
                 Top On-Theme Synergy Pieces in Deck
               </div>
-              <span className="text-[11px] text-zinc-500">
+              <span className="text-xs text-zinc-500">
                 Click any card to inspect
               </span>
             </div>
@@ -686,7 +686,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
               {report.strongestSynergies.map((syn) => (
                 <div
                   key={syn.cardName}
-                  className="rounded-lg border border-zinc-200 bg-white p-2.5 flex items-start gap-2.5"
+                  className="rounded-lg border border-zinc-200 bg-white p-3 flex items-start gap-2.5"
                 >
                   <MiniCardThumb
                     name={syn.cardName}
@@ -702,15 +702,15 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                         className="text-xs font-semibold truncate"
                       />
                       {syn.cardMeta?.manaCost && (
-                        <span className="font-mono text-[10px] text-zinc-500 shrink-0">
+                        <span className="font-mono text-xs text-zinc-500 shrink-0">
                           {syn.cardMeta.manaCost}
                         </span>
                       )}
                     </div>
-                    <div className="font-mono text-[10px] font-semibold text-sky-700 truncate">
+                    <div className="font-mono text-xs font-semibold text-sky-700 truncate">
                       {syn.matchedThemes.join(' · ')}
                     </div>
-                    <p className="text-[11px] leading-snug text-zinc-600 line-clamp-2">
+                    <p className="text-xs leading-snug text-zinc-600 line-clamp-2">
                       {syn.reason}
                     </p>
                   </div>
@@ -722,17 +722,17 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
 
         {/* 4. Actionable Flagged Cards Filter Bar */}
         {report.flaggedCards.length > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-6 py-3 text-xs bg-zinc-50/60">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 px-6 py-3.5 text-xs sm:text-sm bg-zinc-50/60">
             <span className="font-semibold text-zinc-800">
               Flagged Cards &amp; Recommended Fixes ({filteredFlags.length} shown)
             </span>
             {resolvedCount > 0 && (
-              <label className="inline-flex items-center gap-2 text-xs text-zinc-600 cursor-pointer">
+              <label className="inline-flex min-h-[36px] items-center gap-2.5 text-xs sm:text-sm text-zinc-600 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={hideResolved}
                   onChange={(e) => setHideResolved(e.target.checked)}
-                  className="rounded border-zinc-300"
+                  className="h-4 w-4 rounded border-zinc-300"
                 />
                 Hide resolved cards ({resolvedCount})
               </label>
@@ -843,7 +843,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                             <button
                               type="button"
                               onClick={() => onToggleCut(item.linkedCutId!)}
-                              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 ${
+                              className={`inline-flex min-h-[38px] items-center gap-2 rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-semibold cursor-pointer whitespace-nowrap shrink-0 ${
                                 selectedCutIds.has(item.linkedCutId)
                                   ? 'border-sky-700 bg-sky-700 text-white'
                                   : 'border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50'
@@ -863,13 +863,13 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                                   quantity: item.quantity,
                                 })
                               }
-                              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 ${
+                              className={`inline-flex min-h-[38px] items-center gap-2 rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-semibold cursor-pointer whitespace-nowrap shrink-0 ${
                                 cutOnlySelected
                                   ? 'border-sky-700 bg-sky-700 text-white'
                                   : 'border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50'
                               }`}
                             >
-                              <Scissors className="h-3.5 w-3.5" />
+                              <Scissors className="h-4 w-4 shrink-0" />
                               {cutOnlySelected ? 'Cut Staged in Export' : 'Cut Card Only'}
                             </button>
                           )}
@@ -919,7 +919,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                                       className="font-semibold text-sky-800"
                                     />
                                     {sugMeta?.manaCost && (
-                                      <span className="font-mono text-[11px] text-zinc-500">
+                                      <span className="font-mono text-xs text-zinc-500">
                                         {sugMeta.manaCost}
                                       </span>
                                     )}
@@ -930,7 +930,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                                     {sug.matchLabel && (
                                       <>
                                         <span className="text-zinc-300" aria-hidden="true">·</span>
-                                        <span className="text-[11px] font-medium text-sky-700">
+                                        <span className="text-xs font-medium text-sky-700">
                                           {sug.matchLabel}
                                         </span>
                                       </>
@@ -938,7 +938,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                                     {priceStr && (
                                       <>
                                         <span className="text-zinc-300" aria-hidden="true">·</span>
-                                        <span className="font-mono text-[11px] tabular-nums text-zinc-500">
+                                        <span className="font-mono text-xs tabular-nums text-zinc-500">
                                           {priceStr}
                                         </span>
                                       </>
@@ -963,7 +963,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                                       });
                                     }
                                   }}
-                                  className={`inline-flex items-center justify-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                                  className={`inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                                     isApplied
                                       ? 'border-sky-700 bg-sky-700 text-white hover:bg-sky-800'
                                       : 'border-zinc-300 bg-white text-zinc-800 hover:border-sky-400 hover:text-sky-800'
@@ -971,7 +971,7 @@ export const SynergyAuditPanel: React.FC<SynergyAuditPanelProps> = ({
                                 >
                                   {isApplied ? (
                                     <>
-                                      <Check className="h-3.5 w-3.5" />
+                                      <Check className="h-4 w-4 shrink-0" />
                                       Applied
                                     </>
                                   ) : (

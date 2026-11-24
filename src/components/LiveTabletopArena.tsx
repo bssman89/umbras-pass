@@ -193,7 +193,8 @@ export type TabletopSoundKind =
   | 'combat'
   | 'turn'
   | 'shuffle'
-  | 'alert';
+  | 'alert'
+  | 'dice';
 
 let sharedAudioCtx: AudioContext | null = null;
 
@@ -254,12 +255,39 @@ export function playTabletopSound(enabled: boolean, kind: TabletopSoundKind): vo
       return;
     }
 
+    if (kind === 'dice') {
+      const clacks = [
+        { offset: 0, freq: 640, dur: 0.035 },
+        { offset: 0.07, freq: 520, dur: 0.035 },
+        { offset: 0.15, freq: 720, dur: 0.04 },
+        { offset: 0.25, freq: 480, dur: 0.04 },
+        { offset: 0.38, freq: 587.33, dur: 0.12 },
+      ];
+      clacks.forEach(({ offset, freq, dur }, idx) => {
+        if (!sharedAudioCtx) return;
+        const osc = sharedAudioCtx.createOscillator();
+        const gain = sharedAudioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(sharedAudioCtx.destination);
+        osc.type = idx === clacks.length - 1 ? 'sine' : 'triangle';
+        osc.frequency.setValueAtTime(freq, now + offset);
+        if (idx < clacks.length - 1) {
+          osc.frequency.exponentialRampToValueAtTime(220, now + offset + dur);
+        }
+        gain.gain.setValueAtTime(idx === clacks.length - 1 ? 0.04 : 0.028, now + offset);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + offset + dur);
+        osc.start(now + offset);
+        osc.stop(now + offset + dur + 0.01);
+      });
+      return;
+    }
+
     const osc = sharedAudioCtx.createOscillator();
     const gain = sharedAudioCtx.createGain();
     osc.connect(gain);
     gain.connect(sharedAudioCtx.destination);
 
-    const freqMap: Record<Exclude<TabletopSoundKind, 'shuffle' | 'alert'>, [number, number, number]> = {
+    const freqMap: Record<Exclude<TabletopSoundKind, 'shuffle' | 'alert' | 'dice'>, [number, number, number]> = {
       draw: [420, 560, 0.08],
       land: [260, 310, 0.09],
       cast: [392, 587, 0.14],
@@ -385,8 +413,8 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
     setImgFailed(false);
   }, [name, effectiveMeta?.imageUri]);
 
-  const widthClass = size === 'sm' ? 'w-[88px]' : 'w-[108px]';
-  const artHeightClass = size === 'sm' ? 'h-[60px]' : 'h-[78px]';
+  const widthClass = size === 'sm' ? 'w-[106px]' : 'w-[130px]';
+  const artHeightClass = size === 'sm' ? 'h-[72px]' : 'h-[90px]';
 
   const frameRingClass = isDragTarget
     ? 'border-amber-400 ring-2 ring-amber-400 scale-[1.03] shadow-lg'
@@ -556,11 +584,11 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
           )}
         </div>
 
-        <div className="mt-1 space-y-0.5">
-          <div className="truncate text-[10px] font-bold text-zinc-900 group-hover:text-sky-700">
+        <div className="mt-1.5 space-y-0.5">
+          <div className="truncate text-xs font-bold leading-snug text-zinc-900 group-hover:text-sky-700">
             {effectiveDisplayTitle}
           </div>
-          <div className="flex items-center justify-between gap-1 font-mono text-[9px] text-zinc-500">
+          <div className="flex items-center justify-between gap-1 font-mono text-[10px] text-zinc-500">
             <span className="truncate">
               {meta?.manaCost || subLabel || (meta?.isLand ? 'Land' : '—')}
             </span>
@@ -569,11 +597,11 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
             )}
           </div>
           {counterChips && counterChips.length > 0 && (
-            <div className="flex flex-wrap items-center gap-0.5 pt-0.5">
+            <div className="flex flex-wrap items-center gap-1 pt-0.5">
               {counterChips.slice(0, 3).map((chip) => (
                 <span
                   key={chip}
-                  className="rounded bg-emerald-900 px-1 py-0.2 font-mono text-[8px] font-bold text-amber-200 tabular-nums leading-tight"
+                  className="rounded bg-emerald-900 px-1.5 py-0.5 font-mono text-[9px] font-bold text-amber-200 tabular-nums leading-tight"
                 >
                   {chip}
                 </span>
@@ -584,7 +612,7 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
       </button>
 
       {(primaryAction || secondaryAction || counterAction || onTileClick) && (
-        <div className="mt-1.5 flex items-center gap-1 border-t border-zinc-100 pt-1">
+        <div className="mt-2 flex items-center gap-1 border-t border-zinc-100 pt-1.5">
           {primaryAction && (
             <button
               type="button"
@@ -594,7 +622,7 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
                 hidePreview();
                 primaryAction.onClick();
               }}
-              className={`flex-1 rounded border px-1 py-0.5 text-[9px] font-bold leading-tight truncate disabled:opacity-40 cursor-pointer whitespace-nowrap ${btnToneClass(
+              className={`min-h-[28px] flex-1 rounded-md border px-2 py-1 text-[11px] font-bold leading-tight truncate disabled:opacity-40 cursor-pointer whitespace-nowrap ${btnToneClass(
                 primaryAction.tone
               )}`}
             >
@@ -610,7 +638,7 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
                 counterAction.onClick();
               }}
               title={`Edit counters on ${name}`}
-              className={`rounded border px-1 py-0.5 font-mono text-[9px] font-bold leading-tight cursor-pointer whitespace-nowrap shrink-0 ${
+              className={`min-h-[28px] min-w-[26px] rounded-md border px-1.5 py-1 font-mono text-[11px] font-bold leading-tight cursor-pointer whitespace-nowrap shrink-0 ${
                 counterAction.active
                   ? 'border-sky-600 bg-sky-700 text-white'
                   : 'border-zinc-300 bg-zinc-100 text-zinc-800 hover:border-sky-500 hover:text-sky-700'
@@ -628,7 +656,7 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
                 secondaryAction.onClick();
               }}
               title={secondaryAction.label}
-              className={`rounded border px-1 py-0.5 text-[9px] font-semibold leading-tight cursor-pointer whitespace-nowrap shrink-0 ${btnToneClass(
+              className={`min-h-[28px] rounded-md border px-1.5 py-1 text-[11px] font-semibold leading-tight cursor-pointer whitespace-nowrap shrink-0 ${btnToneClass(
                 secondaryAction.tone
               )}`}
             >
@@ -644,7 +672,7 @@ const TableCardTile: React.FC<TableCardTileProps> = ({
                 onInspect(name, meta);
               }}
               title={`Inspect ${name}`}
-              className="rounded border border-zinc-200 bg-zinc-50 px-1 py-0.5 text-[9px] font-semibold text-zinc-600 hover:text-sky-700 cursor-pointer shrink-0"
+              className="min-h-[28px] min-w-[24px] rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-1 text-[11px] font-semibold text-zinc-600 hover:text-sky-700 cursor-pointer shrink-0"
             >
               ?
             </button>
@@ -663,24 +691,24 @@ const CardBackFan: React.FC<{ count: number; shuffling?: boolean }> = ({
   const extra = Math.max(0, count - visible);
   if (count <= 0) {
     return (
-      <span className="font-mono text-[10px] text-emerald-200/70">0 Hand</span>
+      <span className="font-mono text-xs text-emerald-200/75">0 Hand</span>
     );
   }
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2">
       <div className={`flex items-center -space-x-2 ${shuffling ? 'animate-deck-shuffle-bot' : ''}`}>
         {Array.from({ length: visible }).map((_, i) => (
           <div
             key={i}
             style={{ transform: `rotate(${(i - (visible - 1) / 2) * 3}deg)` }}
-            className="h-7 w-5 rounded-[3px] border border-amber-300/60 bg-gradient-to-br from-sky-950 via-zinc-900 to-amber-950 shadow-sm flex items-center justify-center"
+            className="h-8 w-5.5 rounded-[3px] border border-amber-300/60 bg-gradient-to-br from-sky-950 via-zinc-900 to-amber-950 shadow-sm flex items-center justify-center"
           >
-            <div className="h-3.5 w-2 rounded-[1px] border border-amber-400/40 bg-amber-500/10" />
+            <div className="h-4 w-2.5 rounded-[1px] border border-amber-400/40 bg-amber-500/10" />
           </div>
         ))}
       </div>
-      <span className="font-mono text-[10px] font-semibold tabular-nums text-emerald-100">
-        {extra > 0 ? `+${extra} (${count})` : `${count}H`}
+      <span className="font-mono text-xs font-semibold tabular-nums text-emerald-100">
+        {extra > 0 ? `+${extra} (${count} in hand)` : `${count} in hand`}
       </span>
     </div>
   );
@@ -1304,10 +1332,10 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
   const opponentCount = liveBotMode ? liveBots.length : opponentTrackers.length;
   const podSeatGridClass =
     opponentCount <= 1
-      ? 'grid-cols-1 max-w-xl mx-auto w-full'
+      ? 'grid-cols-1 max-w-3xl mx-auto w-full'
       : opponentCount === 2
       ? 'grid-cols-1 md:grid-cols-2'
-      : 'grid-cols-1 lg:grid-cols-3';
+      : 'grid-cols-1 xl:grid-cols-3';
 
   const seatSummaryCount = 1 + opponentCount;
   const seatSummaryLabel =
@@ -1380,9 +1408,9 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
     >
       <PlaymatSurfaceBackdrop surface={tabletopSurface} variant="table" />
       {/* 1. Turn Order Seat Track & Tabletop Top Bar */}
-      <div className={`relative z-10 border-b px-4 py-3 space-y-2.5 ${tabletopSurface.hudClass}`}>
+      <div className={`relative z-10 border-b px-4 sm:px-5 py-3.5 space-y-3 ${tabletopSurface.hudClass}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2.5 text-xs">
+          <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm">
             <span className="font-display font-bold text-white tracking-tight">
               {seatSummaryLabel} Tabletop
             </span>
@@ -1410,19 +1438,19 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                         ? `Live Per-Turn AI Thinking ON (${activeAiModelLabel}). Click to use fast turn rules while keeping pre-match & post-match AI learning.`
                         : `Live Per-Turn AI Thinking OFF (pre-match & post-match learning still use ${activeAiModelLabel}). Click to enable per-turn AI reasoning.`
                     }
-                    className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                    className={`inline-flex min-h-[32px] items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
                       liveAiTurnReasoning
                         ? 'border-sky-300/60 bg-sky-950/60 text-sky-100 hover:bg-sky-900/70'
                         : 'border-emerald-300/35 bg-[#0F4C3A] text-emerald-200/80 hover:bg-[#145D47]'
                     }`}
                   >
-                    <Cpu className="h-3 w-3 text-sky-300" />
+                    <Cpu className="h-3.5 w-3.5 text-sky-300" />
                     {activeAiModelLabel}
                     {liveAiTurnReasoning ? '' : ' (Fast)'}
                   </button>
                 ) : (
-                  <span className="inline-flex items-center gap-1 font-mono text-[10px] text-emerald-200/85">
-                    <Cpu className="h-3 w-3 text-emerald-300" />
+                  <span className="inline-flex items-center gap-1 font-mono text-xs text-emerald-200/85">
+                    <Cpu className="h-3.5 w-3.5 text-emerald-300" />
                     {activeAiModelLabel}
                   </span>
                 )}
@@ -1430,14 +1458,14 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {isShufflingDeck && (
               <span
                 role="status"
                 aria-live="polite"
-                className="inline-flex items-center gap-1.5 rounded-md border border-amber-300/45 bg-amber-950/50 px-2.5 py-1 text-[11px] font-semibold text-amber-200 whitespace-nowrap shrink-0"
+                className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-amber-300/45 bg-amber-950/50 px-3 py-1.5 text-xs font-semibold text-amber-200 whitespace-nowrap shrink-0"
               >
-                <Shuffle className="h-3 w-3 animate-spin" />
+                <Shuffle className="h-3.5 w-3.5 animate-spin" />
                 Shuffling deck...
               </span>
             )}
@@ -1450,7 +1478,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                   ? 'Disable enlarged card preview when hovering cards on the field'
                   : 'Enable enlarged card preview when hovering cards on the field'
               }
-              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-medium cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+              className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
                 hoverZoomEnabled
                   ? 'border-sky-300/60 bg-sky-950/60 text-sky-100 hover:bg-sky-900/60'
                   : 'border-[#287D64] bg-[#0F4C3A] text-emerald-200/80 hover:bg-[#145D47]'
@@ -1467,12 +1495,12 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               type="button"
               onClick={() => setShowCustomCardStudio(true)}
               title="Configure custom card art, playtest proxies, and custom token visuals"
-              className="inline-flex items-center gap-1.5 rounded-md border border-amber-400/55 bg-amber-950/60 px-2.5 py-1 text-[11px] font-semibold text-amber-100 hover:bg-amber-900/70 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-amber-400/55 bg-amber-950/60 px-3 py-1.5 text-xs font-semibold text-amber-100 hover:bg-amber-900/70 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
             >
               <Wand2 className="h-3.5 w-3.5 text-amber-300" />
               <span>Proxies &amp; Custom Art</span>
               {Object.keys(customCardPrefs.cardProxies).length > 0 && (
-                <span className="rounded bg-amber-400/20 px-1 py-0.2 font-mono text-[9px] font-bold text-amber-200 tabular-nums">
+                <span className="rounded bg-amber-400/25 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-200 tabular-nums">
                   {Object.keys(customCardPrefs.cardProxies).length}
                 </span>
               )}
@@ -1481,7 +1509,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               type="button"
               onClick={() => setShowPlaymatCustomizer(true)}
               title="Customize tabletop background and per-seat TCG playmats"
-              className="inline-flex items-center gap-1.5 rounded-md border border-emerald-400/50 bg-emerald-950/60 px-2.5 py-1 text-[11px] font-semibold text-emerald-100 hover:bg-emerald-900/70 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-950/60 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-emerald-900/70 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
             >
               <Palette className="h-3.5 w-3.5 text-emerald-300" />
               <span>Playmats &amp; Theme</span>
@@ -1491,7 +1519,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               onClick={onToggleSound}
               aria-pressed={soundEnabled}
               title={soundEnabled ? 'Mute tabletop card sound effects' : 'Enable subtle tabletop card sound effects'}
-              className="inline-flex items-center gap-1.5 rounded-md border border-[#287D64] bg-[#0F4C3A] px-2.5 py-1 text-[11px] font-medium text-emerald-100 hover:bg-[#145D47] cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-[#287D64] bg-[#0F4C3A] px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-[#145D47] cursor-pointer whitespace-nowrap shrink-0"
             >
               {soundEnabled ? (
                 <Volume2 className="h-3.5 w-3.5 text-amber-300" />
@@ -1510,7 +1538,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     ? 'Exit Fullscreen Play Area (Esc)'
                     : 'Expand Tabletop to Fullscreen inside program'
                 }
-                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
                   isFullscreen
                     ? 'border-amber-300/70 bg-amber-500/20 text-amber-100 hover:bg-amber-500/30'
                     : 'border-sky-300/60 bg-sky-950/60 text-sky-100 hover:bg-sky-900/60'
@@ -1534,7 +1562,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
 
         {/* 2 / 3 / 4 Seat Order Strip */}
         <div
-          className={`grid gap-2 ${
+          className={`grid gap-2.5 ${
             seatSummaryCount === 2
               ? 'grid-cols-2'
               : seatSummaryCount === 3
@@ -1544,7 +1572,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
         >
           {/* Seat 1: You */}
           <div
-            className={`rounded-lg border px-3 py-2 flex items-center justify-between gap-2 transition-colors ${
+            className={`rounded-lg border px-3.5 py-2.5 flex items-center justify-between gap-2.5 transition-colors ${
               playerKO
                 ? 'border-red-400/60 bg-red-950/50'
                 : !botsAreActing && !isSimulationFinished
@@ -1553,31 +1581,31 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
             }`}
           >
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold">
+              <div className="flex items-center gap-1.5 text-xs font-bold">
                 <span className="font-mono text-sky-300">S1</span>
                 <span className="truncate text-white">You</span>
                 {!botsAreActing && !playerKO && !isSimulationFinished && (
-                  <span className="font-mono text-[9px] font-bold uppercase text-sky-300">
+                  <span className="font-mono text-[10px] font-bold text-sky-300">
                     Active
                   </span>
                 )}
                 {playerKO && (
-                  <span className="font-mono text-[9px] font-bold uppercase text-red-300">
+                  <span className="font-mono text-[10px] font-bold text-red-300">
                     KO
                   </span>
                 )}
               </div>
-              <div className="font-mono text-[10px] tabular-nums text-emerald-200/80 truncate">
+              <div className="font-mono text-[11px] tabular-nums text-emerald-200/85 truncate">
                 {hand.length}H · {library.length}L · {totalLandsInPlay} Lands
               </div>
             </div>
 
             <div className="text-right font-mono tabular-nums shrink-0">
-              <div className={`text-sm font-bold ${yourLife <= 0 ? 'text-red-300' : 'text-white'}`}>
+              <div className={`text-base font-bold ${yourLife <= 0 ? 'text-red-300' : 'text-white'}`}>
                 {yourLife} HP
               </div>
               {(yourPoison > 0 || (usesCommanderDamage21 && maxCmdrFromBots > 0)) && (
-                <div className="text-[9px] text-amber-200">
+                <div className="text-[10px] text-amber-200">
                   {yourPoison > 0 ? `${yourPoison}/10 PSN` : ''}
                   {yourPoison > 0 && usesCommanderDamage21 && maxCmdrFromBots > 0 ? ' · ' : ''}
                   {usesCommanderDamage21 && maxCmdrFromBots > 0 ? `${maxCmdrFromBots}/21 CMD` : ''}
@@ -1597,7 +1625,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     type="button"
                     disabled={bot.eliminated}
                     onClick={() => onSelectCombatTarget(bot.id)}
-                    className={`rounded-lg border px-3 py-2 flex items-center justify-between gap-2 text-left transition-colors cursor-pointer disabled:cursor-default ${
+                    className={`rounded-lg border px-3.5 py-2.5 flex items-center justify-between gap-2.5 text-left transition-colors cursor-pointer disabled:cursor-default ${
                       bot.eliminated
                         ? 'border-red-400/45 bg-red-950/40 opacity-65'
                         : isActing
@@ -1608,33 +1636,33 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     }`}
                   >
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                      <div className="flex items-center gap-1.5 text-xs font-bold">
                         <span className="font-mono text-emerald-300">S{idx + 2}</span>
                         <span className="truncate text-white">{bot.name}</span>
                         {isActing && (
-                          <Loader2 className="h-3 w-3 animate-spin text-amber-300 shrink-0" />
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-300 shrink-0" />
                         )}
                         {bot.eliminated ? (
-                          <span className="font-mono text-[9px] font-bold uppercase text-red-300">
+                          <span className="font-mono text-[10px] font-bold text-red-300">
                             KO
                           </span>
                         ) : isTarget ? (
-                          <span className="font-mono text-[9px] font-bold uppercase text-sky-300">
+                          <span className="font-mono text-[10px] font-bold text-sky-300">
                             Target
                           </span>
                         ) : null}
                       </div>
-                      <div className="font-mono text-[10px] tabular-nums text-emerald-200/80 truncate">
+                      <div className="font-mono text-[11px] tabular-nums text-emerald-200/85 truncate">
                         {bot.handCount}H · {bot.libraryCount}L · {bot.creatures.length} Cr
                       </div>
                     </div>
 
                     <div className="text-right font-mono tabular-nums shrink-0">
-                      <div className={`text-sm font-bold ${bot.life <= 0 ? 'text-red-300' : 'text-white'}`}>
+                      <div className={`text-base font-bold ${bot.life <= 0 ? 'text-red-300' : 'text-white'}`}>
                         {bot.life} HP
                       </div>
                       {(bot.poison > 0 || (usesCommanderDamage21 && bot.commanderDamageTakenFromYou > 0)) && (
-                        <div className="text-[9px] text-amber-200">
+                        <div className="text-[10px] text-amber-200">
                           {bot.poison > 0 ? `${bot.poison}/10 PSN` : ''}
                           {bot.poison > 0 && usesCommanderDamage21 && bot.commanderDamageTakenFromYou > 0
                             ? ' · '
@@ -1659,7 +1687,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     key={opp.id}
                     type="button"
                     onClick={() => onSelectCombatTarget(opp.id)}
-                    className={`rounded-lg border px-3 py-2 flex items-center justify-between gap-2 text-left transition-colors cursor-pointer ${
+                    className={`rounded-lg border px-3.5 py-2.5 flex items-center justify-between gap-2.5 text-left transition-colors cursor-pointer ${
                       isKO
                         ? 'border-red-400/45 bg-red-950/40 opacity-70'
                         : isTarget
@@ -1668,26 +1696,26 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     }`}
                   >
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                      <div className="flex items-center gap-1.5 text-xs font-bold">
                         <span className="font-mono text-emerald-300">S{idx + 2}</span>
                         <span className="truncate text-white">{opp.name}</span>
                         {isKO ? (
-                          <span className="font-mono text-[9px] font-bold uppercase text-red-300">
+                          <span className="font-mono text-[10px] font-bold text-red-300">
                             KO
                           </span>
                         ) : isTarget ? (
-                          <span className="font-mono text-[9px] font-bold uppercase text-sky-300">
+                          <span className="font-mono text-[10px] font-bold text-sky-300">
                             Target
                           </span>
                         ) : null}
                       </div>
-                      <div className="text-[10px] text-emerald-200/80 truncate">
+                      <div className="text-[11px] text-emerald-200/85 truncate">
                         {opp.commanderName || opp.archetype}
                       </div>
                     </div>
 
                     <div className="text-right font-mono tabular-nums shrink-0">
-                      <div className={`text-sm font-bold ${opp.life <= 0 ? 'text-red-300' : 'text-white'}`}>
+                      <div className={`text-base font-bold ${opp.life <= 0 ? 'text-red-300' : 'text-white'}`}>
                         {opp.life} HP
                       </div>
                     </div>
@@ -1732,7 +1760,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                   onDrop={(e) => {
                     if (!bot.eliminated) handleDropOnOpponentSeat(e, bot.id);
                   }}
-                  className={`relative overflow-hidden rounded-xl border p-3.5 space-y-3 transition-colors cursor-pointer ${
+                  className={`relative overflow-hidden rounded-xl border p-4 space-y-3.5 transition-colors cursor-pointer ${
                     bot.eliminated
                       ? 'border-red-400/45 bg-[#2A171C]/80 opacity-70'
                       : activeDropZone === `opp:${bot.id}`
@@ -1746,36 +1774,36 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 >
                   <PlaymatSurfaceBackdrop surface={botSeatSurface} variant="seat" />
                   {/* Bot Seat Header */}
-                  <div className="relative z-10 flex items-start justify-between gap-2">
+                  <div className="relative z-10 flex items-start justify-between gap-2.5">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-mono text-[10px] font-bold text-emerald-300">
+                        <span className="font-mono text-xs font-bold text-emerald-300">
                           Seat {idx + 2}
                         </span>
-                        <span className="truncate text-xs font-bold text-white">
+                        <span className="truncate text-sm font-bold text-white">
                           {bot.name}
                         </span>
                         {bot.eliminated ? (
-                          <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold uppercase text-red-300">
-                            <Skull className="h-3 w-3" />
+                          <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-red-300">
+                            <Skull className="h-3.5 w-3.5" />
                             KO ({bot.eliminatedReason || 'life'})
                           </span>
                         ) : isActing ? (
-                          <span className="font-mono text-[10px] font-bold text-amber-300">
+                          <span className="font-mono text-xs font-bold text-amber-300">
                             Taking Turn...
                           </span>
                         ) : isSelectedTarget ? (
-                          <span className="font-mono text-[10px] font-semibold text-sky-300">
+                          <span className="font-mono text-xs font-semibold text-sky-300">
                             Combat Target
                           </span>
                         ) : null}
                       </div>
-                      <div className="text-[11px] text-emerald-100/75 truncate">
+                      <div className="text-xs text-emerald-100/80 truncate mt-0.5">
                         {bot.commanderName ? `${bot.commanderName} · ` : ''}
                         {bot.archetype}
                         {' · '}
                         <span
-                          className={`font-mono text-[10px] font-semibold ${
+                          className={`font-mono text-[11px] font-semibold ${
                             bot.intelligence === 'mastermind'
                               ? 'text-amber-300'
                               : bot.intelligence === 'competitive'
@@ -1790,11 +1818,11 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                         {bot.liveMemory ? (
                           <>
                             {' · '}
-                            <span className="font-mono text-[10px] text-sky-200">
+                            <span className="font-mono text-[11px] text-sky-200">
                               IQ {bot.liveMemory.botIqScore}
                             </span>
                             {bot.liveMemory.grudgeScore >= 18 && (
-                              <span className="font-mono text-[10px] text-amber-300">
+                              <span className="font-mono text-[11px] text-amber-300">
                                 {' · '}Aggro {bot.liveMemory.grudgeScore}
                               </span>
                             )}
@@ -1811,12 +1839,12 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                         type="button"
                         onClick={() => onAdjustOpponentStat(bot.id, 'life', -1)}
                         aria-label={`Subtract 1 life from ${bot.name}`}
-                        className="rounded border border-[#287D64] bg-[#0F4C3A] px-1.5 py-0.5 text-[10px] text-emerald-100 hover:bg-[#17614B] cursor-pointer"
+                        className="min-h-[30px] min-w-[30px] rounded-md border border-[#287D64] bg-[#0F4C3A] px-2 py-1 text-xs font-bold text-emerald-100 hover:bg-[#17614B] cursor-pointer"
                       >
                         -1
                       </button>
                       <span
-                        className={`min-w-[46px] text-center text-base font-bold ${
+                        className={`min-w-[48px] text-center text-lg font-bold ${
                           bot.life <= 0
                             ? 'text-red-300'
                             : bot.life <= Math.round(startingLife * 0.3)
@@ -1830,7 +1858,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                         type="button"
                         onClick={() => onAdjustOpponentStat(bot.id, 'life', 1)}
                         aria-label={`Add 1 life to ${bot.name}`}
-                        className="rounded border border-[#287D64] bg-[#0F4C3A] px-1.5 py-0.5 text-[10px] text-emerald-100 hover:bg-[#17614B] cursor-pointer"
+                        className="min-h-[30px] min-w-[30px] rounded-md border border-[#287D64] bg-[#0F4C3A] px-2 py-1 text-xs font-bold text-emerald-100 hover:bg-[#17614B] cursor-pointer"
                       >
                         +1
                       </button>
@@ -1838,13 +1866,13 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                   </div>
 
                   {/* Hidden Hand Fan + Library/GY + Lands Pips */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-y border-[#1A624D] py-2">
+                  <div className="relative z-10 flex flex-wrap items-center justify-between gap-2.5 border-y border-[#1A624D] py-2.5">
                     <CardBackFan count={bot.handCount} shuffling={isShufflingDeck} />
 
-                    <div className="flex flex-wrap items-center gap-1.5 font-mono text-[10px] tabular-nums text-emerald-100/90">
+                    <div className="flex flex-wrap items-center gap-2 font-mono text-xs tabular-nums text-emerald-100/90">
                       <span className="inline-flex items-center gap-1">
                         {isShufflingDeck && (
-                          <Shuffle className="h-2.5 w-2.5 text-amber-300 animate-spin shrink-0" />
+                          <Shuffle className="h-3 w-3 text-amber-300 animate-spin shrink-0" />
                         )}
                         Lib {bot.libraryCount}
                       </span>
@@ -1856,9 +1884,9 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                           setZoneModalTarget({ ownerId: bot.id, zone: 'graveyard' });
                         }}
                         title={`View ${bot.name}'s Graveyard`}
-                        className="inline-flex items-center gap-1 rounded border border-[#287D64] bg-[#0B392C] px-1.5 py-0.5 text-[10px] font-semibold text-emerald-100 hover:border-sky-400 hover:text-white cursor-pointer transition-colors"
+                        className="inline-flex min-h-[28px] items-center gap-1 rounded-md border border-[#287D64] bg-[#0B392C] px-2 py-1 text-xs font-semibold text-emerald-100 hover:border-sky-400 hover:text-white cursor-pointer transition-colors"
                       >
-                        <Coins className="h-2.5 w-2.5 text-emerald-300" />
+                        <Coins className="h-3 w-3 text-emerald-300" />
                         GY {Math.max(bot.graveyardCount || 0, (bot.graveyardCards || []).length)}
                       </button>
                       <button
@@ -1868,9 +1896,9 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                           setZoneModalTarget({ ownerId: bot.id, zone: 'exile' });
                         }}
                         title={`View ${bot.name}'s Exile`}
-                        className="inline-flex items-center gap-1 rounded border border-[#287D64] bg-[#0B392C] px-1.5 py-0.5 text-[10px] font-semibold text-violet-200 hover:border-violet-400 hover:text-white cursor-pointer transition-colors"
+                        className="inline-flex min-h-[28px] items-center gap-1 rounded-md border border-[#287D64] bg-[#0B392C] px-2 py-1 text-xs font-semibold text-violet-200 hover:border-violet-400 hover:text-white cursor-pointer transition-colors"
                       >
-                        <Ban className="h-2.5 w-2.5 text-violet-300" />
+                        <Ban className="h-3 w-3 text-violet-300" />
                         Exile {Math.max(bot.exileCount || 0, (bot.exileCards || []).length)}
                       </button>
                       <span className="text-emerald-300/40" aria-hidden="true">·</span>
@@ -1897,20 +1925,20 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                   {/* Free-Form Bot Playmat Canvas (bots auto-position & move attackers, players can also drag bot cards) */}
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    className="space-y-1.5"
+                    className="relative z-10 space-y-2"
                   >
-                    <div className="flex items-center justify-between gap-2 text-[10px]">
-                      <span className="font-mono uppercase tracking-wider text-emerald-200/75 inline-flex items-center gap-1">
-                        <Move className="h-2.5 w-2.5 text-emerald-300" />
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      <span className="font-mono text-emerald-200/80 inline-flex items-center gap-1.5">
+                        <Move className="h-3 w-3 text-emerald-300" />
                         Bot Playmat ({bot.creatures.length} cr · {bot.landsInPlay} lands)
                       </span>
                       {bot.creatures.length > 1 && onAutoArrangeBotPlaymat && (
                         <button
                           type="button"
                           onClick={() => onAutoArrangeBotPlaymat(bot.id)}
-                          className="inline-flex items-center gap-1 rounded border border-[#287D64] bg-[#0B392C]/85 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-100 hover:bg-[#17614B] cursor-pointer whitespace-nowrap shrink-0"
+                          className="inline-flex min-h-[28px] items-center gap-1 rounded-md border border-[#287D64] bg-[#0B392C]/85 px-2.5 py-1 text-xs font-semibold text-emerald-100 hover:bg-[#17614B] cursor-pointer whitespace-nowrap shrink-0"
                         >
-                          <LayoutGrid className="h-2.5 w-2.5" />
+                          <LayoutGrid className="h-3 w-3" />
                           Tidy
                         </button>
                       )}
@@ -1920,24 +1948,24 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       ref={(el) => {
                         botPlaymatRefs.current[bot.id] = el;
                       }}
-                      className={`relative rounded-lg border border-[#247059]/80 bg-[#082B21]/65 overflow-hidden ${
-                        bot.creatures.length > 0 ? 'min-h-[215px]' : 'min-h-[116px]'
+                      className={`relative rounded-xl border border-[#247059]/80 bg-[#082B21]/65 overflow-hidden ${
+                        bot.creatures.length > 0 ? 'min-h-[265px]' : 'min-h-[140px]'
                       }`}
                     >
                       {/* Backline Lands Strip */}
-                      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-emerald-400/20 bg-black/20 px-2.5 py-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-[9px] font-semibold uppercase text-emerald-200/70">
+                      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 border-b border-dashed border-emerald-400/20 bg-black/25 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[11px] font-semibold text-emerald-200/75">
                             Lands:
                           </span>
                           {bot.landsInPlay === 0 ? (
-                            <span className="text-[9px] text-emerald-200/50">None</span>
+                            <span className="text-[11px] text-emerald-200/55">None</span>
                           ) : (
                             <div className="flex flex-wrap gap-1">
                               {Array.from({ length: Math.min(12, bot.landsInPlay) }).map((_, li) => (
                                 <span
                                   key={li}
-                                  className={`inline-block h-3 w-2.5 rounded-[2px] border transition-transform ${
+                                  className={`inline-block h-3.5 w-2.5 rounded-[2px] border transition-transform ${
                                     li < bot.tappedLands
                                       ? 'border-amber-300/45 bg-amber-950/60 rotate-12 opacity-65'
                                       : 'border-emerald-300/65 bg-emerald-700/55'
@@ -1945,7 +1973,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                                 />
                               ))}
                               {bot.landsInPlay > 12 && (
-                                <span className="font-mono text-[9px] text-emerald-200">
+                                <span className="font-mono text-[11px] text-emerald-200">
                                   +{bot.landsInPlay - 12}
                                 </span>
                               )}
@@ -1957,9 +1985,9 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                           <button
                             type="button"
                             onClick={() => onInspectCard(bot.commanderName, bot.commanderMeta)}
-                            className="inline-flex items-center gap-1 rounded border border-amber-400/60 bg-amber-950/60 px-1.5 py-0.5 text-[9px] font-semibold text-amber-200 hover:bg-amber-900/70 cursor-pointer whitespace-nowrap"
+                            className="inline-flex min-h-[26px] items-center gap-1 rounded-md border border-amber-400/60 bg-amber-950/60 px-2 py-0.5 text-[11px] font-semibold text-amber-200 hover:bg-amber-900/70 cursor-pointer whitespace-nowrap"
                           >
-                            <Crown className="h-2.5 w-2.5 text-amber-300" />
+                            <Crown className="h-3 w-3 text-amber-300" />
                             <span>
                               CmdZ: {bot.commanderName} (MV {bot.commanderCmc + bot.commanderTax})
                             </span>
@@ -1969,13 +1997,13 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
 
                       {/* Subtle Combat Frontline Marker */}
                       <div className="pointer-events-none absolute inset-x-3 bottom-2 border-b border-dashed border-red-400/25 flex justify-end">
-                        <span className="font-mono text-[8px] uppercase tracking-wider text-red-200/45 pr-1">
+                        <span className="font-mono text-[10px] text-red-200/50 pr-1">
                           Combat Frontline
                         </span>
                       </div>
 
                       {bot.creatures.length === 0 ? (
-                        <div className="flex h-[82px] items-center justify-center px-3 text-center text-[11px] text-emerald-200/65">
+                        <div className="flex h-[98px] items-center justify-center px-3 text-center text-xs text-emerald-200/70">
                           No creatures on battlefield
                         </div>
                       ) : (
@@ -2079,14 +2107,14 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                   </div>
 
                   {/* Last Action Summary & Real-Time Adaptation Read */}
-                  <div className="space-y-1 text-[11px] text-emerald-100/85 border-t border-[#1A624D] pt-2">
+                  <div className="relative z-10 space-y-1 text-xs text-emerald-100/90 border-t border-[#1A624D] pt-2.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="truncate flex-1" title={bot.lastActionSummary}>
                         <strong className="text-white">Last:</strong> {bot.lastActionSummary}
                       </span>
                       {bot.lastTargetName && bot.lastTargetName !== '—' && (
                         <span
-                          className={`font-mono text-[10px] font-bold shrink-0 ${
+                          className={`font-mono text-[11px] font-bold shrink-0 ${
                             bot.lastTargetName === 'You' ? 'text-red-300' : 'text-amber-300'
                           }`}
                         >
@@ -2096,7 +2124,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     </div>
                     {bot.liveMemory?.lastAiThought && (
                       <div
-                        className="truncate text-[10px] text-amber-200/95"
+                        className="truncate text-[11px] text-amber-200/95"
                         title={bot.liveMemory.lastAiThought}
                       >
                         <strong className="text-amber-300">
@@ -2109,7 +2137,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       (!bot.liveMemory.lastAiThought ||
                         !bot.liveMemory.lastAdaptationNote.includes(bot.liveMemory.lastAiThought)) && (
                       <div
-                        className="truncate text-[10px] text-sky-200/90"
+                        className="truncate text-[11px] text-sky-200/90"
                         title={bot.liveMemory.lastAdaptationNote}
                       >
                         <strong className="text-sky-300">Learned:</strong>{' '}
@@ -2123,7 +2151,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
           </div>
         ) : (
           /* Solo Goldfish Opponent Pod Cards */
-          <div className={`grid gap-3.5 ${podSeatGridClass}`}>
+          <div className={`grid gap-4 ${podSeatGridClass}`}>
             {opponentTrackers.map((opp, idx) => {
               const isSelected = selectedCombatTargetId === opp.id;
               const isKO =
@@ -2152,7 +2180,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     if (activeDropZone === `opp:${opp.id}`) setActiveDropZone(null);
                   }}
                   onDrop={(e) => handleDropOnOpponentSeat(e, opp.id)}
-                  className={`relative overflow-hidden rounded-xl border p-3.5 space-y-2.5 transition-colors cursor-pointer ${
+                  className={`relative overflow-hidden rounded-xl border p-4 space-y-3 transition-colors cursor-pointer ${
                     isKO
                       ? 'border-red-400/45 bg-[#2A171C]/80 opacity-75'
                       : activeDropZone === `opp:${opp.id}`
@@ -2163,22 +2191,22 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                   }`}
                 >
                   <PlaymatSurfaceBackdrop surface={oppSeatSurface} variant="seat" />
-                  <div className="relative z-10 flex items-start justify-between gap-2">
+                  <div className="relative z-10 flex items-start justify-between gap-2.5">
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[10px] font-bold text-emerald-300">
+                        <span className="font-mono text-xs font-bold text-emerald-300">
                           Seat {idx + 2}
                         </span>
-                        <span className="truncate text-xs font-bold text-white">
+                        <span className="truncate text-sm font-bold text-white">
                           {opp.name}
                         </span>
                         {isSelected && (
-                          <span className="font-mono text-[10px] font-semibold text-sky-300">
+                          <span className="font-mono text-xs font-semibold text-sky-300">
                             Target
                           </span>
                         )}
                       </div>
-                      <div className="text-[11px] text-emerald-100/75 truncate">
+                      <div className="text-xs text-emerald-100/80 truncate mt-0.5">
                         {opp.commanderName ? `${opp.commanderName} · ` : ''}
                         {opp.archetype}
                       </div>
@@ -2191,31 +2219,31 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       <button
                         type="button"
                         onClick={() => onAdjustOpponentStat(opp.id, 'life', -5)}
-                        className="rounded border border-[#287D64] bg-[#0F4C3A] px-1.5 py-0.5 text-[10px] hover:bg-[#17614B] cursor-pointer"
+                        className="min-h-[30px] min-w-[30px] rounded-md border border-[#287D64] bg-[#0F4C3A] px-2 py-1 text-xs font-bold hover:bg-[#17614B] cursor-pointer"
                       >
                         -5
                       </button>
                       <button
                         type="button"
                         onClick={() => onAdjustOpponentStat(opp.id, 'life', -1)}
-                        className="rounded border border-[#287D64] bg-[#0F4C3A] px-1.5 py-0.5 text-[10px] hover:bg-[#17614B] cursor-pointer"
+                        className="min-h-[30px] min-w-[30px] rounded-md border border-[#287D64] bg-[#0F4C3A] px-2 py-1 text-xs font-bold hover:bg-[#17614B] cursor-pointer"
                       >
                         -1
                       </button>
-                      <span className="min-w-[40px] text-center text-sm font-bold text-white">
+                      <span className="min-w-[44px] text-center text-base font-bold text-white">
                         {opp.life}
                       </span>
                       <button
                         type="button"
                         onClick={() => onAdjustOpponentStat(opp.id, 'life', 1)}
-                        className="rounded border border-[#287D64] bg-[#0F4C3A] px-1.5 py-0.5 text-[10px] hover:bg-[#17614B] cursor-pointer"
+                        className="min-h-[30px] min-w-[30px] rounded-md border border-[#287D64] bg-[#0F4C3A] px-2 py-1 text-xs font-bold hover:bg-[#17614B] cursor-pointer"
                       >
                         +1
                       </button>
                       <button
                         type="button"
                         onClick={() => onAdjustOpponentStat(opp.id, 'life', 5)}
-                        className="rounded border border-[#287D64] bg-[#0F4C3A] px-1.5 py-0.5 text-[10px] hover:bg-[#17614B] cursor-pointer"
+                        className="min-h-[30px] min-w-[30px] rounded-md border border-[#287D64] bg-[#0F4C3A] px-2 py-1 text-xs font-bold hover:bg-[#17614B] cursor-pointer"
                       >
                         +5
                       </button>
@@ -2224,14 +2252,14 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
 
                   <div
                     onClick={(e) => e.stopPropagation()}
-                    className="flex flex-wrap items-center justify-between gap-2 border-t border-[#1A624D] pt-2 font-mono text-[10px] tabular-nums text-emerald-100/85"
+                    className="relative z-10 flex flex-wrap items-center justify-between gap-2.5 border-t border-[#1A624D] pt-2.5 font-mono text-xs tabular-nums text-emerald-100/90"
                   >
                     <div className="flex items-center gap-1.5">
                       <span>Poison {opp.poison}/10</span>
                       <button
                         type="button"
                         onClick={() => onAdjustOpponentStat(opp.id, 'poison', 1)}
-                        className="rounded border border-[#287D64] bg-[#0F4C3A] px-1 py-0.5 text-[9px] hover:bg-[#17614B] cursor-pointer"
+                        className="min-h-[26px] rounded-md border border-[#287D64] bg-[#0F4C3A] px-2 py-0.5 text-[11px] font-bold hover:bg-[#17614B] cursor-pointer"
                       >
                         +1
                       </button>
@@ -2246,7 +2274,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                           onClick={() =>
                             onAdjustOpponentStat(opp.id, 'commanderDamageTakenFromYou', 1)
                           }
-                          className="rounded border border-[#287D64] bg-[#0F4C3A] px-1 py-0.5 text-[9px] hover:bg-[#17614B] cursor-pointer"
+                          className="min-h-[26px] rounded-md border border-[#287D64] bg-[#0F4C3A] px-2 py-0.5 text-[11px] font-bold hover:bg-[#17614B] cursor-pointer"
                         >
                           +1
                         </button>
@@ -2258,9 +2286,9 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                         onClick={() =>
                           setZoneModalTarget({ ownerId: opp.id, zone: 'graveyard' })
                         }
-                        className="inline-flex items-center gap-1 rounded border border-[#287D64] bg-[#0F4C3A] px-1.5 py-0.5 text-[10px] font-semibold text-emerald-100 hover:border-sky-400 cursor-pointer"
+                        className="inline-flex min-h-[28px] items-center gap-1 rounded-md border border-[#287D64] bg-[#0F4C3A] px-2 py-1 text-xs font-semibold text-emerald-100 hover:border-sky-400 cursor-pointer"
                       >
-                        <Coins className="h-2.5 w-2.5 text-emerald-300" />
+                        <Coins className="h-3 w-3 text-emerald-300" />
                         GY 0
                       </button>
                       <button
@@ -2268,9 +2296,9 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                         onClick={() =>
                           setZoneModalTarget({ ownerId: opp.id, zone: 'exile' })
                         }
-                        className="inline-flex items-center gap-1 rounded border border-[#287D64] bg-[#0F4C3A] px-1.5 py-0.5 text-[10px] font-semibold text-violet-200 hover:border-violet-400 cursor-pointer"
+                        className="inline-flex min-h-[28px] items-center gap-1 rounded-md border border-[#287D64] bg-[#0F4C3A] px-2 py-1 text-xs font-semibold text-violet-200 hover:border-violet-400 cursor-pointer"
                       >
-                        <Ban className="h-2.5 w-2.5 text-violet-300" />
+                        <Ban className="h-3 w-3 text-violet-300" />
                         Exile 0
                       </button>
                     </div>
@@ -2691,21 +2719,21 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
             )}
           </div>
         ) : (
-          <div className="rounded-xl border border-[#1E6E56] bg-[#0B392C]/95 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3">
+          <div className="rounded-xl border border-[#1E6E56] bg-[#0B392C]/95 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
             {/* Mana Pool Quick Bar */}
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-100">
-                <Droplets className="h-3.5 w-3.5 text-sky-300 shrink-0" />
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-100">
+                <Droplets className="h-4 w-4 text-sky-300 shrink-0" />
                 <span className="font-mono tabular-nums">
                   Pool: {totalManaPool}
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-1">
+              <div className="flex flex-wrap items-center gap-1.5">
                 {MANA_BUTTONS.map((mb) => (
                   <div
                     key={mb.color}
-                    className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold tabular-nums ${mb.chipClass}`}
+                    className={`inline-flex min-h-[32px] items-center gap-1.5 rounded-md border px-2 py-1 font-mono text-xs font-bold tabular-nums ${mb.chipClass}`}
                   >
                     <button
                       type="button"
@@ -2714,7 +2742,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       aria-label={`Remove ${mb.color} mana`}
                       className="opacity-70 hover:opacity-100 disabled:opacity-25 cursor-pointer"
                     >
-                      <Minus className="h-2.5 w-2.5" />
+                      <Minus className="h-3 w-3" />
                     </button>
                     <span>
                       {mb.color}:{manaPool[mb.color]}
@@ -2725,7 +2753,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       aria-label={`Add ${mb.color} mana`}
                       className="opacity-70 hover:opacity-100 cursor-pointer"
                     >
-                      <Plus className="h-2.5 w-2.5" />
+                      <Plus className="h-3 w-3" />
                     </button>
                   </div>
                 ))}
@@ -2735,14 +2763,14 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 type="button"
                 onClick={onTapAllUntappedLands}
                 disabled={untappedLandsCount === 0}
-                className="rounded border border-[#2A8469] bg-[#125642] px-2 py-1 text-[10px] font-semibold text-emerald-100 hover:bg-[#176B53] disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                className="min-h-[34px] rounded-lg border border-[#2A8469] bg-[#125642] px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-[#176B53] disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
               >
                 Tap Lands ({untappedLandsCount})
               </button>
               <button
                 type="button"
                 onClick={onUntapAll}
-                className="rounded border border-[#2A8469] bg-[#0F4C3A] px-2 py-1 text-[10px] font-medium text-emerald-100 hover:bg-[#176B53] cursor-pointer whitespace-nowrap shrink-0"
+                className="min-h-[34px] rounded-lg border border-[#2A8469] bg-[#0F4C3A] px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-[#176B53] cursor-pointer whitespace-nowrap shrink-0"
               >
                 Untap All
               </button>
@@ -2750,7 +2778,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 <button
                   type="button"
                   onClick={onEmptyManaPool}
-                  className="rounded border border-[#2A8469] bg-[#0F4C3A] px-2 py-1 text-[10px] font-medium text-emerald-200 hover:text-white cursor-pointer whitespace-nowrap shrink-0"
+                  className="min-h-[34px] rounded-lg border border-[#2A8469] bg-[#0F4C3A] px-3 py-1.5 text-xs font-semibold text-emerald-200 hover:text-white cursor-pointer whitespace-nowrap shrink-0"
                 >
                   Empty
                 </button>
@@ -2768,7 +2796,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       aria-label="Tabletop combat target"
                       value={selectedCombatTargetId}
                       onChange={(e) => onSelectCombatTarget(e.target.value)}
-                      className="rounded-md border border-[#2A8469] bg-[#0F4C3A] px-2 py-1 text-[11px] font-semibold text-white cursor-pointer"
+                      className="min-h-[36px] rounded-lg border border-[#2A8469] bg-[#0F4C3A] px-3 py-1.5 text-xs font-semibold text-white cursor-pointer"
                     >
                       {(liveBotMode ? liveBots.filter((b) => !b.eliminated) : opponentTrackers).map(
                         (o) => (
@@ -2782,9 +2810,9 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       type="button"
                       onClick={onResolveCombat}
                       disabled={attackersCount === 0 || hasActiveStack}
-                      className="inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1 text-[11px] font-bold text-white hover:bg-red-500 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                      className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-500 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                     >
-                      <Swords className="h-3.5 w-3.5" />
+                      <Swords className="h-4 w-4" />
                       Deal Damage ({attackersCount})
                     </button>
                   </>
@@ -2794,30 +2822,30 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 type="button"
                 onClick={onPrevPhase}
                 disabled={phaseIdx === 0 || botsAreActing || hasActiveStack || isSimulationFinished}
-                className="inline-flex items-center gap-1 rounded-md border border-[#2A8469] bg-[#0F4C3A] px-2 py-1 text-[11px] font-medium text-emerald-100 hover:bg-[#176B53] disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                className="inline-flex min-h-[36px] items-center gap-1 rounded-lg border border-[#2A8469] bg-[#0F4C3A] px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:bg-[#176B53] disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
               >
-                <ChevronLeft className="h-3 w-3" />
+                <ChevronLeft className="h-3.5 w-3.5" />
                 Prev
               </button>
               <button
                 type="button"
                 onClick={onNextPhase}
                 disabled={botsAreActing || hasActiveStack || isSimulationFinished}
-                className="inline-flex items-center gap-1 rounded-md bg-sky-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-sky-500 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                className="inline-flex min-h-[36px] items-center gap-1 rounded-lg bg-sky-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-sky-500 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
               >
                 {phaseIdx === phases.length - 1
                   ? liveBotMode
                     ? 'End Turn → Bots'
                     : `Next Turn (T${turn + 1})`
                   : `Next: ${phases[phaseIdx + 1]}`}
-                <ChevronRight className="h-3 w-3" />
+                <ChevronRight className="h-3.5 w-3.5" />
               </button>
               {liveBotMode && phaseIdx < phases.length - 1 && (
                 <button
                   type="button"
                   onClick={onPassTurn}
                   disabled={botsAreActing || hasActiveStack || isSimulationFinished}
-                  className="rounded-md border border-sky-400/50 bg-sky-950/60 px-2.5 py-1 text-[11px] font-semibold text-sky-200 hover:bg-sky-900 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                  className="min-h-[36px] rounded-lg border border-sky-400/50 bg-sky-950/60 px-3.5 py-1.5 text-xs font-semibold text-sky-200 hover:bg-sky-900 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   Pass → Bots
                 </button>
@@ -2875,27 +2903,27 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
 
         {/* 4. Bottom Player Playmat (Your Seat + Battlefield + Command/Library + Hand) */}
         <div
-          className={`relative overflow-hidden rounded-xl border p-3.5 sm:p-4 space-y-3.5 transition-colors ${yourPlaymatSurface.seatClass}`}
+          className={`relative overflow-hidden rounded-xl border p-4 sm:p-5 space-y-4 transition-colors ${yourPlaymatSurface.seatClass}`}
         >
           <PlaymatSurfaceBackdrop surface={yourPlaymatSurface} variant="seat" />
           {/* Your Seat Bar */}
           <div
-            className={`relative z-10 flex flex-wrap items-center justify-between gap-3 border-b pb-3 ${yourPlaymatSurface.dividerBorderClass}`}
+            className={`relative z-10 flex flex-wrap items-center justify-between gap-3 border-b pb-3.5 ${yourPlaymatSurface.dividerBorderClass}`}
           >
             <div className="flex flex-wrap items-center gap-2.5">
               <Shield className="h-4 w-4 text-sky-300 shrink-0" />
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-[11px] font-bold text-sky-300">Seat 1</span>
-                  <span className="text-sm font-bold text-white">
+                  <span className="font-mono text-xs font-bold text-sky-300">Seat 1</span>
+                  <span className="text-sm sm:text-base font-bold text-white">
                     Your Playmat · {deckName || 'Your Deck'}
                   </span>
-                  <span className="font-mono text-[11px] text-emerald-200/80">
+                  <span className="font-mono text-xs text-emerald-200/80">
                     ({mode} · Lands {landsPlayedThisTurn}/1)
                   </span>
                   {isMonarch && (
-                    <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-amber-300">
-                      <Crown className="h-3 w-3" />
+                    <span className="inline-flex items-center gap-1 font-mono text-xs font-bold text-amber-300">
+                      <Crown className="h-3.5 w-3.5" />
                       Monarch
                     </span>
                   )}
@@ -2913,13 +2941,13 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     setShowPlayerCounters(false);
                   }}
                   disabled={botsAreActing || Boolean(pendingIncomingAttack) || isSimulationFinished}
-                  className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 font-sans text-[11px] font-semibold cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-40 transition-colors ${
+                  className={`inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border px-3 py-1.5 font-sans text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 disabled:opacity-40 transition-colors ${
                     showTokenCreator
                       ? 'border-amber-300 bg-amber-500 text-zinc-950'
                       : 'border-amber-300/50 bg-amber-950/50 text-amber-200 hover:bg-amber-900/60'
                   }`}
                 >
-                  <Sparkles className="h-3 w-3 shrink-0" />
+                  <Sparkles className="h-3.5 w-3.5 shrink-0" />
                   + Token
                 </button>
               )}
@@ -2931,31 +2959,31 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     setShowPlayerCounters((v) => !v);
                     setShowTokenCreator(false);
                   }}
-                  className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 font-sans text-[11px] font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                  className={`inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border px-3 py-1.5 font-sans text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
                     showPlayerCounters
                       ? 'border-sky-300 bg-sky-600 text-white'
                       : 'border-sky-300/45 bg-sky-950/50 text-sky-200 hover:bg-sky-900/60'
                   }`}
                 >
-                  <Plus className="h-3 w-3 shrink-0" />
+                  <Plus className="h-3.5 w-3.5 shrink-0" />
                   Counters
                 </button>
               )}
 
-              <div className="flex items-center gap-1 border-l border-[#20765C] pl-2.5">
-                <Flame className="h-3.5 w-3.5 text-red-300 mr-0.5 shrink-0" />
+              <div className="flex items-center gap-1.5 border-l border-[#20765C] pl-3">
+                <Flame className="h-4 w-4 text-red-300 mr-0.5 shrink-0" />
                 {[-5, -1].map((d) => (
                   <button
                     key={d}
                     type="button"
                     onClick={() => onAdjustYourLife(d)}
-                    className="rounded border border-red-400/40 bg-red-950/50 px-1.5 py-0.5 text-[10px] font-bold text-red-200 hover:bg-red-900 cursor-pointer"
+                    className="min-h-[30px] min-w-[30px] rounded-md border border-red-400/40 bg-red-950/50 px-2 py-1 text-xs font-bold text-red-200 hover:bg-red-900 cursor-pointer"
                   >
                     {d}
                   </button>
                 ))}
                 <span
-                  className={`min-w-[56px] text-center text-base font-bold ${
+                  className={`min-w-[64px] text-center text-lg font-bold ${
                     yourLife <= 0
                       ? 'text-red-300'
                       : yourLife <= 10
@@ -2970,20 +2998,20 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                     key={d}
                     type="button"
                     onClick={() => onAdjustYourLife(d)}
-                    className="rounded border border-emerald-400/40 bg-emerald-950/50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-200 hover:bg-emerald-900 cursor-pointer"
+                    className="min-h-[30px] min-w-[30px] rounded-md border border-emerald-400/40 bg-emerald-950/50 px-2 py-1 text-xs font-bold text-emerald-200 hover:bg-emerald-900 cursor-pointer"
                   >
                     +{d}
                   </button>
                 ))}
               </div>
 
-              <div className="flex items-center gap-1.5 border-l border-[#20765C] pl-2.5">
-                <Skull className="h-3.5 w-3.5 text-emerald-300 shrink-0" />
+              <div className="flex items-center gap-1.5 border-l border-[#20765C] pl-3">
+                <Skull className="h-4 w-4 text-emerald-300 shrink-0" />
                 <span>PSN {yourPoison}/10</span>
                 <button
                   type="button"
                   onClick={() => onAdjustYourPoison(1)}
-                  className="rounded border border-[#287D64] bg-[#0B392C] px-1.5 py-0.5 text-[10px] hover:bg-[#17614B] cursor-pointer"
+                  className="min-h-[28px] rounded-md border border-[#287D64] bg-[#0B392C] px-2 py-0.5 text-xs font-bold hover:bg-[#17614B] cursor-pointer"
                 >
                   +1
                 </button>
@@ -3081,12 +3109,12 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
           )}
 
           {/* Board Grid: Left Deck/GY/Exile/Cmd Column + Right Permanents Lanes */}
-          <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[224px_1fr]">
+          <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-[248px_1fr]">
             {/* Left Side Piles: Library Deck Stack, Graveyard, Exile, Command Zone */}
             <div className="space-y-3">
               {/* Interactive Library Card Stack */}
               <div
-                className={`rounded-lg border p-2.5 flex items-center justify-between gap-2 transition-colors ${
+                className={`rounded-xl border p-3 flex items-center justify-between gap-2.5 transition-colors ${
                   isShufflingDeck
                     ? 'border-amber-300 ring-1 ring-amber-300/60 bg-gradient-to-br from-sky-950 via-zinc-900 to-amber-950'
                     : 'border-amber-300/45 bg-gradient-to-br from-sky-950 via-zinc-900 to-amber-950'
@@ -3105,8 +3133,8 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                   title="Click deck stack to draw 1 card (+1 Turn)"
                   className="min-w-0 flex-1 text-left disabled:opacity-50 cursor-pointer transition-transform hover:-translate-y-0.5"
                 >
-                  <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-200">
-                    <BookOpen className="h-3 w-3 shrink-0" />
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-200">
+                    <BookOpen className="h-3.5 w-3.5 shrink-0" />
                     <span>{isShufflingDeck ? 'Shuffling' : 'Library'}</span>
                   </div>
 
@@ -3115,11 +3143,11 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       <DeckShuffleAnimation size="sm" theme="felt" />
                     </div>
                   ) : (
-                    <div className="mt-0.5 flex items-baseline gap-2">
-                      <span className="font-mono text-lg font-bold tabular-nums text-white">
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <span className="font-mono text-xl font-bold tabular-nums text-white">
                         {library.length}
                       </span>
-                      <span className="text-[9px] text-amber-200/80">Click to Draw</span>
+                      <span className="text-[11px] text-amber-200/80">Click to Draw</span>
                     </div>
                   )}
                 </button>
@@ -3135,9 +3163,9 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       isSimulationFinished
                     }
                     title="Shuffle your remaining library"
-                    className="inline-flex items-center justify-center gap-1 rounded border border-amber-300/40 bg-zinc-950/65 px-2 py-1.5 text-[10px] font-semibold text-amber-200 hover:bg-zinc-900 hover:border-amber-300 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[34px] items-center justify-center gap-1.5 rounded-lg border border-amber-300/40 bg-zinc-950/65 px-2.5 py-1.5 text-xs font-semibold text-amber-200 hover:bg-zinc-900 hover:border-amber-300 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <Shuffle className={`h-2.5 w-2.5 ${isShufflingDeck ? 'animate-spin' : ''}`} />
+                    <Shuffle className={`h-3 w-3 ${isShufflingDeck ? 'animate-spin' : ''}`} />
                     {isShufflingDeck ? '...' : 'Shuffle'}
                   </button>
                 )}
@@ -3352,25 +3380,25 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
             </div>
 
             {/* Unified Free-Form Playmat Canvas: Drag & Place Any Card Anywhere */}
-            <div className="space-y-2.5 min-w-0">
-              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+            <div className="space-y-3 min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-100">
-                    <Move className="h-3.5 w-3.5 text-emerald-300 shrink-0" />
+                    <Move className="h-4 w-4 text-emerald-300 shrink-0" />
                     <span>
                       Playmat Surface ({creaturesAndOther.length} permanents · {landsAndRocks.length} lands/mana)
                     </span>
                   </span>
-                  <span className="font-mono text-[10px] tabular-nums text-emerald-200/90">
+                  <span className="font-mono text-xs tabular-nums text-emerald-200/90">
                     · {untappedLandsCount}/{totalLandsInPlay} untapped lands ({totalAvailableMana} mana ready)
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setShowPlaymatGuides((v) => !v)}
-                    className={`rounded border px-2 py-0.5 font-sans text-[10px] font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                    className={`min-h-[34px] rounded-lg border px-3 py-1 font-sans text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
                       showPlaymatGuides
                         ? 'border-emerald-300/60 bg-emerald-900/60 text-emerald-100'
                         : 'border-[#287D64] bg-[#0B392C] text-emerald-200/75 hover:text-white'
@@ -3383,9 +3411,9 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                       type="button"
                       onClick={onAutoArrangePlaymat}
                       disabled={botsAreActing || Boolean(pendingIncomingAttack)}
-                      className="inline-flex items-center gap-1 rounded border border-sky-300/50 bg-[#0F2C38]/80 px-2 py-0.5 font-sans text-[10px] font-semibold text-sky-100 hover:bg-sky-900/60 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                      className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-sky-300/50 bg-[#0F2C38]/80 px-3 py-1 font-sans text-xs font-semibold text-sky-100 hover:bg-sky-900/60 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                     >
-                      <LayoutGrid className="h-3 w-3 shrink-0" />
+                      <LayoutGrid className="h-3.5 w-3.5 shrink-0" />
                       <span>Tidy Board</span>
                     </button>
                   )}
@@ -3410,7 +3438,7 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                   if (activeDropZone === 'creatures') setActiveDropZone(null);
                 }}
                 onDrop={handleDropOnPlaymatCanvas}
-                className={`relative rounded-xl border min-h-[410px] sm:min-h-[440px] overflow-hidden transition-colors ${
+                className={`relative rounded-xl border min-h-[480px] sm:min-h-[540px] overflow-hidden transition-colors ${
                   activeDropZone === 'creatures'
                     ? 'border-sky-400 bg-sky-950/35 ring-2 ring-sky-400/80'
                     : 'border-[#247059] bg-[#082E23]/60'
@@ -3419,14 +3447,14 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
                 {/* Optional Frontline / Backline Felt Divider */}
                 {showPlaymatGuides && (
                   <>
-                    <div className="pointer-events-none absolute inset-x-4 top-2.5 flex items-center justify-between text-[9px] font-mono uppercase tracking-wider text-emerald-200/45">
+                    <div className="pointer-events-none absolute inset-x-4 top-3 flex items-center justify-between text-[11px] font-mono text-emerald-200/55">
                       <span>Frontline · Creatures &amp; Nonland Permanents</span>
                       <span>Drag any card freely anywhere</span>
                     </div>
-                    <div className="pointer-events-none absolute inset-x-4 top-[56%] border-t border-dashed border-emerald-300/20 pt-1 flex items-center justify-between text-[9px] font-mono uppercase tracking-wider text-emerald-200/40">
+                    <div className="pointer-events-none absolute inset-x-4 top-[56%] border-t border-dashed border-emerald-300/20 pt-1.5 flex items-center justify-between text-[11px] font-mono text-emerald-200/50">
                       <span>Backline · Lands &amp; Mana Sources</span>
                       {activePhase === 'Combat' && (
-                        <span className="text-red-300/75">
+                        <span className="text-red-300/80">
                           Drag creatures onto an opponent seat to attack
                         </span>
                       )}
@@ -3648,33 +3676,33 @@ export const LiveTabletopArena: React.FC<LiveTabletopArenaProps> = ({
               if (activeDropZone === 'hand') setActiveDropZone(null);
             }}
             onDrop={handleDropOnHand}
-            className={`rounded-lg border p-3 space-y-2.5 transition-colors ${
+            className={`relative z-10 rounded-xl border p-4 space-y-3 transition-colors ${
               activeDropZone === 'hand'
                 ? 'border-sky-400 bg-sky-950/50 ring-2 ring-sky-400/75'
                 : 'border-[#247059] bg-[#0B392C]/90'
             }`}
           >
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
               <div className="flex items-center gap-2 font-bold text-white">
-                <RotateCcw className="h-3.5 w-3.5 text-amber-300 shrink-0" />
+                <RotateCcw className="h-4 w-4 text-amber-300 shrink-0" />
                 <span>Your Hand ({hand.length} cards)</span>
                 {activeDropZone === 'hand' && (
-                  <span className="font-mono text-[10px] text-sky-300">
+                  <span className="font-mono text-xs text-sky-300">
                     Drop to return to Hand
                   </span>
                 )}
               </div>
-              <span className="font-mono text-[11px] tabular-nums text-emerald-200">
+              <span className="font-mono text-xs tabular-nums text-emerald-200">
                 Available Mana: {effectiveAvailableMana} ({totalManaPool} pool + {untappedLandsCount} lands)
               </span>
             </div>
 
             {hand.length === 0 ? (
-              <div className="py-4 text-center text-xs text-emerald-200/75">
+              <div className="py-5 text-center text-xs sm:text-sm text-emerald-200/75">
                 Your hand is empty — click the Library stack above or &ldquo;Draw Card&rdquo; to draw.
               </div>
             ) : (
-              <div className="flex items-start gap-2.5 overflow-x-auto pb-1">
+              <div className="flex items-start gap-3 overflow-x-auto pb-1.5">
                 {hand.map((card) => {
                   const isNewlyDrawn = lastDrawnUids.includes(card.uid);
                   const canAutoPay = !card.isLand && effectiveAvailableMana >= card.cmc;

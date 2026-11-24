@@ -1,5 +1,36 @@
 # Changelog — Umbra's Pass
 
+## [Unreleased] — Latest Improvements (2026-11-23)
+### Public IPv4 Online Hosting & Security Hardening, Animated d20 Turn-Order Rolls, Enlarged Tabletop Play Area, and Program-Wide GUI Refinements
+
+### ✨ New Features & Enhancements
+
+#### 1. Self-Hosted Public IPv4 Multiplayer & Security Hardening
+- **Direct Public IPv4 Hosting & Room Code Lookup**:
+  - Automatically binds TCP port `3000` on `0.0.0.0` across both the standalone server and packaged Electron desktop app so router port forwarding works reliably without extra flags.
+  - Added on-demand **Host Public IPv4 Detection**, direct `UP-XXXX` room code / seat invite link parsing, and live HTTP health reachability verification for external router-forwarded hosts.
+- **Strict Localhost Firewall & Anti-Leak Privacy Protections**:
+  - Locked all private host routes (`/api/updates/*`, `/api/desktop/*`, `/api/cards/*`, `/api/import-url`, `/api/parse`, `/api/analyze`, `/api/playtest`, `/api/live-bot`, room creation, and network diagnostics) strictly to `localhost` (`127.0.0.1` / `::1`), ignoring spoofable `X-Forwarded-For` headers.
+  - Hid the active room directory from public/WAN callers (`403` on `/api/multiplayer/lan-rooms` for non-LAN origins) and added a rate-limited, non-PII room existence lookup (`/api/multiplayer/rooms/:roomCode/lookup`) that never exposes OS file paths, hostnames, or local deck files.
+  - Enforced scrypt-hashed Session Passcodes and explicit **Host Lobby Approval** before remote guests enter a seat.
+
+#### 2. Animated d20 Turn-Order Roll-Off
+- Added an animated 20-sided die (`D20RollAnimation`) roll-off stage and launch modal for **Live Play vs AI Bots** and **Multiplayer Lobbies**.
+- Supports **Roll d20** / **Re-roll d20**, automatic sudden-death tie-breaker animations when seats roll the same highest number, tabletop audio cues, and one-click `🎲` roll summary sharing into Multiplayer Table Chat.
+
+#### 3. Enlarged Tabletop & Play Area GUI (Online, LAN, Live vs Bots & Replay)
+- **Live Play vs AI Bots & Solo Goldfish**: Upsized permanent and hand card tiles, taller art frames, larger Library deck stack and player/bot playmats (`min-h-[480px] sm:min-h-[540px]` for your mat, `min-h-[265px]` for bots), widened 1v1 and 4-player pod grids, clearer seat turn-order strip, and larger life/mana/phase/card action buttons.
+- **Online & LAN Multiplayer Tabletop**: Expanded active match viewports (`max-w-[96vw] xl:max-w-[1540px]`), added a live 2/3/4-seat turn-order & HP strip, upgraded opponent/bot playmat cards from compact horizontal slivers into full vertical MTG card tiles (`w-[114px]`) inside taller `min-h-[260px]` canvases, enlarged self playmat permanents (`w-[154px]`) and private hand cards (`w-[178px]`), added fanned card-back hand counts (`MpCardBackFan`), and expanded the Table Chat & Action Log drawer.
+- **Match Replay Visual Board**: Enlarged `BoardCardTile` cards, fanned hand backs, 1v1/4-player pod spacing, playback controls, and turn-focus tabs.
+
+#### 4. Program-Wide GUI Layout, Navigation & Guide Refinements
+- Redesigned **Playtest & Tabletop Arena** hub controls, bot pod configuration menus, difficulty selectors, and the **Playtest & Multiplayer Guide** modal with larger touch targets (`min-h-[38px]`–`44px`), clearer typography, and cleaner visual hierarchy across the whole program.
+
+### 🐛 Bug Fixes
+- **React `useMemo` Null Error Fix**: Configured Vite `resolve.dedupe` and explicit `optimizeDeps.include` for `react`, `react-dom`, `react-is`, and `scheduler` to prevent `"Cannot read properties of null (reading 'useMemo')"` runtime errors caused by duplicate React instances.
+
+---
+
 ## [v1.2.0] — Version 1.2.0 (2026-11-23)
 ### LAN & Self-Hosted Online Multiplayer, Free-Form Drag-and-Drop Playmats, Custom Playmats, Proxies & Tokens, and UI Refinements
 

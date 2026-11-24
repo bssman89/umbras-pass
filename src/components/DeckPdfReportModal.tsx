@@ -108,7 +108,7 @@ export const DeckPdfReportModal: React.FC<DeckPdfReportModalProps> = ({
             <button
               type="button"
               onClick={handlePrintOrPdf}
-              className="inline-flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shadow-sm"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shadow-sm"
             >
               <Printer className="h-4 w-4" />
               Print / Save as PDF
@@ -117,7 +117,7 @@ export const DeckPdfReportModal: React.FC<DeckPdfReportModalProps> = ({
               type="button"
               onClick={onClose}
               aria-label="Close report preview"
-              className="inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white p-2 text-zinc-500 hover:text-zinc-900 cursor-pointer"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900 cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
@@ -136,7 +136,7 @@ export const DeckPdfReportModal: React.FC<DeckPdfReportModalProps> = ({
                 referrerPolicy="no-referrer"
               />
               <div>
-                <div className="text-xs font-semibold uppercase tracking-wider text-sky-700">
+                <div className="text-xs font-bold text-sky-700">
                   Umbras Pass · MTG Deck Dossier
                 </div>
                 <h1 className="font-display text-2xl font-bold text-zinc-900">
@@ -336,7 +336,7 @@ export const DeckPdfReportModal: React.FC<DeckPdfReportModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="font-medium text-zinc-700 hover:text-zinc-900 cursor-pointer"
+            className="inline-flex min-h-[38px] items-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 cursor-pointer"
           >
             Close Preview
           </button>

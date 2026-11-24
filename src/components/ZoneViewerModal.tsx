@@ -229,7 +229,7 @@ export const ZoneViewerModal: React.FC<ZoneViewerModalProps> = ({
                 {activeOwner.label} — {selectedZone === 'graveyard' ? 'Graveyard' : 'Exile'} ({activeCount})
               </h3>
             </div>
-            <p className="mt-0.5 text-[11px] text-emerald-100/75 truncate">
+            <p className="mt-0.5 text-xs text-emerald-100/80 truncate">
               {activeOwner.subtitle} · Click any card to inspect full rules text &amp; art
             </p>
           </div>
@@ -237,7 +237,7 @@ export const ZoneViewerModal: React.FC<ZoneViewerModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close zone viewer"
-            className="rounded-lg border border-[#287D64] bg-[#0F4C3A] p-1.5 text-emerald-100 hover:bg-[#17614B] hover:text-white cursor-pointer shrink-0"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#287D64] bg-[#0F4C3A] text-emerald-100 hover:bg-[#17614B] hover:text-white cursor-pointer shrink-0 transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -246,7 +246,7 @@ export const ZoneViewerModal: React.FC<ZoneViewerModalProps> = ({
         {/* Seat & Zone Switchers */}
         <div className="border-b border-[#1E6E56] bg-[#0C3F31] px-5 py-3 space-y-2.5">
           {/* Owner Switcher */}
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-2">
             {owners.map((owner) => {
               const isSelected = owner.id === activeOwner.id;
               return (
@@ -257,14 +257,14 @@ export const ZoneViewerModal: React.FC<ZoneViewerModalProps> = ({
                     setSelectedOwnerId(owner.id);
                     setSearchQuery('');
                   }}
-                  className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                     isSelected
                       ? 'border-sky-400 bg-sky-900/60 text-white'
-                      : 'border-[#247059] bg-[#0B392C] text-emerald-100/80 hover:border-emerald-400/60 hover:text-white'
+                      : 'border-[#247059] bg-[#0B392C] text-emerald-100/85 hover:border-emerald-400/60 hover:text-white'
                   }`}
                 >
-                  {owner.label}{' '}
-                  <span className="font-mono text-[10px] tabular-nums opacity-80">
+                  <span>{owner.label}</span>
+                  <span className="font-mono text-xs tabular-nums opacity-80">
                     ({owner.gyCount}/{owner.exileCount})
                   </span>
                 </button>
@@ -274,51 +274,51 @@ export const ZoneViewerModal: React.FC<ZoneViewerModalProps> = ({
 
           {/* Zone Tabs + Search */}
           <div className="flex flex-wrap items-center justify-between gap-2.5">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setSelectedZone('graveyard')}
-                className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   selectedZone === 'graveyard'
                     ? 'border-emerald-400 bg-emerald-900/65 text-white'
-                    : 'border-[#247059] bg-[#092E23] text-emerald-100/75 hover:text-white'
+                    : 'border-[#247059] bg-[#092E23] text-emerald-100/80 hover:text-white'
                 }`}
               >
-                <Coins className="h-3.5 w-3.5 text-emerald-300" />
+                <Coins className="h-4 w-4 text-emerald-300" />
                 Graveyard
                 <span className="font-mono tabular-nums">({activeOwner.gyCount})</span>
               </button>
               <button
                 type="button"
                 onClick={() => setSelectedZone('exile')}
-                className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-bold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   selectedZone === 'exile'
                     ? 'border-violet-400 bg-violet-950/75 text-white'
-                    : 'border-[#247059] bg-[#092E23] text-emerald-100/75 hover:text-white'
+                    : 'border-[#247059] bg-[#092E23] text-emerald-100/80 hover:text-white'
                 }`}
               >
-                <Ban className="h-3.5 w-3.5 text-violet-300" />
+                <Ban className="h-4 w-4 text-violet-300" />
                 Exile
                 <span className="font-mono tabular-nums">({activeOwner.exileCount})</span>
               </button>
             </div>
 
             {activeCards.length > 0 && (
-              <div className="relative flex-1 min-w-[180px] max-w-xs">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-emerald-200/60" />
+              <div className="relative flex-1 min-w-[200px] max-w-xs">
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-200/60" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Filter by name or type..."
-                  className="w-full rounded-md border border-[#247059] bg-[#092E23] pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-emerald-200/45 focus:border-sky-400 focus:outline-none"
+                  className="min-h-[38px] w-full rounded-lg border border-[#247059] bg-[#092E23] pl-9 pr-3 py-2 text-xs sm:text-sm text-white placeholder:text-emerald-200/45 focus:border-sky-400 focus:outline-none"
                 />
               </div>
             )}
           </div>
 
           {activeCards.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-[10px] tabular-nums text-emerald-200/80">
+            <div className="flex flex-wrap items-center justify-between gap-2 font-mono text-xs tabular-nums text-emerald-200/85">
               <span>
                 Creatures {typeCounts.creatures} · Instants/Sorceries {typeCounts.instantsSorceries} · Artifacts/Ench {typeCounts.artifactsEnch} · Lands {typeCounts.lands}
               </span>
@@ -428,15 +428,15 @@ export const ZoneViewerModal: React.FC<ZoneViewerModalProps> = ({
                             )}
                             {card.name}
                           </button>
-                          <span className="font-mono text-[10px] text-emerald-200/85 tabular-nums shrink-0">
+                          <span className="font-mono text-xs text-emerald-200/85 tabular-nums shrink-0">
                             {manaCost ? manaCost : `MV ${card.cmc}`}
                           </span>
                         </div>
-                        <div className="text-[10px] text-emerald-100/75 truncate">
+                        <div className="text-xs text-emerald-100/80 truncate">
                           {card.typeLine}
                         </div>
                         {card.reason && (
-                          <div className="text-[10px] text-sky-300/90 truncate mt-0.5">
+                          <div className="text-xs text-sky-300/90 truncate mt-0.5">
                             {card.reason}
                           </div>
                         )}
@@ -446,9 +446,9 @@ export const ZoneViewerModal: React.FC<ZoneViewerModalProps> = ({
                         <button
                           type="button"
                           onClick={() => onInspectCard(card.name, card.meta)}
-                          className="inline-flex items-center gap-1 rounded border border-[#287D64] bg-[#092E23] px-2 py-0.5 text-[10px] font-semibold text-emerald-100 hover:bg-[#17614B] cursor-pointer whitespace-nowrap shrink-0"
+                          className="inline-flex min-h-[32px] items-center gap-1.5 rounded-md border border-[#287D64] bg-[#092E23] px-2.5 py-1 text-xs font-semibold text-emerald-100 hover:bg-[#17614B] cursor-pointer whitespace-nowrap shrink-0"
                         >
-                          <Eye className="h-2.5 w-2.5" />
+                          <Eye className="h-3.5 w-3.5" />
                           Inspect
                         </button>
 
@@ -460,9 +460,9 @@ export const ZoneViewerModal: React.FC<ZoneViewerModalProps> = ({
                               onClick={() =>
                                 onMovePlayerZoneCard(selectedZone, card.uid, 'battlefield')
                               }
-                              className="inline-flex items-center gap-1 rounded border border-emerald-400/45 bg-emerald-950/75 px-2 py-0.5 text-[10px] font-semibold text-emerald-200 hover:bg-emerald-900 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                              className="inline-flex min-h-[32px] items-center gap-1.5 rounded-md border border-emerald-400/45 bg-emerald-950/75 px-2.5 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-900 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                             >
-                              <Sparkles className="h-2.5 w-2.5" />
+                              <Sparkles className="h-3.5 w-3.5" />
                               To Field
                             </button>
                             <button
@@ -471,9 +471,9 @@ export const ZoneViewerModal: React.FC<ZoneViewerModalProps> = ({
                               onClick={() =>
                                 onMovePlayerZoneCard(selectedZone, card.uid, 'hand')
                               }
-                              className="inline-flex items-center gap-1 rounded border border-sky-400/45 bg-sky-950/75 px-2 py-0.5 text-[10px] font-semibold text-sky-200 hover:bg-sky-900 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                              className="inline-flex min-h-[32px] items-center gap-1.5 rounded-md border border-sky-400/45 bg-sky-950/75 px-2.5 py-1 text-xs font-semibold text-sky-200 hover:bg-sky-900 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                             >
-                              <Hand className="h-2.5 w-2.5" />
+                              <Hand className="h-3.5 w-3.5" />
                               To Hand
                             </button>
                             <button
@@ -486,9 +486,9 @@ export const ZoneViewerModal: React.FC<ZoneViewerModalProps> = ({
                                   selectedZone === 'graveyard' ? 'exile' : 'graveyard'
                                 )
                               }
-                              className="inline-flex items-center gap-1 rounded border border-violet-400/45 bg-violet-950/75 px-2 py-0.5 text-[10px] font-semibold text-violet-200 hover:bg-violet-900 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                              className="inline-flex min-h-[32px] items-center gap-1.5 rounded-md border border-violet-400/45 bg-violet-950/75 px-2.5 py-1 text-xs font-semibold text-violet-200 hover:bg-violet-900 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                             >
-                              <ArrowRightLeft className="h-2.5 w-2.5" />
+                              <ArrowRightLeft className="h-3.5 w-3.5" />
                               {selectedZone === 'graveyard' ? 'Exile' : 'To GY'}
                             </button>
                           </>

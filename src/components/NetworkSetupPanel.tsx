@@ -24,6 +24,9 @@ export interface NetworkSetupPanelProps {
   onRefreshDiagnostics: () => void;
   externalHostInput: string;
   onExternalHostInputChange: (nextValue: string) => void;
+  detectingPublicIp?: boolean;
+  publicIpError?: string | null;
+  onDetectPublicIp?: () => void;
   testingPort: boolean;
   portTestOk: boolean | null;
   portTestMessage: string | null;
@@ -37,6 +40,9 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
   onRefreshDiagnostics,
   externalHostInput,
   onExternalHostInputChange,
+  detectingPublicIp = false,
+  publicIpError = null,
+  onDetectPublicIp,
   testingPort,
   portTestOk,
   portTestMessage,
@@ -120,17 +126,21 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
   };
 
   return (
-    <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4 space-y-3.5">
+    <div className="rounded-xl border border-zinc-200 bg-zinc-50/70 p-4 sm:p-5 space-y-4">
       {/* Compact Header */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5 min-w-0">
           <Wifi className="h-4 w-4 text-sky-700 shrink-0" />
           <div className="min-w-0">
-            <h3 className="text-xs font-bold uppercase tracking-wide text-zinc-900">
+            <h3 className="text-sm font-bold text-zinc-900">
               Network &amp; Port Check
             </h3>
-            <p className="text-[11px] text-zinc-500 truncate">
-              TCP {listeningPort} · {netInfo?.lanReachable ? 'LAN Ready' : 'Local Listener Active'}
+            <p className="text-xs text-zinc-600 truncate">
+              TCP <span className="font-mono tabular-nums">{listeningPort}</span> · Bound{' '}
+              <span className="font-mono tabular-nums">
+                {netInfo?.hostBindAddress || '0.0.0.0'}
+              </span>{' '}
+              · {netInfo?.lanReachable ? 'LAN Ready' : 'Listener Active'}
             </p>
           </div>
         </div>
@@ -138,56 +148,56 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
           type="button"
           onClick={onRefreshDiagnostics}
           disabled={loadingNetInfo}
-          className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 cursor-pointer shrink-0"
+          className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
         >
-          <RefreshCw className={`h-3 w-3 ${loadingNetInfo ? 'animate-spin' : ''}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${loadingNetInfo ? 'animate-spin' : ''}`} />
           <span>Refresh</span>
         </button>
       </div>
 
       {/* Host Local IP & Join URL Tiles */}
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <div className="flex items-center justify-between gap-2 rounded-lg border border-sky-200 bg-white px-3 py-2">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-sky-200 bg-white px-3.5 py-2.5">
           <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <div className="text-xs font-semibold text-zinc-600">
               Host Local IP
             </div>
-            <div className="font-mono text-xs font-bold tabular-nums text-zinc-900 truncate">
+            <div className="font-mono text-sm font-bold tabular-nums text-zinc-900 truncate">
               {primaryLanIp}
             </div>
           </div>
           <button
             type="button"
             onClick={() => void handleCopy('primary-ip', primaryLanIp)}
-            className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer shrink-0"
+            className="inline-flex min-h-[34px] items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer shrink-0"
           >
             {copiedKey === 'primary-ip' ? (
-              <Check className="h-3 w-3 text-emerald-700" />
+              <Check className="h-3.5 w-3.5 text-emerald-700" />
             ) : (
-              <Copy className="h-3 w-3 text-sky-700" />
+              <Copy className="h-3.5 w-3.5 text-sky-700" />
             )}
             <span>{copiedKey === 'primary-ip' ? 'Copied' : 'Copy'}</span>
           </button>
         </div>
 
-        <div className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2">
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3.5 py-2.5">
           <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+            <div className="text-xs font-semibold text-zinc-600">
               Host LAN URL
             </div>
-            <div className="font-mono text-xs font-bold tabular-nums text-sky-800 truncate">
+            <div className="font-mono text-sm font-bold tabular-nums text-sky-800 truncate">
               {primaryLanUrl}
             </div>
           </div>
           <button
             type="button"
             onClick={() => void handleCopy('primary-lan-url', primaryLanUrl)}
-            className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer shrink-0"
+            className="inline-flex min-h-[34px] items-center gap-1.5 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer shrink-0"
           >
             {copiedKey === 'primary-lan-url' ? (
-              <Check className="h-3 w-3 text-emerald-700" />
+              <Check className="h-3.5 w-3.5 text-emerald-700" />
             ) : (
-              <Copy className="h-3 w-3 text-sky-700" />
+              <Copy className="h-3.5 w-3.5 text-sky-700" />
             )}
             <span>{copiedKey === 'primary-lan-url' ? 'Copied' : 'Copy'}</span>
           </button>
@@ -200,12 +210,12 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
           <button
             type="button"
             onClick={() => setShowAllInterfaces((v) => !v)}
-            className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-700 hover:underline cursor-pointer"
+            className="inline-flex min-h-[32px] items-center gap-1.5 text-xs font-semibold text-sky-700 hover:underline cursor-pointer"
           >
             {showAllInterfaces ? (
-              <ChevronUp className="h-3 w-3" />
+              <ChevronUp className="h-3.5 w-3.5" />
             ) : (
-              <ChevronDown className="h-3 w-3" />
+              <ChevronDown className="h-3.5 w-3.5" />
             )}
             <span>
               {showAllInterfaces
@@ -217,11 +227,11 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
           </button>
 
           {showAllInterfaces && (
-            <div className="mt-1.5 space-y-1">
+            <div className="mt-2 space-y-1.5">
               {netInfo.lanInterfaces.slice(1).map((iface) => (
                 <div
                   key={`${iface.name}-${iface.address}`}
-                  className="flex items-center justify-between gap-2 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px]"
+                  className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs"
                 >
                   <div className="min-w-0 truncate">
                     <span className="font-mono font-semibold text-sky-800">
@@ -232,7 +242,7 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
                   <button
                     type="button"
                     onClick={() => void handleCopy(`lan-${iface.address}`, iface.lanUrl)}
-                    className="rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer shrink-0"
+                    className="min-h-[30px] rounded border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer shrink-0"
                   >
                     {copiedKey === `lan-${iface.address}` ? 'Copied' : 'Copy'}
                   </button>
@@ -243,56 +253,118 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
         </div>
       )}
 
-      {/* Port Reachability Test */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2 text-xs">
-        <div className="flex items-center justify-between gap-2">
-          <span className="inline-flex items-center gap-1.5 font-semibold text-zinc-900">
-            <Globe className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-            <span>Port Check (TCP {listeningPort})</span>
-          </span>
-          {portTestOk !== null && (
-            <span
-              className={`font-mono text-[11px] font-bold ${
-                portTestOk ? 'text-emerald-700' : 'text-amber-700'
-              }`}
-            >
-              {portTestOk ? 'Reachable' : 'Check Needed'}
+      {/* Public IPv4 & Port Reachability Test */}
+      <div className="rounded-lg border border-zinc-200 bg-white p-3.5 space-y-3 text-xs sm:text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="inline-flex items-center gap-1.5 font-bold text-zinc-900">
+            <Globe className="h-4 w-4 text-sky-700 shrink-0" />
+            <span>
+              Public IPv4 &amp; Port Check (TCP {listeningPort})
             </span>
-          )}
+          </span>
+          <div className="flex items-center gap-2.5 shrink-0">
+            {onDetectPublicIp && (
+              <button
+                type="button"
+                onClick={onDetectPublicIp}
+                disabled={detectingPublicIp}
+                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+              >
+                {detectingPublicIp ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Detecting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Globe className="h-3.5 w-3.5 text-sky-700" />
+                    <span>Detect Public IPv4</span>
+                  </>
+                )}
+              </button>
+            )}
+            {portTestOk !== null && (
+              <span
+                className={`font-mono text-xs font-bold whitespace-nowrap ${
+                  portTestOk ? 'text-emerald-700' : 'text-amber-700'
+                }`}
+              >
+                {portTestOk ? 'Reachable · Ready' : 'Check Needed'}
+              </span>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
           <input
             type="text"
             value={externalHostInput}
             onChange={(e) => onExternalHostInputChange(e.target.value)}
-            placeholder="Public IP / DDNS (optional for LAN)"
-            aria-label="External Public IP or DDNS Hostname"
-            className="flex-1 rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-1.5 font-mono text-xs text-zinc-900 focus:border-sky-600 focus:bg-white focus:outline-none"
+            placeholder="Public IPv4 or DDNS (e.g. 203.0.113.45)"
+            aria-label="External Public IPv4 or DDNS Hostname"
+            className="min-h-[40px] flex-1 rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 font-mono text-sm tabular-nums text-zinc-900 focus:border-sky-600 focus:bg-white focus:outline-none"
           />
           <button
             type="button"
             onClick={onRunPortCheck}
             disabled={testingPort}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+            className="inline-flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg bg-zinc-900 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
           >
             {testingPort ? (
               <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="h-4 w-4 animate-spin" />
                 <span>Testing...</span>
               </>
             ) : (
               <>
-                <Network className="h-3.5 w-3.5" />
+                <Network className="h-4 w-4" />
                 <span>Test Port Reachability</span>
               </>
             )}
           </button>
         </div>
 
+        {externalHostInput.trim() && (
+          <div className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs">
+            <div className="min-w-0 truncate">
+              <span className="text-zinc-600">Public Share URL:</span>{' '}
+              <span className="font-mono font-semibold tabular-nums text-sky-900">
+                {externalHostInput.trim().startsWith('http://') ||
+                externalHostInput.trim().startsWith('https://')
+                  ? externalHostInput.trim()
+                  : externalHostInput.trim().includes(':')
+                  ? `http://${externalHostInput.trim()}`
+                  : `http://${externalHostInput.trim()}:${listeningPort}`}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const raw = externalHostInput.trim();
+                const url =
+                  raw.startsWith('http://') || raw.startsWith('https://')
+                    ? raw
+                    : raw.includes(':')
+                    ? `http://${raw}`
+                    : `http://${raw}:${listeningPort}`;
+                void handleCopy('public-share-url', url);
+              }}
+              className="min-h-[32px] rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0"
+            >
+              {copiedKey === 'public-share-url' ? 'Copied' : 'Copy URL'}
+            </button>
+          </div>
+        )}
+
+        {publicIpError && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
+            {publicIpError}
+          </div>
+        )}
+
         {portTestMessage && (
           <div
-            className={`rounded-md border px-2.5 py-1.5 text-[11px] font-medium leading-relaxed ${
+            className={`rounded-lg border px-3 py-2 text-xs font-medium leading-relaxed ${
               portTestOk
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
                 : 'border-amber-200 bg-amber-50 text-amber-900'
@@ -304,15 +376,15 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
       </div>
 
       {/* Router Port-Forwarding & Firewall Helper */}
-      <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2.5 text-xs">
+      <div className="rounded-lg border border-zinc-200 bg-white p-3.5 space-y-3 text-xs sm:text-sm">
         <button
           type="button"
           onClick={() => setShowRouterGuide((v) => !v)}
           aria-expanded={showRouterGuide}
-          className="flex w-full items-center justify-between text-left font-semibold text-zinc-900 cursor-pointer"
+          className="flex min-h-[38px] w-full items-center justify-between text-left font-bold text-zinc-900 cursor-pointer"
         >
-          <span className="inline-flex items-center gap-1.5">
-            <Terminal className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+          <span className="inline-flex items-center gap-2">
+            <Terminal className="h-4 w-4 text-sky-700 shrink-0" />
             <span>Router Port-Forwarding Guide</span>
           </span>
           {showRouterGuide ? (
@@ -323,23 +395,23 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
         </button>
 
         {/* Compact Rule Copy Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-[11px]">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs">
           <div className="font-mono text-zinc-800 truncate">
             TCP <span className="font-bold text-sky-800">{listeningPort}</span> &rarr;{' '}
             <span className="font-bold text-sky-800">
               {primaryLanIp}:{listeningPort}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={() => void handleCopy('router-rule-values', routerRuleValuesText)}
-              className="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+              className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
             >
               {copiedKey === 'router-rule-values' ? (
-                <Check className="h-3 w-3 text-emerald-700" />
+                <Check className="h-3.5 w-3.5 text-emerald-700" />
               ) : (
-                <Copy className="h-3 w-3 text-sky-700" />
+                <Copy className="h-3.5 w-3.5 text-sky-700" />
               )}
               <span>{copiedKey === 'router-rule-values' ? 'Copied' : 'Copy Rule'}</span>
             </button>
@@ -348,12 +420,12 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
               onClick={() =>
                 void handleCopy('full-port-forward-guide', routerPortForwardClipboardSummary)
               }
-              className="inline-flex items-center gap-1 rounded border border-sky-300 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-900 hover:bg-sky-100 cursor-pointer"
+              className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-900 hover:bg-sky-100 cursor-pointer"
             >
               {copiedKey === 'full-port-forward-guide' ? (
-                <Check className="h-3 w-3 text-emerald-700" />
+                <Check className="h-3.5 w-3.5 text-emerald-700" />
               ) : (
-                <Copy className="h-3 w-3 text-sky-700" />
+                <Copy className="h-3.5 w-3.5 text-sky-700" />
               )}
               <span>
                 {copiedKey === 'full-port-forward-guide' ? 'Copied Guide' : 'Copy Full Guide'}
@@ -363,9 +435,9 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
         </div>
 
         {showRouterGuide && (
-          <div className="space-y-3 border-t border-zinc-100 pt-2.5 text-[11px] text-zinc-700">
+          <div className="space-y-3.5 border-t border-zinc-100 pt-3 text-xs sm:text-sm text-zinc-700">
             {/* Clean 5-row NAT Rule Values */}
-            <div className="rounded-md border border-zinc-200 divide-y divide-zinc-100 overflow-hidden">
+            <div className="rounded-lg border border-zinc-200 divide-y divide-zinc-100 overflow-hidden">
               {[
                 { id: 'rf-name', label: 'Rule Name', value: 'UmbrasPass-Tabletop' },
                 { id: 'rf-proto', label: 'Protocol', value: 'TCP' },
@@ -375,9 +447,9 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
               ].map((field) => (
                 <div
                   key={field.id}
-                  className="flex items-center justify-between gap-2 bg-white px-2.5 py-1.5"
+                  className="flex items-center justify-between gap-2 bg-white px-3 py-2 text-xs"
                 >
-                  <span className="text-zinc-500">{field.label}</span>
+                  <span className="text-zinc-600 font-medium">{field.label}</span>
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="font-mono font-bold tabular-nums text-zinc-900 truncate">
                       {field.value}
@@ -385,7 +457,7 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
                     <button
                       type="button"
                       onClick={() => void handleCopy(field.id, field.value)}
-                      className="rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer shrink-0"
+                      className="min-h-[30px] rounded border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer shrink-0"
                     >
                       {copiedKey === field.id ? 'Copied' : 'Copy'}
                     </button>
@@ -395,7 +467,7 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
             </div>
 
             {/* Concise 4-step Instructions */}
-            <ol className="space-y-1 pl-4 list-decimal text-zinc-700 leading-relaxed">
+            <ol className="space-y-1.5 pl-4 list-decimal text-xs sm:text-sm text-zinc-700 leading-relaxed">
               {(
                 netInfo?.routerGuideSteps || [
                   {
@@ -427,13 +499,13 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
             </ol>
 
             {/* Tabbed OS Firewall Command */}
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <div className="inline-flex items-center rounded-md bg-zinc-100 p-0.5 text-[10px] font-semibold">
+                <div className="inline-flex items-center rounded-lg bg-zinc-100 p-1 text-xs font-semibold">
                   <button
                     type="button"
                     onClick={() => setFirewallTab('windows')}
-                    className={`rounded px-2 py-0.5 cursor-pointer transition-colors ${
+                    className={`min-h-[32px] rounded-md px-3 py-1 cursor-pointer transition-colors ${
                       firewallTab === 'windows'
                         ? 'bg-white text-zinc-900 shadow-xs'
                         : 'text-zinc-600 hover:text-zinc-900'
@@ -444,7 +516,7 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
                   <button
                     type="button"
                     onClick={() => setFirewallTab('unix')}
-                    className={`rounded px-2 py-0.5 cursor-pointer transition-colors ${
+                    className={`min-h-[32px] rounded-md px-3 py-1 cursor-pointer transition-colors ${
                       firewallTab === 'unix'
                         ? 'bg-white text-zinc-900 shadow-xs'
                         : 'text-zinc-600 hover:text-zinc-900'
@@ -462,18 +534,18 @@ export const NetworkSetupPanel: React.FC<NetworkSetupPanelProps> = ({
                       firewallTab === 'windows' ? windowsFirewallCmd : unixFirewallCmd
                     )
                   }
-                  className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-700 hover:underline cursor-pointer"
+                  className="inline-flex min-h-[32px] items-center gap-1 rounded px-2 text-xs font-semibold text-sky-700 hover:bg-sky-50 hover:underline cursor-pointer"
                 >
                   {copiedKey === `fw-${firewallTab}` ? 'Copied' : 'Copy Command'}
                 </button>
               </div>
-              <pre className="overflow-x-auto rounded-md bg-zinc-900 p-2 font-mono text-[10px] text-zinc-100">
+              <pre className="overflow-x-auto rounded-lg bg-zinc-900 p-3 font-mono text-xs text-zinc-100">
                 {firewallTab === 'windows' ? windowsFirewallCmd : unixFirewallCmd}
               </pre>
             </div>
 
-            <div className="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50/70 px-2.5 py-1.5 text-[10px] text-emerald-950">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs text-emerald-950">
+              <ShieldCheck className="h-4 w-4 text-emerald-700 shrink-0" />
               <span>
                 Guest access requires scrypt-verified Session Passcode + Host Lobby Approval.
               </span>

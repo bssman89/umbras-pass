@@ -108,6 +108,7 @@ import {
 } from './PlaytestTutorialModal';
 import { TurnSummaryModal } from './TurnSummaryModal';
 import { MultiplayerSessionHub } from './MultiplayerSessionHub';
+import { readJoinParamsFromWindowLocation } from '../utils/multiplayerInvite';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
 const InteractiveTurnSimulator = lazyWithRetry(() =>
   import('./InteractiveTurnSimulator').then((m) => ({
@@ -258,8 +259,10 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
   const [opponentsByMode, setOpponentsByMode] = useState<
     Record<PlaytestMode, BotOpponentConfig[]>
   >(DEFAULT_OPPONENTS_BY_MODE);
-  const [isMultiplayerHubOpen, setIsMultiplayerHubOpen] = useState(false);
-  const [isSetupExpanded, setIsSetupExpanded] = useState(true);
+  const [isMultiplayerHubOpen, setIsMultiplayerHubOpen] = useState<boolean>(() =>
+    Boolean(readJoinParamsFromWindowLocation())
+  );
+  const [isSetupExpanded, setIsSetupExpanded] = useState(false);
 
   const [expandedBrainKey, setExpandedBrainKey] = useState<string | null>(null);
   const [inlineCoachTextByKey, setInlineCoachTextByKey] = useState<Record<string, string>>({});
@@ -1259,35 +1262,35 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
 
   return (
     <section id="playtest-section" className="space-y-5 scroll-mt-20">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="font-display text-xl font-bold text-zinc-900">
+          <h2 className="font-display text-xl sm:text-2xl font-bold text-zinc-900">
             Playtest &amp; Tabletop Arena
           </h2>
-          <p className="mt-0.5 text-xs text-zinc-600">
-            Configure your {detectedFormat} pod below to play live on the tabletop with AI bots or friends (LAN / Online), or auto-simulate matches.
+          <p className="mt-1 text-xs sm:text-sm text-zinc-600">
+            Play live vs AI bots, host a LAN or online pod, or run an auto-simulated match.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
             onClick={() => openTutorial('setup')}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-50 hover:text-zinc-900 whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-sky-300 bg-sky-50 px-4 py-2 text-xs sm:text-sm font-semibold text-sky-900 transition-colors hover:bg-sky-100 whitespace-nowrap shrink-0 cursor-pointer"
           >
-            <BookOpen className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-            Playtest Guide
+            <BookOpen className="h-4 w-4 text-sky-700 shrink-0" />
+            Playtest &amp; Multiplayer Guide
           </button>
           {localAiEngineInfo && (
             <button
               type="button"
               onClick={() => window.dispatchEvent(new Event('umbras:open-desktop-modal'))}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex min-h-[40px] items-center gap-2 rounded-lg border px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 localAiEngineInfo.effectiveEngine !== 'deterministic'
                   ? 'border-sky-200 bg-sky-50 text-sky-900 hover:bg-sky-100'
-                  : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'
+                  : 'border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50'
               }`}
             >
-              <Cpu className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+              <Cpu className="h-4 w-4 text-sky-700 shrink-0" />
               {localAiEngineInfo.effectiveEngine === 'local-gguf'
                 ? `${localAiEngineInfo.modelLabel} (.gguf)`
                 : localAiEngineInfo.effectiveEngine === 'cloud-gemini'
@@ -1298,40 +1301,39 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
         </div>
       </div>
 
-      {/* Unified Pod, Deck & AI Bot Setup Card */}
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5 space-y-4">
+      {/* Streamlined Session Control Bar + Collapsible Deck & Bot Drawer */}
+      <div className="rounded-xl border border-zinc-200 bg-white px-4 py-4 sm:px-5 space-y-3.5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Table Size */}
+          {/* Left: Pod Size, Deck Version, & Drawer Toggle */}
+          <div className="flex flex-wrap items-center gap-2.5">
             <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
               {(['1v1', '1v2', '1v3'] as PlaytestMode[]).map((m) => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => setMode(m)}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`min-h-[38px] px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     mode === m
                       ? 'bg-white text-zinc-900 shadow-sm'
                       : 'text-zinc-600 hover:text-zinc-900'
                   }`}
                 >
-                  {m === '1v1' ? '1v1 Duel' : m === '1v2' ? '1v2 (3P)' : '1v3 Pod (4P)'}
+                  {m === '1v1' ? '1v1' : m === '1v2' ? '1v2 (3P)' : '1v3 (4P)'}
                 </button>
               ))}
             </div>
 
-            {/* Your Deck Version */}
-            <div className="inline-flex flex-wrap items-center gap-1 rounded-lg bg-zinc-100 p-1">
+            <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
               <button
                 type="button"
                 onClick={() => setDeckVersion('original')}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`min-h-[38px] px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   deckVersion === 'original'
                     ? 'bg-white text-zinc-900 shadow-sm'
                     : 'text-zinc-600 hover:text-zinc-900'
                 }`}
               >
-                Original Deck
+                Original
               </button>
               <button
                 type="button"
@@ -1339,16 +1341,16 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                   setPlayerCustomDeckText(null);
                   setDeckVersion('mana-optimized');
                 }}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`inline-flex min-h-[38px] items-center gap-1.5 px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   deckVersion === 'mana-optimized'
                     ? 'bg-white text-sky-900 shadow-sm'
                     : 'text-zinc-600 hover:text-zinc-900'
                 }`}
               >
-                <RefreshCw className={`h-3 w-3 ${deckVersion === 'mana-optimized' ? 'text-sky-700' : 'text-zinc-400'}`} />
+                <RefreshCw className={`h-3.5 w-3.5 ${deckVersion === 'mana-optimized' ? 'text-sky-700' : 'text-zinc-400'}`} />
                 <span>Mana Fixes</span>
                 {selectedLandChangesCount > 0 && (
-                  <span className="font-mono text-[11px] text-sky-700">
+                  <span className="font-mono text-xs text-sky-700">
                     ({selectedLandChangesCount})
                   </span>
                 )}
@@ -1359,7 +1361,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                   setPlayerCustomDeckText(null);
                   setDeckVersion('full-optimized');
                 }}
-                className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`min-h-[38px] px-3.5 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   deckVersion === 'full-optimized'
                     ? 'bg-white text-zinc-900 shadow-sm'
                     : 'text-zinc-600 hover:text-zinc-900'
@@ -1369,24 +1371,28 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
               </button>
             </div>
 
-            {!isSetupExpanded && (
-              <div className="hidden xl:flex items-center gap-1.5 text-xs text-zinc-600">
-                <span className="font-semibold text-zinc-900">
-                  {analysis.deckName || 'Your Deck'}
-                </span>
-                <span className="text-zinc-300" aria-hidden="true">·</span>
-                <span className="font-mono tabular-nums">
-                  {effectiveUserDeck.totalMainAndCmd} cards
-                </span>
-                <span className="text-zinc-300" aria-hidden="true">·</span>
-                <span>
-                  vs {visibleOpponents.map((o) => o.name).join(', ')}
-                </span>
-              </div>
-            )}
+            <button
+              type="button"
+              onClick={() => setIsSetupExpanded((v) => !v)}
+              aria-expanded={isSetupExpanded}
+              className={`inline-flex min-h-[40px] items-center gap-2 rounded-lg border px-4 py-2 text-xs sm:text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                isSetupExpanded
+                  ? 'border-sky-300 bg-sky-50 text-sky-900'
+                  : 'border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50'
+              }`}
+            >
+              <Sliders className="h-4 w-4 text-sky-700 shrink-0" />
+              <span>Deck &amp; Bots ({botCount})</span>
+              {isSetupExpanded ? (
+                <ChevronUp className="h-4 w-4 text-sky-700" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-zinc-500" />
+              )}
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          {/* Right: 3 Clear Session Launchers */}
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
               onClick={() => {
@@ -1397,11 +1403,11 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                   block: 'start',
                 });
               }}
-              title="Start or reshuffle a live turn-by-turn tabletop game against these AI bots"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3.5 py-2 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
+              title="Start or reshuffle a live turn-by-turn tabletop match against these AI bots"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-xs sm:text-sm font-bold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Bot className="h-3.5 w-3.5 shrink-0" />
-              <span>Play Live Tabletop</span>
+              <Bot className="h-4 w-4 shrink-0" />
+              <span>Play Live</span>
             </button>
 
             <button
@@ -1409,22 +1415,22 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
               onClick={() => void handleRunPlaytest(false)}
               disabled={loading}
               title="Auto-simulate a multi-round bot match and inspect turn-by-turn replays & analytics"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3.5 py-2 text-xs font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
             >
               {loading ? (
                 <>
-                  <Shuffle className="h-3.5 w-3.5 animate-spin text-sky-700" />
-                  <span>Simulating {mode}...</span>
+                  <Shuffle className="h-4 w-4 animate-spin text-sky-700" />
+                  <span>Simulating...</span>
                 </>
               ) : result ? (
                 <>
-                  <RotateCcw className="h-3.5 w-3.5 text-sky-700" />
-                  <span>Re-Simulate {mode}</span>
+                  <RotateCcw className="h-4 w-4 text-sky-700" />
+                  <span>Re-Simulate</span>
                 </>
               ) : (
                 <>
-                  <Play className="h-3.5 w-3.5 text-sky-700" />
-                  <span>Auto-Simulate Match</span>
+                  <Play className="h-4 w-4 text-sky-700" />
+                  <span>Auto-Simulate</span>
                 </>
               )}
             </button>
@@ -1433,28 +1439,70 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
               type="button"
               onClick={() => setIsMultiplayerHubOpen(true)}
               title="Host or join a 1–4 player LAN or self-hosted online multiplayer session with friends and AI bots"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
             >
-              <Users className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-              <span>Multiplayer (LAN / Online)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsSetupExpanded((v) => !v)}
-              aria-expanded={isSetupExpanded}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0"
-            >
-              <Sliders className="h-3.5 w-3.5 text-sky-700 shrink-0" />
-              <span>{isSetupExpanded ? 'Hide Setup' : `Configure Pod & Bots (${botCount})`}</span>
-              {isSetupExpanded ? (
-                <ChevronUp className="h-3.5 w-3.5 text-zinc-500" />
-              ) : (
-                <ChevronDown className="h-3.5 w-3.5 text-zinc-500" />
-              )}
+              <Users className="h-4 w-4 text-sky-700 shrink-0" />
+              <span>Multiplayer</span>
             </button>
           </div>
         </div>
+
+        {/* Quiet Single-Line Active Pod Summary when Collapsed */}
+        {!isSetupExpanded && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-2.5 text-xs text-zinc-600">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 min-w-0">
+              <span className="font-semibold text-zinc-900 truncate max-w-[200px]">
+                {analysis.deckName || 'Your Deck'}
+              </span>
+              <span className="text-zinc-300" aria-hidden="true">·</span>
+              <span className="font-mono tabular-nums">
+                {effectiveUserDeck.totalMainAndCmd} cards
+              </span>
+              {effectiveUserDeck.commanders.length > 0 && (
+                <>
+                  <span className="text-zinc-300" aria-hidden="true">·</span>
+                  <span className="truncate max-w-[240px]">
+                    Cmdr: {effectiveUserDeck.commanders.map((c) => c.name).join(' & ')}
+                  </span>
+                </>
+              )}
+              <span className="text-zinc-300" aria-hidden="true">·</span>
+              <span className="truncate max-w-[320px] text-zinc-500">
+                Opponents: {visibleOpponents.map((o) => o.name).join(', ')}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setPlayerDeckDraftText(
+                    playerCustomDeckText ?? effectiveUserDeck.serializedText
+                  );
+                  setIsEditingPlayerDeck(true);
+                  setIsSetupExpanded(true);
+                }}
+                className="text-xs font-semibold text-sky-700 hover:underline cursor-pointer whitespace-nowrap"
+              >
+                Edit Decklist
+              </button>
+              <span className="text-zinc-300" aria-hidden="true">·</span>
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new Event('umbras:open-live-setup'));
+                  document.getElementById('interactive-live-game')?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start',
+                  });
+                }}
+                className="text-xs font-semibold text-sky-700 hover:underline cursor-pointer whitespace-nowrap"
+              >
+                Match Rules &amp; Turn Order
+              </button>
+            </div>
+          </div>
+        )}
 
         {isSetupExpanded && (
           <div className="space-y-4 border-t border-zinc-100 pt-4">
@@ -1501,7 +1549,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                   )}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex flex-wrap items-center gap-2">
                   {effectiveUserDeck.uniqueCardNames.length > 0 && (
                     <select
                       id="playtest-player-commander-select"
@@ -1511,7 +1559,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                         const val = e.target.value;
                         setPlayerCommanderOverride(val || null);
                       }}
-                      className="max-w-[190px] rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
+                      className="min-h-[38px] max-w-[220px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
                     >
                       <option value="">
                         {effectiveUserDeck.commanders.length > 0
@@ -1527,8 +1575,8 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                   )}
 
                   {resolvingCustomMeta && (
-                    <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500">
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                    <span className="inline-flex items-center gap-1 text-xs text-zinc-500">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Syncing art...
                     </span>
                   )}
@@ -1543,25 +1591,25 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                       }
                       setIsEditingPlayerDeck((v) => !v);
                     }}
-                    className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <Pencil className="h-3 w-3 text-sky-700" />
+                    <Pencil className="h-3.5 w-3.5 text-sky-700" />
                     {isEditingPlayerDeck ? 'Close Editor' : 'Edit Decklist'}
                   </button>
 
                   <button
                     type="button"
                     onClick={() => void handleCopyLoadedDeck()}
-                    className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                   >
                     {copiedLoadedDeck ? (
                       <>
-                        <Check className="h-3 w-3 text-emerald-700" />
+                        <Check className="h-3.5 w-3.5 text-emerald-700" />
                         Copied
                       </>
                     ) : (
                       <>
-                        <Copy className="h-3 w-3" />
+                        <Copy className="h-3.5 w-3.5" />
                         Copy
                       </>
                     )}
@@ -1570,9 +1618,9 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowLoadedDeckPreview((v) => !v)}
-                    className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <Eye className="h-3 w-3 text-sky-700" />
+                    <Eye className="h-3.5 w-3.5 text-sky-700" />
                     {showLoadedDeckPreview ? 'Hide List' : 'View List'}
                   </button>
                 </div>
@@ -1745,10 +1793,10 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
             </div>
 
             {/* Unified AI Bot Opponents Grid (Merged Bot Playtest + Live Match Setup) */}
-            <div className="space-y-2.5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-600">
-                  <span className="font-semibold text-zinc-900">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-zinc-600">
+                  <span className="font-bold text-zinc-900">
                     AI Bot Opponents ({botCount} {botCount === 1 ? 'Seat' : 'Seats'})
                   </span>
                   <span className="text-zinc-300" aria-hidden="true">·</span>
@@ -1759,9 +1807,9 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                   <button
                     type="button"
                     onClick={handleMirrorUserDeckToAllBots}
-                    className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs sm:text-sm font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <Copy className="h-3 w-3" />
+                    <Copy className="h-3.5 w-3.5" />
                     {botCount > 1 ? 'Mirror Your Deck to All Bots' : 'Mirror Your Deck'}
                   </button>
 
@@ -1776,7 +1824,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                             setAllModeBotsIntelligence(e.target.value as BotIntelligenceLevel);
                           }
                         }}
-                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-800 focus:border-sky-600 focus:outline-none cursor-pointer"
+                        className="min-h-[38px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-zinc-800 focus:border-sky-600 focus:outline-none cursor-pointer"
                       >
                         {sharedModeIntelligence === 'mixed' && (
                           <option value="mixed" disabled>
@@ -1799,7 +1847,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                             setAllModeBotsIndignance(e.target.value as BotIndignanceLevel);
                           }
                         }}
-                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-800 focus:border-sky-600 focus:outline-none cursor-pointer"
+                        className="min-h-[38px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-zinc-800 focus:border-sky-600 focus:outline-none cursor-pointer"
                       >
                         {sharedModeIndignance === 'mixed' && (
                           <option value="mixed" disabled>
@@ -1818,9 +1866,9 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
               </div>
 
               <div
-                className={`grid grid-cols-1 gap-3 ${
+                className={`grid grid-cols-1 gap-3.5 ${
                   botCount === 1
-                    ? 'md:grid-cols-1 max-w-xl'
+                    ? 'md:grid-cols-1 max-w-2xl'
                     : botCount === 2
                     ? 'md:grid-cols-2'
                     : 'md:grid-cols-3'
@@ -1840,12 +1888,12 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                   return (
                     <div
                       key={opp.id}
-                      className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-3 space-y-2.5"
+                      className="rounded-xl border border-zinc-200 bg-zinc-50/60 p-3.5 sm:p-4 space-y-3"
                     >
                       {/* Top Header: Seat Badge, Editable Name, IQ & Brain Inspector */}
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className="font-mono text-[11px] font-bold text-zinc-500 shrink-0">
+                          <span className="font-mono text-xs font-bold text-zinc-600 shrink-0">
                             Seat {idx + 2}
                           </span>
                           <input
@@ -1853,11 +1901,11 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                             value={opp.name}
                             onChange={(e) => updateOpponent(idx, { name: e.target.value })}
                             aria-label={`Opponent ${idx + 1} name`}
-                            className="w-full max-w-[140px] rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-semibold text-zinc-900 focus:border-sky-600 focus:outline-none"
+                            className="min-h-[38px] w-full max-w-[160px] rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm font-semibold text-zinc-900 focus:border-sky-600 focus:outline-none"
                           />
                         </div>
 
-                        <div className="flex items-center gap-1.5 text-[11px] shrink-0">
+                        <div className="flex items-center gap-2 text-xs shrink-0">
                           <span className="font-mono font-semibold text-sky-900 tabular-nums">
                             IQ {profile.botIqScore}
                           </span>
@@ -1870,20 +1918,20 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                             onClick={() =>
                               setExpandedBrainKey(isBrainOpen ? null : `${opp.id}:${botKey}`)
                             }
-                            className="inline-flex items-center gap-1 rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer whitespace-nowrap"
+                            className="inline-flex min-h-[32px] items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer whitespace-nowrap"
                           >
-                            <Brain className="h-3 w-3 text-sky-700" />
+                            <Brain className="h-3.5 w-3.5 text-sky-700" />
                             <span>{isBrainOpen ? 'Hide' : `Brain (${totalLessons})`}</span>
                           </button>
                         </div>
                       </div>
 
                       {/* Compact 3-Control Setup Grid: Deck Archetype, AI Skill, Playstyle */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         <div className="sm:col-span-2">
                           <label
                             htmlFor={`bot-arch-${opp.id}`}
-                            className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
+                            className="block text-xs font-semibold text-zinc-700 mb-1"
                           >
                             Bot Deck
                           </label>
@@ -1898,7 +1946,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                                 updateOpponent(idx, { archetype: val });
                               }
                             }}
-                            className="mt-0.5 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
+                            className="min-h-[38px] w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-sky-600 focus:outline-none"
                           >
                             <option value="__MIRROR_USER_DECK__">
                               Mirror Your Deck ({effectiveUserDeck.commanderNames[0] || analysis.deckName || 'Your List'})
@@ -1914,7 +1962,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                         <div>
                           <label
                             htmlFor={`bot-skill-${opp.id}`}
-                            className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
+                            className="block text-xs font-semibold text-zinc-700 mb-1"
                           >
                             AI Skill
                           </label>
@@ -1927,7 +1975,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                               })
                             }
                             title={intelligenceMeta.description}
-                            className="mt-0.5 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
+                            className="min-h-[38px] w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-2 text-xs sm:text-sm font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
                           >
                             {BOT_INTELLIGENCE_OPTIONS.map((opt) => (
                               <option key={opt.id} value={opt.id}>
@@ -1940,7 +1988,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                         <div>
                           <label
                             htmlFor={`bot-style-${opp.id}`}
-                            className="block text-[10px] font-semibold uppercase tracking-wider text-zinc-500"
+                            className="block text-xs font-semibold text-zinc-700 mb-1"
                           >
                             Playstyle
                           </label>
@@ -1953,7 +2001,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                               })
                             }
                             title={indignanceMeta.description}
-                            className="mt-0.5 w-full rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-xs font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
+                            className="min-h-[38px] w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-2 text-xs sm:text-sm font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
                           >
                             {BOT_INDIGNANCE_OPTIONS.map((opt) => (
                               <option key={opt.id} value={opt.id}>
@@ -1965,8 +2013,8 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                       </div>
 
                       {isBrainOpen && (
-                        <div className="rounded-lg border border-zinc-200 bg-white p-2.5 space-y-2 text-[11px]">
-                          <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-1.5">
+                        <div className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2.5 text-xs">
+                          <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-2">
                             <span className="font-bold text-zinc-900">
                               Adaptive Memory · {opp.name}
                             </span>
@@ -1974,16 +2022,16 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                               <button
                                 type="button"
                                 onClick={() => onResetBotMemory(botKey)}
-                                className="inline-flex items-center gap-1 text-red-700 hover:text-red-900 font-medium cursor-pointer"
+                                className="inline-flex min-h-[28px] items-center gap-1 rounded px-2 text-xs text-red-700 hover:bg-red-50 font-semibold cursor-pointer"
                               >
-                                <Trash2 className="h-3 w-3" />
+                                <Trash2 className="h-3.5 w-3.5" />
                                 Reset
                               </button>
                             ) : null}
                           </div>
 
                           {profile.matchesPlayed > 0 && (
-                            <div className="rounded border border-zinc-100 bg-zinc-50 px-2 py-1.5 font-mono text-[10px] tabular-nums text-zinc-600">
+                            <div className="rounded border border-zinc-100 bg-zinc-50 px-2.5 py-2 font-mono text-xs tabular-nums text-zinc-600">
                               <div className="flex flex-wrap items-center justify-between gap-1 text-zinc-800 font-semibold">
                                 <span>
                                   Record: {profile.wins}W-{profile.losses}L-{profile.closes}C (
@@ -1997,7 +2045,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                           {profile.tacticalDirectives.length > 0 && (
                             <div>
                               <div className="font-semibold text-zinc-700">Tactical Directives:</div>
-                              <ul className="mt-0.5 list-disc list-inside space-y-0.5 text-zinc-600">
+                              <ul className="mt-1 list-disc list-inside space-y-1 text-zinc-600">
                                 {profile.tacticalDirectives.slice(0, 4).map((d, i) => (
                                   <li key={i}>{d}</li>
                                 ))}
@@ -2008,7 +2056,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                           {profile.learnedFromFacedDecks.length > 0 && (
                             <div>
                               <div className="font-semibold text-zinc-700">Learned Matchup Notes:</div>
-                              <ul className="mt-0.5 list-disc list-inside space-y-0.5 text-zinc-600">
+                              <ul className="mt-1 list-disc list-inside space-y-1 text-zinc-600">
                                 {profile.learnedFromFacedDecks.slice(0, 2).map((d, i) => (
                                   <li key={i}>{d}</li>
                                 ))}
@@ -2022,7 +2070,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                             </p>
                           )}
 
-                          <div className="flex items-center gap-1.5 pt-1 border-t border-zinc-100">
+                          <div className="flex items-center gap-2 pt-2 border-t border-zinc-100">
                             <input
                               type="text"
                               value={inlineCoachTextByKey[botKey] || ''}
@@ -2033,13 +2081,13 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                                 }))
                               }
                               placeholder="Teach rule (e.g. Hold counter for my commander)..."
-                              className="flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] text-zinc-900 focus:border-sky-600 focus:outline-none"
+                              className="min-h-[36px] flex-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
                             />
                             <button
                               type="button"
                               onClick={() => handleInlineAddDirective(opp)}
                               disabled={!(inlineCoachTextByKey[botKey] || '').trim()}
-                              className="rounded bg-sky-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer"
+                              className="min-h-[36px] rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer shrink-0"
                             >
                               Train
                             </button>
@@ -2084,12 +2132,12 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                         );
 
                         return (
-                          <div className="space-y-1.5 rounded-md border border-zinc-200 bg-white p-2">
-                            <div className="flex flex-wrap items-center justify-between gap-1">
-                              <span className="text-[10px] font-semibold text-zinc-700">
+                          <div className="space-y-2 rounded-lg border border-zinc-200 bg-white p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-xs font-semibold text-zinc-700">
                                 Custom Decklist ({botTotalQty} cards)
                               </span>
-                              <div className="flex flex-wrap items-center gap-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
                                 <button
                                   type="button"
                                   onClick={() =>
@@ -2097,15 +2145,15 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                                       updateOpponent(idx, { customDeckText: text })
                                     )
                                   }
-                                  className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                                  className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
                                 >
-                                  <ClipboardPaste className="h-2.5 w-2.5 text-sky-700" />
+                                  <ClipboardPaste className="h-3.5 w-3.5 text-sky-700" />
                                   <span>Paste</span>
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleLoadUserDeckIntoBot(idx, 'original')}
-                                  className="rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer"
+                                  className="min-h-[32px] rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer"
                                 >
                                   Your List
                                 </button>
@@ -2113,7 +2161,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                                   <button
                                     type="button"
                                     onClick={() => updateOpponent(idx, { customDeckText: '' })}
-                                    className="rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 hover:bg-zinc-100 cursor-pointer"
+                                    className="min-h-[32px] rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 hover:bg-zinc-100 cursor-pointer"
                                   >
                                     Clear
                                   </button>
@@ -2128,7 +2176,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                                 updateOpponent(idx, { customDeckText: e.target.value })
                               }
                               placeholder="Paste Commander or 60-card decklist..."
-                              className="w-full rounded-md border border-zinc-300 bg-white p-2 font-mono text-[11px] leading-snug text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
+                              className="w-full rounded-lg border border-zinc-300 bg-white p-2.5 font-mono text-xs leading-snug text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
                             />
 
                             {botCandidates.length > 0 && (
@@ -2153,7 +2201,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                                     ),
                                   });
                                 }}
-                                className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
+                                className="min-h-[36px] w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs sm:text-sm font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
                               >
                                 <option value="">
                                   {botCmds.length > 0
@@ -3126,16 +3174,16 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                       <button
                         type="button"
                         onClick={() => openTutorial('learning')}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 whitespace-nowrap shrink-0 cursor-pointer"
+                        className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3.5 py-2 text-xs sm:text-sm font-semibold text-sky-900 hover:bg-sky-100 whitespace-nowrap shrink-0 cursor-pointer"
                       >
-                        <BookOpen className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                        <BookOpen className="h-4 w-4 text-sky-700 shrink-0" />
                         How Bot Learning Works
                       </button>
                       {!autoLearnEnabled && (
                         <button
                           type="button"
                           onClick={() => window.dispatchEvent(new Event('umbras:open-desktop-modal'))}
-                          className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 whitespace-nowrap shrink-0 cursor-pointer"
+                          className="min-h-[38px] rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-zinc-700 hover:bg-zinc-50 whitespace-nowrap shrink-0 cursor-pointer"
                         >
                           Enable Auto-Learn in AI Settings
                         </button>
@@ -3156,12 +3204,12 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                         return (
                           <div
                             key={`${bl.botName}-${idx}`}
-                            className="rounded-lg border border-zinc-200 bg-zinc-50/70 p-4 space-y-2.5 text-xs"
+                            className="rounded-lg border border-zinc-200 bg-zinc-50/70 p-4 space-y-2.5 text-xs sm:text-sm"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span className="font-bold text-zinc-900">{bl.botName}</span>
                               {profile && (
-                                <span className="rounded bg-sky-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-sky-900">
+                                <span className="font-mono text-xs font-semibold text-sky-900 tabular-nums">
                                   IQ {profile.botIqScore}
                                 </span>
                               )}
@@ -3180,7 +3228,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                                 <span className="font-semibold text-sky-900">New Rule:</span>{' '}
                                 {bl.tacticalAdjustment}
                               </div>
-                              <div className="text-[11px] text-zinc-500 pt-1 border-t border-zinc-200">
+                              <div className="text-xs text-zinc-500 pt-1.5 border-t border-zinc-200">
                                 {bl.adaptationSummary}
                               </div>
                             </div>
@@ -3191,9 +3239,9 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                   )}
 
                   {/* Interactive User Coaching Form */}
-                  <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-4 space-y-4">
+                  <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-4 sm:p-5 space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-zinc-900">
+                      <div className="flex items-center gap-2 text-sm font-bold text-zinc-900">
                         <MessageSquarePlus className="h-4 w-4 text-sky-700" />
                         Coach an AI Bot With Your Input
                       </div>
@@ -3201,7 +3249,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                       <div className="flex items-center gap-2">
                         <label
                           htmlFor="coach-bot-select"
-                          className="text-xs font-medium text-zinc-600"
+                          className="text-xs sm:text-sm font-medium text-zinc-700"
                         >
                           Target Bot:
                         </label>
@@ -3209,7 +3257,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                           id="coach-bot-select"
                           value={selectedCoachBotIdx}
                           onChange={(e) => setSelectedCoachBotIdx(Number(e.target.value))}
-                          className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-900 focus:border-sky-600 focus:outline-none cursor-pointer"
+                          className="min-h-[38px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-semibold text-zinc-900 focus:border-sky-600 focus:outline-none cursor-pointer"
                         >
                           {visibleOpponents.map((opp, idx) => (
                             <option key={opp.id} value={idx}>
@@ -3221,51 +3269,51 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                     </div>
 
                     {/* Bot Performance Rating */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-medium text-zinc-600 mr-1">
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <span className="text-xs sm:text-sm font-medium text-zinc-700 mr-1">
                         Rate bot play this match:
                       </span>
                       <button
                         type="button"
                         onClick={() => setCoachRating('strong')}
-                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer ${
+                        className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-semibold cursor-pointer ${
                           coachRating === 'strong'
                             ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
                             : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'
                         }`}
                       >
-                        <ThumbsUp className="h-3.5 w-3.5" />
+                        <ThumbsUp className="h-4 w-4" />
                         Strong Tactical Play
                       </button>
                       <button
                         type="button"
                         onClick={() => setCoachRating('needs-adjustment')}
-                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer ${
+                        className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-semibold cursor-pointer ${
                           coachRating === 'needs-adjustment'
                             ? 'border-amber-300 bg-amber-50 text-amber-900'
                             : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'
                         }`}
                       >
-                        <Wrench className="h-3.5 w-3.5" />
+                        <Wrench className="h-4 w-4" />
                         Needs Adjustment
                       </button>
                       <button
                         type="button"
                         onClick={() => setCoachRating('mistake')}
-                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer ${
+                        className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs sm:text-sm font-semibold cursor-pointer ${
                           coachRating === 'mistake'
                             ? 'border-red-300 bg-red-50 text-red-900'
                             : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'
                         }`}
                       >
-                        <ThumbsDown className="h-3.5 w-3.5" />
+                        <ThumbsDown className="h-4 w-4" />
                         Tactical Mistake
                       </button>
                     </div>
 
                     {/* Quick Coaching Directive Buttons */}
-                    <div className="space-y-1.5">
-                      <div className="text-xs font-medium text-zinc-600">
+                    <div className="space-y-2">
+                      <div className="text-xs sm:text-sm font-medium text-zinc-700">
                         Select lessons to reinforce (optional):
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -3276,13 +3324,13 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                               key={tag}
                               type="button"
                               onClick={() => handleToggleCoachTag(tag)}
-                              className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                              className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
                                 active
                                   ? 'border-sky-700 bg-sky-700 text-white'
                                   : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-100'
                               }`}
                             >
-                              {active && <Check className="h-3 w-3" />}
+                              {active && <Check className="h-3.5 w-3.5" />}
                               <span>{tag}</span>
                             </button>
                           );
@@ -3291,7 +3339,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                     </div>
 
                     {/* Custom Coaching Directive Input */}
-                    <div className="flex flex-col gap-2 sm:flex-row">
+                    <div className="flex flex-col gap-2.5 sm:flex-row">
                       <input
                         type="text"
                         value={coachCustomNote}
@@ -3299,13 +3347,13 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                         maxLength={240}
                         placeholder="Give specific advice (e.g. 'Hold countermagic for my Commander on Turn 4 instead of tapping out')..."
                         aria-label="Custom bot coaching instruction"
-                        className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
+                        className="min-h-[42px] flex-1 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
                       />
                       <button
                         type="button"
                         disabled={coachTags.length === 0 && !coachCustomNote.trim()}
                         onClick={() => handleSubmitPostMatchCoaching(false)}
-                        className="rounded-lg border border-sky-700 bg-white px-3.5 py-2 text-xs font-semibold text-sky-800 hover:bg-sky-50 disabled:opacity-40 cursor-pointer whitespace-nowrap"
+                        className="min-h-[42px] rounded-lg border border-sky-700 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-sky-800 hover:bg-sky-50 disabled:opacity-40 cursor-pointer whitespace-nowrap"
                       >
                         Save Coaching
                       </button>
@@ -3315,7 +3363,7 @@ export const PlaytestArena: React.FC<PlaytestArenaProps> = ({
                           loading || (coachTags.length === 0 && !coachCustomNote.trim())
                         }
                         onClick={() => handleSubmitPostMatchCoaching(true)}
-                        className="rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer whitespace-nowrap"
+                        className="min-h-[42px] rounded-lg bg-sky-700 px-5 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer whitespace-nowrap"
                       >
                         Save Training &amp; Rematch
                       </button>

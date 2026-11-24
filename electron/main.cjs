@@ -11,17 +11,52 @@ let serverProcess = null;
 let activePort = 0;
 let activeServerUrl = '';
 
-function findFreePort() {
-  return new Promise((resolve, reject) => {
+function canBindPortOnAllInterfaces(port) {
+  return new Promise((resolve) => {
     const srv = net.createServer();
     srv.unref();
-    srv.on('error', reject);
-    srv.listen(0, '127.0.0.1', () => {
+    srv.once('error', () => resolve(null));
+    srv.listen(port, '0.0.0.0', () => {
       const addr = srv.address();
-      const port = typeof addr === 'object' && addr ? addr.port : 34567;
-      srv.close(() => resolve(port));
+      const boundPort = typeof addr === 'object' && addr ? addr.port : port;
+      srv.close(() => resolve(boundPort));
     });
   });
+}
+
+function isUmbrasHealthReady(port, timeoutMs = 600) {
+  return new Promise((resolve) => {
+    const req = http.get(`http://127.0.0.1:${port}/api/health`, (res) => {
+      resolve(res.statusCode === 200);
+    });
+    req.on('error', () => resolve(false));
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.end();
+  });
+}
+
+async function resolvePreferredServerPort(preferredPort = 3000) {
+  // 1. Prefer TCP 3000 on 0.0.0.0 so router port-forwarding rules work automatically
+  const boundPreferred = await canBindPortOnAllInterfaces(preferredPort);
+  if (boundPreferred) {
+    return boundPreferred;
+  }
+
+  // 2. If Umbra's Pass is already listening on preferredPort, reuse it
+  const alreadyHealthy = await isUmbrasHealthReady(preferredPort);
+  if (alreadyHealthy) {
+    return preferredPort;
+  }
+
+  // 3. Fall back cleanly to an ephemeral port on 0.0.0.0 if another service holds 3000
+  const fallbackPort = await canBindPortOnAllInterfaces(0);
+  if (fallbackPort) {
+    return fallbackPort;
+  }
+  return preferredPort;
 }
 
 let recentServerLogs = [];
@@ -121,7 +156,7 @@ async function startInternalServer(port) {
       env: {
         ...process.env,
         PORT: String(port),
-        HOST: '127.0.0.1',
+        HOST: process.env.HOST || '0.0.0.0',
         NODE_ENV: 'production',
         UMBRAS_DESKTOP: '1',
         UMBRAS_APP_VERSION: app.getVersion(),
@@ -402,7 +437,9 @@ if (!singleInstanceLock) {
   app.whenReady().then(async () => {
     registerIpcHandlers();
 
-    activePort = process.env.PORT ? Number(process.env.PORT) : await findFreePort();
+    activePort = process.env.PORT
+      ? Number(process.env.PORT)
+      : await resolvePreferredServerPort(3000);
     activeServerUrl = `http://127.0.0.1:${activePort}`;
 
     try {

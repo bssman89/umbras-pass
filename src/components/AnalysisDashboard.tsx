@@ -617,7 +617,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
   ];
 
   return (
-    <div className="mx-auto max-w-[1360px] space-y-8 px-6 py-7">
+    <div className="mx-auto max-w-[1440px] space-y-8 px-5 sm:px-8 py-7">
       {/* Header & Deck Identity */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
@@ -781,16 +781,16 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
           <button
             type="button"
             onClick={onSaveSnapshot}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
           >
             {justSavedSnapshot ? (
               <>
-                <Check className="h-3.5 w-3.5 text-emerald-700" />
+                <Check className="h-4 w-4 text-emerald-700" />
                 <span className="text-emerald-700">Saved Snapshot</span>
               </>
             ) : (
               <>
-                <Save className="h-3.5 w-3.5" />
+                <Save className="h-4 w-4 text-zinc-600" />
                 Save Snapshot
               </>
             )}
@@ -798,9 +798,9 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
           <button
             type="button"
             onClick={onOpenHistory}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
           >
-            <History className="h-3.5 w-3.5 text-sky-700" />
+            <History className="h-4 w-4 text-sky-700" />
             Version History ({versionCount})
           </button>
         </div>
@@ -864,14 +864,14 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
       {/* Section Quick-Jump Bar */}
       <nav
         aria-label="Report sections"
-        className="grid grid-cols-2 gap-1 rounded-xl border border-zinc-200 bg-white p-2 sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-center lg:justify-between"
+        className="grid grid-cols-2 gap-1.5 rounded-xl border border-zinc-200 bg-white p-2 sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-center lg:justify-between"
       >
         {sectionAnchors.map((sec) => (
           <button
             key={sec.id}
             type="button"
             onClick={() => jumpToSection(sec.id)}
-            className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex min-h-[40px] items-center justify-center rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <span>{sec.label}</span>
           </button>
@@ -912,12 +912,12 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
         aria-label="Deck Summary"
         className="grid grid-cols-2 divide-y divide-zinc-100 rounded-xl border border-zinc-200 bg-white sm:grid-cols-3 lg:grid-cols-6 lg:divide-y-0 sm:divide-x"
       >
-        <div className="px-4 py-3.5">
-          <div className="text-[11px] font-medium text-zinc-500">Updated Cards</div>
-          <div className="mt-0.5 font-mono text-xl font-bold tabular-nums text-zinc-900">
+        <div className="px-4 py-4">
+          <div className="text-xs font-medium text-zinc-500">Updated Cards</div>
+          <div className="mt-1 font-mono text-xl font-bold tabular-nums text-zinc-900">
             {optimizedExport.totalMainCount}
           </div>
-          <div className="mt-0.5 text-[11px] font-mono tabular-nums text-zinc-500">
+          <div className="mt-0.5 text-xs font-mono tabular-nums text-zinc-500">
             {importedChangedSize
               ? `Imported ${summaryStats.totalCards} → ${metrics.targetDeckSize}`
               : metrics.sideboardCount > 0
@@ -926,56 +926,56 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
           </div>
         </div>
 
-        <div className="px-4 py-3.5">
-          <div className="text-[11px] font-medium text-zinc-500">Avg. Spell Cost</div>
-          <div className="mt-0.5 font-mono text-xl font-bold tabular-nums text-sky-700">
+        <div className="px-4 py-4">
+          <div className="text-xs font-medium text-zinc-500">Avg. Spell Cost</div>
+          <div className="mt-1 font-mono text-xl font-bold tabular-nums text-sky-700">
             {metrics.averageCmcNonLand.toFixed(2)}
           </div>
-          <div className="mt-0.5 text-[11px] font-mono tabular-nums text-zinc-500">
+          <div className="mt-0.5 text-xs font-mono tabular-nums text-zinc-500">
             {metrics.averageCmcWithLands.toFixed(2)} with lands
           </div>
         </div>
 
-        <div className="px-4 py-3.5">
-          <div className="text-[11px] font-medium text-zinc-500">Lands vs. Spells</div>
-          <div className="mt-0.5 font-mono text-xl font-bold tabular-nums text-zinc-900">
+        <div className="px-4 py-4">
+          <div className="text-xs font-medium text-zinc-500">Lands vs. Spells</div>
+          <div className="mt-1 font-mono text-xl font-bold tabular-nums text-zinc-900">
             {summaryStats.landCount} : {summaryStats.spellCount}
           </div>
-          <div className="mt-0.5 text-[11px] font-mono tabular-nums text-zinc-500">
+          <div className="mt-0.5 text-xs font-mono tabular-nums text-zinc-500">
             {summaryStats.landPct}% lands · {summaryStats.spellPct}% spells
           </div>
         </div>
 
-        <div className="px-4 py-3.5">
-          <div className="text-[11px] font-medium text-zinc-500">Curve Peak</div>
-          <div className="mt-0.5 font-mono text-xl font-bold tabular-nums text-zinc-900">
+        <div className="px-4 py-4">
+          <div className="text-xs font-medium text-zinc-500">Curve Peak</div>
+          <div className="mt-1 font-mono text-xl font-bold tabular-nums text-zinc-900">
             {summaryStats.peakCurveLabel}
           </div>
-          <div className="mt-0.5 text-[11px] font-mono tabular-nums text-zinc-500">
+          <div className="mt-0.5 text-xs font-mono tabular-nums text-zinc-500">
             {summaryStats.peakCurveCount > 0
               ? `${summaryStats.peakCurveCount} spells at peak`
               : 'No spell data'}
           </div>
         </div>
 
-        <div className="px-4 py-3.5">
-          <div className="text-[11px] font-medium text-zinc-500">Color Identity</div>
-          <div className="mt-0.5 font-mono text-lg font-bold tabular-nums text-zinc-900 truncate">
+        <div className="px-4 py-4">
+          <div className="text-xs font-medium text-zinc-500">Color Identity</div>
+          <div className="mt-1 font-mono text-lg font-bold tabular-nums text-zinc-900 truncate">
             {summaryStats.colorsLabel}
           </div>
-          <div className="mt-0.5 text-[11px] text-zinc-500">
+          <div className="mt-0.5 text-xs text-zinc-500">
             {summaryStats.colorCount === 0
               ? 'Colorless build'
               : `${summaryStats.colorCount}-color deck`}
           </div>
         </div>
 
-        <div className="px-4 py-3.5">
-          <div className="text-[11px] font-medium text-zinc-500">Core Support</div>
-          <div className="mt-0.5 font-mono text-xl font-bold tabular-nums text-zinc-900">
+        <div className="px-4 py-4">
+          <div className="text-xs font-medium text-zinc-500">Core Support</div>
+          <div className="mt-1 font-mono text-xl font-bold tabular-nums text-zinc-900">
             {summaryStats.coreEngineTotal}
           </div>
-          <div className="mt-0.5 text-[11px] font-mono tabular-nums text-zinc-500">
+          <div className="mt-0.5 text-xs font-mono tabular-nums text-zinc-500">
             {metrics.currentRamp} Ramp · {metrics.currentDraw} Draw · {metrics.currentRemoval} Removal
           </div>
         </div>
@@ -1042,21 +1042,21 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
           <div
             role="tablist"
             aria-label="Balance, Synergy and Metrics views"
-            className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-100 p-1 shrink-0"
+            className="inline-flex flex-wrap items-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-100 p-1.5 shrink-0"
           >
             <button
               type="button"
               role="tab"
               aria-selected={balanceMetricsTab === 'balance'}
               onClick={() => setBalanceMetricsTab('balance')}
-              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex min-h-[40px] items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 balanceMetricsTab === 'balance'
                   ? 'bg-white text-zinc-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               <span>Deck Balance</span>
-              <span className="font-mono text-[11px] font-normal tabular-nums text-zinc-500">
+              <span className="font-mono text-xs font-normal tabular-nums text-zinc-500">
                 {metrics.averageCmcNonLand.toFixed(2)} MV
               </span>
             </button>
@@ -1065,14 +1065,14 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
               role="tab"
               aria-selected={balanceMetricsTab === 'metrics'}
               onClick={() => setBalanceMetricsTab('metrics')}
-              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex min-h-[40px] items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 balanceMetricsTab === 'metrics'
                   ? 'bg-white text-zinc-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               <span>Deep Metrics</span>
-              <span className="font-mono text-[11px] font-normal tabular-nums text-zinc-500">
+              <span className="font-mono text-xs font-normal tabular-nums text-zinc-500">
                 {summaryStats.spellCount} spells
               </span>
             </button>
@@ -1081,7 +1081,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
               role="tab"
               aria-selected={balanceMetricsTab === 'synergy'}
               onClick={() => setBalanceMetricsTab('synergy')}
-              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex min-h-[40px] items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 balanceMetricsTab === 'synergy'
                   ? 'bg-white text-zinc-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
@@ -1089,7 +1089,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
             >
               <span>Synergy &amp; Colors</span>
               {auditExtraSwaps.length > 0 && (
-                <span className="font-mono text-[11px] font-normal tabular-nums text-sky-700">
+                <span className="font-mono text-xs font-normal tabular-nums text-sky-700">
                   +{auditExtraSwaps.length} fix{auditExtraSwaps.length === 1 ? '' : 'es'}
                 </span>
               )}
@@ -1290,21 +1290,21 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
           <div
             role="tablist"
             aria-label="Mana and Lands, Card Changes, and Optimized List views"
-            className="inline-flex flex-wrap items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-100 p-1 shrink-0"
+            className="inline-flex flex-wrap items-center gap-1.5 rounded-xl border border-zinc-200 bg-zinc-100 p-1.5 shrink-0"
           >
             <button
               type="button"
               role="tab"
               aria-selected={tuningExportTab === 'mana'}
               onClick={() => setTuningExportTab('mana')}
-              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex min-h-[40px] items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 tuningExportTab === 'mana'
                   ? 'bg-white text-zinc-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               <span>Mana &amp; Lands</span>
-              <span className="font-mono text-[11px] font-normal tabular-nums text-zinc-500">
+              <span className="font-mono text-xs font-normal tabular-nums text-zinc-500">
                 {metrics.currentLands}→{metrics.recommendedLands}
               </span>
             </button>
@@ -1313,14 +1313,14 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
               role="tab"
               aria-selected={tuningExportTab === 'changes'}
               onClick={() => setTuningExportTab('changes')}
-              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex min-h-[40px] items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 tuningExportTab === 'changes'
                   ? 'bg-white text-zinc-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
               <span>Card Changes</span>
-              <span className="font-mono text-[11px] font-normal tabular-nums text-zinc-500">
+              <span className="font-mono text-xs font-normal tabular-nums text-zinc-500">
                 {selectedSuggestedChanges}/{totalSuggestedChanges}
               </span>
             </button>
@@ -1329,7 +1329,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
               role="tab"
               aria-selected={tuningExportTab === 'export'}
               onClick={() => setTuningExportTab('export')}
-              className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex min-h-[40px] items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 tuningExportTab === 'export'
                   ? 'bg-white text-zinc-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
@@ -1337,7 +1337,7 @@ export const AnalysisDashboard: React.FC<AnalysisDashboardProps> = ({
             >
               <span>Optimized List</span>
               <span
-                className={`font-mono text-[11px] font-normal tabular-nums ${
+                className={`font-mono text-xs font-normal tabular-nums ${
                   activeDeckDelta === 0 ? 'text-emerald-700' : 'text-amber-700'
                 }`}
               >

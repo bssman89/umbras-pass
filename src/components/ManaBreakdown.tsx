@@ -475,7 +475,7 @@ export const ManaBreakdown: React.FC<ManaBreakdownProps> = ({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2.5 shrink-0">
               {onSelectAllLandChanges && (
                 <button
                   type="button"
@@ -484,7 +484,7 @@ export const ManaBreakdown: React.FC<ManaBreakdownProps> = ({
                       selectedLandChangeIds.size < safeLandChanges.length
                     )
                   }
-                  className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap"
+                  className="inline-flex min-h-[38px] items-center rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   {selectedLandChangeIds.size === safeLandChanges.length
                     ? 'Clear All'
@@ -496,11 +496,11 @@ export const ManaBreakdown: React.FC<ManaBreakdownProps> = ({
                 <button
                   type="button"
                   onClick={onSyncManaToPlaytest}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap"
+                  className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   {isPlaytestManaSynced && selectedLandChangeIds.size > 0 ? (
                     <>
-                      <Check className="h-3.5 w-3.5" />
+                      <Check className="h-4 w-4 shrink-0" />
                       <span>Synced ({selectedLandChangeIds.size}) · Test in Playtest</span>
                     </>
                   ) : selectedLandChangeIds.size > 0 ? (
@@ -508,12 +508,12 @@ export const ManaBreakdown: React.FC<ManaBreakdownProps> = ({
                       <span>
                         Sync {selectedLandChangeIds.size} Fix{selectedLandChangeIds.size === 1 ? '' : 'es'} to Playtest
                       </span>
-                      <ArrowRight className="h-3.5 w-3.5" />
+                      <ArrowRight className="h-4 w-4 shrink-0" />
                     </>
                   ) : (
                     <>
                       <span>Apply All &amp; Test in Playtest</span>
-                      <ArrowRight className="h-3.5 w-3.5" />
+                      <ArrowRight className="h-4 w-4 shrink-0" />
                     </>
                   )}
                 </button>
@@ -536,13 +536,13 @@ export const ManaBreakdown: React.FC<ManaBreakdownProps> = ({
                       onClick={() => onToggleLandChange(item.id)}
                       aria-pressed={checked}
                       aria-label={`${checked ? 'Unselect' : 'Select'} ${item.action} ${item.cardName}`}
-                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors cursor-pointer ${
+                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors cursor-pointer ${
                         checked
                           ? 'border-sky-700 bg-sky-700 text-white'
                           : 'border-zinc-300 bg-white text-transparent hover:border-zinc-400'
                       }`}
                     >
-                      <Check className="h-3.5 w-3.5" />
+                      <Check className="h-4 w-4" />
                     </button>
 
                     <div>

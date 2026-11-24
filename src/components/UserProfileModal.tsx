@@ -205,7 +205,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close Account Modal"
-            className="rounded-lg border border-zinc-200 p-1.5 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 cursor-pointer shrink-0"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 cursor-pointer shrink-0"
           >
             <X className="h-4 w-4" />
           </button>
@@ -242,14 +242,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     resetModalTransientState();
                     onClose();
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <LogOut className="h-3.5 w-3.5" />
+                  <LogOut className="h-4 w-4 shrink-0" />
                   {activeLocalProfile.passcodeHash ? 'Lock & Sign Out' : 'Sign Out'}
                 </button>
               </div>
 
-              <label className="flex items-center gap-2 text-xs text-zinc-700 cursor-pointer select-none pt-1">
+              <label className="flex min-h-[36px] items-center gap-2.5 text-xs sm:text-sm text-zinc-700 cursor-pointer select-none pt-1">
                 <input
                   type="checkbox"
                   checked={keepSignedIn}
@@ -257,12 +257,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   onChange={(e) =>
                     onChangeAuthPersistence(e.target.checked ? 'local' : 'session')
                   }
-                  className="h-3.5 w-3.5 rounded border-zinc-300 accent-sky-600 cursor-pointer"
+                  className="h-4 w-4 rounded border-zinc-300 accent-sky-600 cursor-pointer"
                 />
                 <span>Keep me signed in on this device</span>
               </label>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-emerald-200 pt-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-emerald-200 pt-3">
                 <button
                   type="button"
                   onClick={() => {
@@ -270,9 +270,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     setErrorMsg(null);
                     setStatusMsg(null);
                   }}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-sky-700 hover:text-sky-800 cursor-pointer"
+                  className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-zinc-50 hover:text-sky-800 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <KeyRound className="h-3.5 w-3.5" />
+                  <KeyRound className="h-4 w-4 shrink-0" />
                   {activeLocalProfile.passcodeHash
                     ? 'Change or Remove Passcode'
                     : 'Add Passcode Lock'}
@@ -282,7 +282,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   type="button"
                   disabled={busy}
                   onClick={() => setConfirmDeleteOpen((v) => !v)}
-                  className="text-[11px] font-medium text-zinc-500 hover:text-red-700 cursor-pointer"
+                  className="inline-flex min-h-[36px] items-center rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-600 hover:bg-red-50 hover:text-red-700 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   Delete profile &amp; saved decks
                 </button>
@@ -291,11 +291,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               {showPasscodeEditor && (
                 <form
                   onSubmit={(e) => void handlePasscodeSave(e)}
-                  className="rounded-lg border border-zinc-200 bg-white p-3 space-y-2.5 text-xs"
+                  className="rounded-lg border border-zinc-200 bg-white p-3.5 space-y-3 text-xs"
                 >
                   {activeLocalProfile.passcodeHash && (
                     <div>
-                      <label className="block text-[11px] font-medium text-zinc-600 mb-1">
+                      <label className="block text-xs font-medium text-zinc-600 mb-1">
                         Current Passcode
                       </label>
                       <input
@@ -304,12 +304,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         value={currentPasscodeInput}
                         onChange={(e) => setCurrentPasscodeInput(e.target.value)}
                         placeholder="Enter current passcode"
-                        className="w-full rounded border border-zinc-300 bg-zinc-50 px-2.5 py-1.5 text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
+                        className="min-h-[38px] w-full rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-xs sm:text-sm text-zinc-900 focus:border-sky-600 focus:outline-none"
                       />
                     </div>
                   )}
                   <div>
-                    <label className="block text-[11px] font-medium text-zinc-600 mb-1">
+                    <label className="block text-xs font-medium text-zinc-600 mb-1">
                       {activeLocalProfile.passcodeHash
                         ? 'New Passcode (leave blank to remove lock)'
                         : 'New Passcode'}
@@ -324,21 +324,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                           ? 'New passcode or leave empty'
                           : 'Enter a passcode'
                       }
-                      className="w-full rounded border border-zinc-300 bg-zinc-50 px-2.5 py-1.5 text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
+                      className="min-h-[38px] w-full rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-xs sm:text-sm text-zinc-900 focus:border-sky-600 focus:outline-none"
                     />
                   </div>
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => setShowPasscodeEditor(false)}
-                      className="px-2.5 py-1 text-xs font-medium text-zinc-600 hover:text-zinc-900 cursor-pointer"
+                      className="inline-flex min-h-[38px] items-center rounded-lg border border-zinc-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer"
                     >
                       Cancel
                     </button>
                     <button
                       type="submit"
                       disabled={busy}
-                      className="rounded bg-sky-700 px-3 py-1 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer"
+                      className="inline-flex min-h-[38px] items-center rounded-lg bg-sky-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer"
                     >
                       Save Passcode
                     </button>
@@ -347,8 +347,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               )}
 
               {confirmDeleteOpen && (
-                <div className="rounded-lg border border-red-300 bg-red-50 p-3 space-y-2 text-xs">
-                  <p className="text-[11px] text-red-800 leading-relaxed">
+                <div className="rounded-lg border border-red-300 bg-red-50 p-3.5 space-y-2.5 text-xs">
+                  <p className="text-xs text-red-800 leading-relaxed">
                     This permanently deletes this profile, saved decks, and bot memory from this browser. Type{' '}
                     <code className="font-mono font-bold">DELETE</code> to confirm:
                   </p>
@@ -359,7 +359,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                       onChange={(e) => setDeleteConfirmText(e.target.value)}
                       placeholder="Type DELETE"
                       aria-label="Type DELETE to confirm profile deletion"
-                      className="flex-1 rounded border border-red-300 bg-white px-2.5 py-1.5 text-xs text-zinc-900 focus:border-red-600 focus:outline-none"
+                      className="min-h-[38px] flex-1 rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs sm:text-sm text-zinc-900 focus:border-red-600 focus:outline-none"
                     />
                     <button
                       type="button"
@@ -367,7 +367,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         busy || deleteConfirmText.trim().toUpperCase() !== 'DELETE'
                       }
                       onClick={handleConfirmDeleteAccount}
-                      className="rounded bg-red-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-40 cursor-pointer whitespace-nowrap"
+                      className="inline-flex min-h-[38px] items-center justify-center rounded-lg bg-red-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-red-800 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                     >
                       Delete Everything
                     </button>
@@ -393,7 +393,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             onSubmit={(e) => void handleCreateSubmit(e)}
             className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 space-y-3"
           >
-            <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            <div className="text-xs sm:text-sm font-bold text-zinc-700">
               Create Account / Profile
             </div>
 
@@ -405,7 +405,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 maxLength={40}
                 placeholder="Enter profile name"
                 aria-label="Profile name"
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
+                className="min-h-[40px] w-full rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs sm:text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
               />
               <input
                 type="password"
@@ -414,12 +414,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 maxLength={64}
                 placeholder="Optional passcode"
                 aria-label="Optional passcode"
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
+                className="min-h-[40px] w-full rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs sm:text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
               />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-              <label className="flex items-center gap-2 text-xs text-zinc-600 cursor-pointer select-none">
+              <label className="flex min-h-[36px] items-center gap-2.5 text-xs sm:text-sm text-zinc-600 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={keepSignedIn}
@@ -427,7 +427,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   onChange={(e) =>
                     onChangeAuthPersistence(e.target.checked ? 'local' : 'session')
                   }
-                  className="h-3.5 w-3.5 rounded border-zinc-300 accent-sky-600 cursor-pointer"
+                  className="h-4 w-4 rounded border-zinc-300 accent-sky-600 cursor-pointer"
                 />
                 <span>Keep me signed in on this device</span>
               </label>
@@ -435,9 +435,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <button
                 type="submit"
                 disabled={busy || !newProfileName.trim()}
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
               >
-                <UserPlus className="h-3.5 w-3.5" />
+                <UserPlus className="h-4 w-4 shrink-0" />
                 Create &amp; Sign In
               </button>
             </div>
@@ -446,7 +446,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           {/* Existing Profiles Switcher */}
           {savedLocalProfiles.length > 0 && (
             <div className="space-y-2.5">
-              <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              <div className="text-xs sm:text-sm font-bold text-zinc-700">
                 Sign In / Switch Profile
               </div>
 
@@ -458,7 +458,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   return (
                     <div
                       key={prof.id}
-                      className={`rounded-lg border px-3 py-2.5 space-y-2 ${
+                      className={`rounded-lg border px-3.5 py-3 space-y-2 ${
                         isCurrent
                           ? 'border-sky-600 bg-sky-50'
                           : 'border-zinc-200 bg-zinc-50'
@@ -469,21 +469,21 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                           type="button"
                           disabled={isCurrent || busy}
                           onClick={() => void handleSelectProfile(prof)}
-                          className="flex flex-1 items-center gap-2 text-left text-xs font-semibold text-zinc-900 cursor-pointer hover:text-sky-700 disabled:cursor-default"
+                          className="flex min-h-[36px] flex-1 items-center gap-2 text-left text-xs sm:text-sm font-semibold text-zinc-900 cursor-pointer hover:text-sky-700 disabled:cursor-default"
                         >
                           {prof.passcodeHash ? (
-                            <Lock className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
+                            <Lock className="h-4 w-4 text-emerald-700 shrink-0" />
                           ) : (
-                            <UserCheck className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                            <UserCheck className="h-4 w-4 text-sky-700 shrink-0" />
                           )}
                           <span>{prof.name}</span>
                           {prof.passcodeHash && !isCurrent && (
-                            <span className="text-[11px] font-normal text-zinc-500">
+                            <span className="text-xs font-normal text-zinc-500">
                               · Passcode required
                             </span>
                           )}
                           {isCurrent && (
-                            <span className="text-[11px] font-normal text-sky-700">
+                            <span className="text-xs font-normal text-sky-700">
                               · Signed in
                             </span>
                           )}
@@ -500,9 +500,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             }}
                             title={`Remove profile ${prof.name}`}
                             aria-label={`Delete profile ${prof.name}`}
-                            className="rounded p-1 text-zinc-500 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 hover:border-red-200 hover:bg-red-50 hover:text-red-700 cursor-pointer shrink-0"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         )}
                       </div>
@@ -520,9 +520,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                             onChange={(e) => setUnlockPasscode(e.target.value)}
                             placeholder={`Enter passcode for ${prof.name}`}
                             aria-label={`Enter passcode for ${prof.name}`}
-                            className="flex-1 rounded border border-zinc-300 bg-white px-2.5 py-1.5 text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
+                            className="min-h-[38px] flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm text-zinc-900 focus:border-sky-600 focus:outline-none"
                           />
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-2 shrink-0">
                             <button
                               type="button"
                               onClick={() => {
@@ -530,14 +530,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                                 setUnlockPasscode('');
                                 setErrorMsg(null);
                               }}
-                              className="px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:text-zinc-900 cursor-pointer"
+                              className="inline-flex min-h-[38px] items-center rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 cursor-pointer"
                             >
                               Cancel
                             </button>
                             <button
                               type="submit"
                               disabled={busy || !unlockPasscode}
-                              className="rounded bg-sky-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer"
+                              className="inline-flex min-h-[38px] items-center rounded-lg bg-sky-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer"
                             >
                               Unlock
                             </button>
@@ -563,7 +563,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 resetModalTransientState();
                 onClose();
               }}
-              className="text-xs font-semibold text-sky-700 hover:text-sky-800 cursor-pointer"
+              className="inline-flex min-h-[36px] items-center rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-zinc-100 hover:text-sky-800 cursor-pointer whitespace-nowrap"
             >
               New Guest Session
             </button>

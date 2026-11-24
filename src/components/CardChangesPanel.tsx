@@ -60,14 +60,14 @@ export const CardChangesPanel: React.FC<CardChangesPanelProps> = ({
         </div>
 
         {totalOptions > 0 && (
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-3 text-xs sm:text-sm">
             <span className="font-mono tabular-nums text-zinc-500">
               {totalSelected} of {totalOptions} selected
             </span>
             <button
               type="button"
               onClick={() => onSelectAllChanges(totalSelected < totalOptions)}
-              className="font-semibold text-sky-700 hover:text-sky-800 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[38px] items-center rounded-lg border border-zinc-300 bg-white px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-sky-700 hover:bg-zinc-50 hover:text-sky-800 cursor-pointer whitespace-nowrap shrink-0"
             >
               {totalSelected < totalOptions ? 'Select All' : 'Clear All'}
             </button>
@@ -102,13 +102,13 @@ export const CardChangesPanel: React.FC<CardChangesPanelProps> = ({
                       onClick={() => onToggleSwap(swap.id)}
                       aria-pressed={checked}
                       aria-label={`${checked ? 'Unselect' : 'Select'} swap ${swap.cutCardName} for ${swap.addCardName}`}
-                      className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors cursor-pointer ${
+                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors cursor-pointer ${
                         checked
                           ? 'border-sky-700 bg-sky-700 text-white'
                           : 'border-zinc-300 bg-white text-transparent hover:border-zinc-400'
                       }`}
                     >
-                      <Check className="h-3.5 w-3.5" />
+                      <Check className="h-4 w-4" />
                     </button>
 
                     <div className="flex-1 min-w-0">
@@ -193,13 +193,13 @@ export const CardChangesPanel: React.FC<CardChangesPanelProps> = ({
                       onClick={() => onToggleCut(cut.id)}
                       aria-pressed={checked}
                       aria-label={`${checked ? 'Unselect' : 'Select'} cut ${cut.cardName}`}
-                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors cursor-pointer ${
+                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors cursor-pointer ${
                         checked
                           ? 'border-sky-700 bg-sky-700 text-white'
                           : 'border-zinc-300 bg-white text-transparent hover:border-zinc-400'
                       }`}
                     >
-                      <Check className="h-3.5 w-3.5" />
+                      <Check className="h-4 w-4" />
                     </button>
 
                     <div className="flex-1 min-w-0">
@@ -253,13 +253,13 @@ export const CardChangesPanel: React.FC<CardChangesPanelProps> = ({
                       onClick={() => onToggleAdd(add.id)}
                       aria-pressed={checked}
                       aria-label={`${checked ? 'Unselect' : 'Select'} add ${add.cardName}`}
-                      className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors cursor-pointer ${
+                      className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border transition-colors cursor-pointer ${
                         checked
                           ? 'border-sky-700 bg-sky-700 text-white'
                           : 'border-zinc-300 bg-white text-transparent hover:border-zinc-400'
                       }`}
                     >
-                      <Check className="h-3.5 w-3.5" />
+                      <Check className="h-4 w-4" />
                     </button>
 
                     <div className="flex-1 min-w-0">

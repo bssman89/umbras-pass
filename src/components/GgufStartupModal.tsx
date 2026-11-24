@@ -15,6 +15,7 @@ import {
   X,
 } from 'lucide-react';
 import { copyTextToClipboard } from '../utils/clipboard';
+import { readJoinParamsFromWindowLocation } from '../utils/multiplayerInvite';
 
 const LEGACY_STARTUP_SEEN_KEY = 'umbras_gguf_onboarding_seen_v1';
 const STARTUP_DISABLED_KEY = 'umbras_welcome_startup_disabled_v1';
@@ -214,9 +215,9 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
     }
   }, []);
 
-  // One-time startup check (respects user's enable/disable preference)
+  // One-time startup check (respects user's enable/disable preference & skips on ?join= invite links)
   useEffect(() => {
-    if (isStartupWelcomeDisabled()) return;
+    if (readJoinParamsFromWindowLocation() || isStartupWelcomeDisabled()) return;
     let cancelled = false;
 
     void fetchStatus().then(() => {
@@ -376,7 +377,7 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
             type="button"
             onClick={handleClose}
             aria-label="Close welcome guide"
-            className="rounded-lg p-1.5 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 cursor-pointer"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 cursor-pointer shrink-0"
           >
             <X className="h-5 w-5" />
           </button>
@@ -407,20 +408,20 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
           <div
             role="tablist"
             aria-label="Local AI model installation methods"
-            className="flex items-center gap-1 rounded-lg bg-zinc-100 p-1"
+            className="flex items-center gap-1.5 rounded-xl bg-zinc-100 p-1.5"
           >
             <button
               type="button"
               role="tab"
               aria-selected={activeTab === 'auto'}
               onClick={() => setActiveTab('auto')}
-              className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+              className={`flex-1 inline-flex min-h-[40px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 activeTab === 'auto'
                   ? 'bg-white text-zinc-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
-              <Download className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+              <Download className="h-4 w-4 text-sky-700 shrink-0" />
               <span>Quick Auto-Install</span>
             </button>
             <button
@@ -428,13 +429,13 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
               role="tab"
               aria-selected={activeTab === 'manual'}
               onClick={() => setActiveTab('manual')}
-              className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer ${
+              className={`flex-1 inline-flex min-h-[40px] items-center justify-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 activeTab === 'manual'
                   ? 'bg-white text-zinc-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
-              <BookOpen className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+              <BookOpen className="h-4 w-4 text-sky-700 shrink-0" />
               <span>How to Install from HuggingFace.co</span>
             </button>
           </div>
@@ -465,12 +466,12 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
                       type="button"
                       disabled={downloadBusy}
                       onClick={() => void handleAutoDownloadInApp()}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+                      className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
                     >
                       {downloadBusy ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin shrink-0" />
                       ) : (
-                        <Download className="h-3.5 w-3.5" />
+                        <Download className="h-4 w-4 shrink-0" />
                       )}
                       Auto-Download .gguf Now
                     </button>
@@ -483,7 +484,7 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
                       <span className="font-mono font-semibold text-zinc-900 truncate">
                         Downloading {aiStatus.activeDownload.fileName}...
                       </span>
-                      <div className="flex items-center gap-2.5 font-mono text-[11px] tabular-nums text-zinc-600">
+                      <div className="flex items-center gap-2.5 font-mono text-xs tabular-nums text-zinc-600">
                         <span>
                           {formatBytes(aiStatus.activeDownload.downloadedBytes)}
                           {aiStatus.activeDownload.totalBytes > 0
@@ -497,9 +498,9 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
                           type="button"
                           disabled={downloadBusy}
                           onClick={() => void handleCancelDownload()}
-                          className="inline-flex items-center gap-1 rounded border border-red-300 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700 hover:bg-red-100 cursor-pointer"
+                          className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 cursor-pointer whitespace-nowrap"
                         >
-                          <Square className="h-2.5 w-2.5" />
+                          <Square className="h-3 w-3 shrink-0" />
                           Cancel
                         </button>
                       </div>
@@ -534,21 +535,21 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
-                  <code className="font-mono text-xs text-sky-700">npm run setup:gguf</code>
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3.5 py-2.5">
+                  <code className="font-mono text-xs sm:text-sm text-sky-700">npm run setup:gguf</code>
                   <button
                     type="button"
                     onClick={() => void handleCopyCommand()}
-                    className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                   >
                     {copiedCmd ? (
                       <>
-                        <Check className="h-3 w-3 text-emerald-700" />
+                        <Check className="h-3.5 w-3.5 text-emerald-700" />
                         Copied
                       </>
                     ) : (
                       <>
-                        <Copy className="h-3 w-3" />
+                        <Copy className="h-3.5 w-3.5" />
                         Copy Command
                       </>
                     )}
@@ -559,23 +560,23 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
                   <button
                     type="button"
                     onClick={handleDownloadWindowsScript}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[38px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <FileCode2 className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                    <FileCode2 className="h-4 w-4 text-sky-700 shrink-0" />
                     Download Windows Script (setup-gguf.bat)
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setActiveTab('manual')}
-                    className="text-xs font-semibold text-sky-700 hover:underline cursor-pointer whitespace-nowrap"
+                    className="inline-flex min-h-[38px] items-center rounded-lg px-2 py-1.5 text-xs sm:text-sm font-semibold text-sky-700 hover:underline cursor-pointer whitespace-nowrap"
                   >
                     Prefer manual download from HuggingFace.co? View steps →
                   </button>
                 </div>
 
                 {downloadedScriptNotice && (
-                  <p className="text-[11px] font-medium text-emerald-700">
+                  <p className="text-xs font-medium text-emerald-700">
                     Saved <code>setup-gguf.bat</code> — place it in your Umbras Pass folder and double-click to run.
                   </p>
                 )}
@@ -605,27 +606,27 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
 
                 <div className="overflow-x-auto rounded-lg border border-zinc-200">
                   <table className="w-full text-left text-xs">
-                    <thead className="border-b border-zinc-200 bg-zinc-50 text-[11px] font-semibold text-zinc-600">
+                    <thead className="border-b border-zinc-200 bg-zinc-50 text-xs font-semibold text-zinc-600">
                       <tr>
-                        <th className="px-3 py-2">Model</th>
-                        <th className="px-3 py-2 font-mono">Size</th>
-                        <th className="px-3 py-2 font-mono">RAM</th>
-                        <th className="px-3 py-2 text-right">Hugging Face</th>
+                        <th className="px-3 py-2.5">Model</th>
+                        <th className="px-3 py-2.5 font-mono">Size</th>
+                        <th className="px-3 py-2.5 font-mono">RAM</th>
+                        <th className="px-3 py-2.5 text-right">Hugging Face</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-100 bg-white">
                       {HUGGINGFACE_MODEL_GUIDE.map((model) => (
                         <tr key={model.name} className="hover:bg-zinc-50/80">
-                          <td className="px-3 py-2">
+                          <td className="px-3 py-2.5">
                             <div className="font-semibold text-zinc-900">
                               {model.name}
                               {model.recommended && (
-                                <span className="ml-1.5 text-[11px] font-medium text-sky-700">
+                                <span className="ml-1.5 text-xs font-medium text-sky-700">
                                   · Recommended
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-zinc-500">{model.bestFor}</div>
+                            <div className="text-xs text-zinc-500">{model.bestFor}</div>
                           </td>
                           <td className="px-3 py-2 font-mono tabular-nums text-zinc-700 whitespace-nowrap">
                             {model.size}
@@ -679,16 +680,16 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
                   <button
                     type="button"
                     onClick={() => void handleCopyModelsPath()}
-                    className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                   >
                     {copiedModelsPath ? (
                       <>
-                        <Check className="h-3 w-3 text-emerald-700" />
+                        <Check className="h-3.5 w-3.5 text-emerald-700" />
                         Copied Path
                       </>
                     ) : (
                       <>
-                        <Copy className="h-3 w-3" />
+                        <Copy className="h-3.5 w-3.5" />
                         Copy Path
                       </>
                     )}
@@ -710,8 +711,8 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-3.5">
-          <label className="inline-flex items-center gap-2 text-xs text-zinc-700 cursor-pointer select-none">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-4">
+          <label className="inline-flex min-h-[36px] items-center gap-2.5 text-xs sm:text-sm text-zinc-700 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={dontShowOnStartup}
@@ -730,16 +731,16 @@ export const GgufStartupModal: React.FC<GgufStartupModalProps> = ({
                 onCloseForceOpen?.();
                 onOpenAiSettings();
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Settings className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+              <Settings className="h-4 w-4 text-sky-700 shrink-0" />
               Open AI Model Settings
             </button>
 
             <button
               type="button"
               onClick={handleClose}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-700 px-5 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
             >
               {isInstalledNow ? 'Start Using Umbras Pass' : 'Continue to Umbras Pass'}
             </button>

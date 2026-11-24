@@ -204,7 +204,7 @@ export const CardInspectorModal: React.FC<CardInspectorModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close card preview"
-            className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 cursor-pointer"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 cursor-pointer shrink-0"
           >
             <X className="h-5 w-5" />
           </button>
@@ -282,9 +282,9 @@ export const CardInspectorModal: React.FC<CardInspectorModalProps> = ({
                   setImgFailed(false);
                   setShowBackFace((v) => !v);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+                className="inline-flex min-h-[38px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
               >
-                <RefreshCw className="h-3.5 w-3.5" />
+                <RefreshCw className="h-4 w-4 shrink-0" />
                 {showBackFace ? 'Show Front Face' : 'Flip Card'}
               </button>
             )}
@@ -315,7 +315,7 @@ export const CardInspectorModal: React.FC<CardInspectorModalProps> = ({
                         setShowBackFace(false);
                         setSelectedPrintingId(cheapestPrinting.scryfallId);
                       }}
-                      className="text-xs font-medium text-sky-700 hover:text-sky-800 cursor-pointer"
+                      className="inline-flex min-h-[34px] items-center rounded-lg border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-100 hover:text-sky-800 cursor-pointer whitespace-nowrap"
                     >
                       Switch to cheapest ({cheapestPrinting.setCode} · $
                       {(
@@ -337,7 +337,7 @@ export const CardInspectorModal: React.FC<CardInspectorModalProps> = ({
                     setShowBackFace(false);
                     setSelectedPrintingId(e.target.value);
                   }}
-                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
+                  className="min-h-[42px] w-full rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm text-zinc-900 focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
                 >
                   {(printingsData.printings || []).map((p) => {
                     const priceParts: string[] = [];

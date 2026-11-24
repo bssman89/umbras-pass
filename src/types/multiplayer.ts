@@ -216,10 +216,13 @@ export interface NetworkDiagnosticsReport {
   hostBindAddress: string;
   lanInterfaces: NetworkLanInterface[];
   primaryLanUrl: string;
+  publicIpv4?: string | null;
+  publicHostUrl?: string | null;
   loopbackReachable: boolean;
   lanReachable: boolean;
   externalHostInput?: string;
   externalPortReachable?: boolean | null;
+  externalHttpHealthOk?: boolean | null;
   externalCheckDetail?: string;
   firewallCommands: {
     windowsPowerShell: string;

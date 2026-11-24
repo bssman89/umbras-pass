@@ -24,6 +24,7 @@ import {
   Play,
   Plus,
   RotateCcw,
+  Settings2,
   Shield,
   ShieldAlert,
   Shuffle,
@@ -33,6 +34,7 @@ import {
   Swords,
   Timer,
   Trophy,
+  X,
   Zap,
 } from 'lucide-react';
 import type {
@@ -722,9 +724,39 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
     opponents[0]?.id || ''
   );
   const [listHoveredCard, setListHoveredCard] = useState<HoveredCardPreview | null>(null);
+  const [liveSettingsOpen, setLiveSettingsOpen] = useState<boolean>(false);
+  const liveSettingsRef = React.useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const wasFullscreenRef = React.useRef<boolean>(false);
+
+  useEffect(() => {
+    const handleOpenLiveSetup = () => {
+      setActivePlayAreaMode('live');
+      setLiveBotMode(true);
+      setLiveGamePhase('setup');
+    };
+    window.addEventListener('umbras:open-live-setup', handleOpenLiveSetup);
+    return () => window.removeEventListener('umbras:open-live-setup', handleOpenLiveSetup);
+  }, []);
+
+  useEffect(() => {
+    if (!liveSettingsOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (liveSettingsRef.current && !liveSettingsRef.current.contains(e.target as Node)) {
+        setLiveSettingsOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setLiveSettingsOpen(false);
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [liveSettingsOpen]);
 
   const [turnLog, setTurnLog] = useState<TurnLogEntry[]>([
     {
@@ -5315,34 +5347,34 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Play Area Mode Switch: Live Tabletop vs Match Replay */}
           <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
             <button
               type="button"
               onClick={() => setActivePlayAreaMode('live')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex min-h-[38px] items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 activePlayAreaMode === 'live'
                   ? 'bg-white text-sky-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
-              <Play className="h-3.5 w-3.5 text-sky-700" />
+              <Play className="h-4 w-4 text-sky-700" />
               Live Tabletop
             </button>
             <button
               type="button"
               onClick={() => setActivePlayAreaMode('replay')}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`inline-flex min-h-[38px] items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 activePlayAreaMode === 'replay'
                   ? 'bg-white text-emerald-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
               }`}
             >
-              <Layers className="h-3.5 w-3.5 text-emerald-700" />
+              <Layers className="h-4 w-4 text-emerald-700" />
               Match Replay
               {hasReplayMatch && (
-                <span className="font-mono text-[10px] text-sky-700">
+                <span className="font-mono text-xs text-sky-700">
                   ({Math.min(activeRoundIdx + 1, replayRounds.length)}/{replayRounds.length})
                 </span>
               )}
@@ -5356,13 +5388,13 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                 <button
                   type="button"
                   onClick={() => setLiveBotMode(true)}
-                  className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`inline-flex min-h-[38px] items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     liveBotMode
                       ? 'bg-white text-sky-900 shadow-sm'
                       : 'text-zinc-600 hover:text-zinc-900'
                   }`}
                 >
-                  <Bot className="h-3.5 w-3.5 text-sky-700" />
+                  <Bot className="h-4 w-4 text-sky-700" />
                   vs Bots
                 </button>
                 <button
@@ -5376,7 +5408,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                     setPendingIncomingAttack(null);
                     setLiveBotMode(false);
                   }}
-                  className={`px-2 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`min-h-[38px] px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     !liveBotMode
                       ? 'bg-white text-zinc-900 shadow-sm'
                       : 'text-zinc-600 hover:text-zinc-900'
@@ -5393,25 +5425,25 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                     <button
                       type="button"
                       onClick={() => setGuiView('tabletop')}
-                      className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                      className={`inline-flex min-h-[38px] items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                         guiView === 'tabletop'
                           ? 'bg-white text-emerald-900 shadow-sm'
                           : 'text-zinc-600 hover:text-zinc-900'
                       }`}
                     >
-                      <LayoutGrid className="h-3.5 w-3.5 text-emerald-700" />
+                      <LayoutGrid className="h-4 w-4 text-emerald-700" />
                       Tabletop
                     </button>
                     <button
                       type="button"
                       onClick={() => setGuiView('list')}
-                      className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                      className={`inline-flex min-h-[38px] items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                         guiView === 'list'
                           ? 'bg-white text-zinc-900 shadow-sm'
                           : 'text-zinc-600 hover:text-zinc-900'
                       }`}
                     >
-                      <List className="h-3.5 w-3.5 text-zinc-600" />
+                      <List className="h-4 w-4 text-zinc-600" />
                       List
                     </button>
                   </div>
@@ -5420,86 +5452,147 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                     <>
                       <button
                         type="button"
-                        onClick={() => setLiveGamePhase('setup')}
-                        title="Configure starting life, d20 turn order rolls, and advanced match rules"
-                        className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                        onClick={() => {
+                          setLiveSettingsOpen(false);
+                          setLiveGamePhase('setup');
+                        }}
+                        title="Configure starting life, d20 turn order rolls, and custom bot decks"
+                        className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                       >
-                        <Sliders className="h-3.5 w-3.5 text-sky-700" />
-                        Rules &amp; Turn Order
+                        <Sliders className="h-4 w-4 text-sky-700" />
+                        Match Setup
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setBotTurnPace((prev) =>
-                            prev === 'normal' ? 'step' : prev === 'step' ? 'fast' : 'normal'
-                          )
-                        }
-                        title="Cycle bot turn pace: Normal → Step-by-Step → Fast"
-                        className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 ${
-                          botTurnPace === 'step'
-                            ? 'border-amber-300 bg-amber-50 text-amber-900'
-                            : botTurnPace === 'fast'
-                            ? 'border-sky-300 bg-sky-50 text-sky-900'
-                            : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'
-                        }`}
-                      >
-                        <FastForward className="h-3.5 w-3.5 text-sky-700" />
-                        {botTurnPace === 'step'
-                          ? 'Pace: Step'
-                          : botTurnPace === 'fast'
-                          ? 'Pace: Fast'
-                          : 'Pace: Normal'}
-                      </button>
+                      {/* Consolidated Pace, Response Timer & Priority Popover */}
+                      <div ref={liveSettingsRef} className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setLiveSettingsOpen((o) => !o)}
+                          aria-expanded={liveSettingsOpen}
+                          aria-haspopup="dialog"
+                          title="Configure Bot Turn Pace, Response Window Timer & Priority Hold"
+                          className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-xs sm:text-sm font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                            liveSettingsOpen || fullControlPriority
+                              ? 'border-sky-500 bg-sky-50 text-sky-900'
+                              : 'border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50'
+                          }`}
+                        >
+                          <Settings2 className="h-4 w-4 text-sky-700 shrink-0" />
+                          <span>
+                            {botTurnPace === 'step'
+                              ? 'Step'
+                              : botTurnPace === 'fast'
+                              ? 'Fast'
+                              : 'Normal'}
+                            {' · '}
+                            {interruptWindowMode === 'smart-only'
+                              ? 'Smart'
+                              : interruptWindowMode}
+                            {fullControlPriority ? ' · Full Ctrl' : ''}
+                          </span>
+                        </button>
 
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setInterruptWindowMode((prev) =>
-                            prev === '12s'
-                              ? '8s'
-                              : prev === '8s'
-                              ? '20s'
-                              : prev === '20s'
-                              ? 'manual'
-                              : prev === 'manual'
-                              ? 'smart-only'
-                              : '12s'
-                          )
-                        }
-                        title="Cycle Interrupt/Response timer when bots cast spells"
-                        className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 ${
-                          interruptWindowMode === 'smart-only'
-                            ? 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'
-                            : interruptWindowMode === 'manual'
-                            ? 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100'
-                            : 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100'
-                        }`}
-                      >
-                        <Bell className="h-3.5 w-3.5 text-sky-700" />
-                        {interruptWindowMode === 'smart-only'
-                          ? 'Resp: Smart'
-                          : `Resp: ${interruptWindowMode}`}
-                      </button>
+                        {liveSettingsOpen && (
+                          <div
+                            role="dialog"
+                            aria-label="Live Tabletop Pace and Priority Settings"
+                            className="absolute right-0 top-full z-30 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-zinc-200 bg-white p-4 sm:p-5 shadow-xl space-y-4"
+                          >
+                            <div className="flex items-center justify-between border-b border-zinc-100 pb-2.5">
+                              <span className="text-sm font-bold text-zinc-900">
+                                Tabletop Pace &amp; Priority
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setLiveSettingsOpen(false)}
+                                aria-label="Close settings"
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 cursor-pointer"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
 
-                      <button
-                        type="button"
-                        onClick={() => setFullControlPriority((prev) => !prev)}
-                        aria-pressed={fullControlPriority}
-                        title={
-                          fullControlPriority
-                            ? 'Full Control ON: Always pauses on bot spells & attacks'
-                            : 'Smart Priority: Opens Stack when you hold an affordable Instant/Flash spell'
-                        }
-                        className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1.5 text-xs font-medium cursor-pointer whitespace-nowrap shrink-0 ${
-                          fullControlPriority
-                            ? 'border-sky-500 bg-sky-700 text-white shadow-sm'
-                            : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50'
-                        }`}
-                      >
-                        <Layers className={`h-3.5 w-3.5 ${fullControlPriority ? 'text-amber-300' : 'text-sky-700'}`} />
-                        {fullControlPriority ? 'Full Control' : 'Smart Priority'}
-                      </button>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-800">
+                                <FastForward className="h-4 w-4 text-sky-700" />
+                                <span>Bot Turn Pace</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-1 rounded-lg bg-zinc-100 p-1">
+                                {(
+                                  [
+                                    { id: 'normal', label: 'Normal' },
+                                    { id: 'step', label: 'Step' },
+                                    { id: 'fast', label: 'Fast' },
+                                  ] as const
+                                ).map((opt) => (
+                                  <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => setBotTurnPace(opt.id)}
+                                    className={`min-h-[34px] rounded-md px-2.5 py-1.5 text-xs font-semibold cursor-pointer ${
+                                      botTurnPace === opt.id
+                                        ? 'bg-white text-sky-900 shadow-sm'
+                                        : 'text-zinc-600 hover:text-zinc-900'
+                                    }`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-800">
+                                <Bell className="h-4 w-4 text-sky-700" />
+                                <span>Response Window</span>
+                              </div>
+                              <div className="grid grid-cols-5 gap-1 rounded-lg bg-zinc-100 p-1">
+                                {(
+                                  [
+                                    { id: 'smart-only', label: 'Smart' },
+                                    { id: '8s', label: '8s' },
+                                    { id: '12s', label: '12s' },
+                                    { id: '20s', label: '20s' },
+                                    { id: 'manual', label: 'Manual' },
+                                  ] as const
+                                ).map((opt) => (
+                                  <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => setInterruptWindowMode(opt.id)}
+                                    className={`min-h-[34px] rounded-md px-1.5 py-1.5 text-xs font-semibold cursor-pointer truncate ${
+                                      interruptWindowMode === opt.id
+                                        ? 'bg-white text-sky-900 shadow-sm'
+                                        : 'text-zinc-600 hover:text-zinc-900'
+                                    }`}
+                                  >
+                                    {opt.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="border-t border-zinc-100 pt-3">
+                              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={fullControlPriority}
+                                  onChange={(e) => setFullControlPriority(e.target.checked)}
+                                  className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-sky-700 focus:ring-sky-600"
+                                />
+                                <div className="space-y-0.5">
+                                  <div className="text-xs font-semibold text-zinc-900">
+                                    Full Control Priority
+                                  </div>
+                                  <div className="text-xs leading-snug text-zinc-500">
+                                    Pause on every bot spell &amp; attack even without an instant in hand.
+                                  </div>
+                                </div>
+                              </label>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </>
                   )}
 
@@ -5507,12 +5600,12 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                     <button
                       type="button"
                       onClick={handleMulligan}
-                      className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-semibold text-amber-900 hover:bg-amber-100 cursor-pointer whitespace-nowrap shrink-0"
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs sm:text-sm font-semibold text-amber-900 hover:bg-amber-100 cursor-pointer whitespace-nowrap shrink-0"
                     >
-                      <Shuffle className="h-3.5 w-3.5 text-amber-700" />
+                      <Shuffle className="h-4 w-4 text-amber-700" />
                       {freeFirstMulligan && mulliganCount === 0
                         ? 'Free Mulligan (7)'
-                        : `Mulligan (Keep ${Math.max(
+                        : `Mulligan (${Math.max(
                             1,
                             7 - (freeFirstMulligan ? mulliganCount : mulliganCount + 1)
                           )})`}
@@ -5527,9 +5620,9 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                         triggerOpeningLead: resolvedFirstSeatIndex > 0,
                       })
                     }
-                    className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <RotateCcw className="h-3.5 w-3.5 text-sky-700" />
+                    <RotateCcw className="h-4 w-4 text-sky-700" />
                     New Game
                   </button>
                 </>
@@ -5546,7 +5639,7 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                 ? 'Exit Fullscreen Play Area (Esc)'
                 : 'Expand Play Area to Fullscreen'
             }
-            className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+            className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs sm:text-sm font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
               isFullscreen
                 ? 'bg-sky-700 text-white hover:bg-sky-800 shadow-sm'
                 : 'border border-sky-600/40 bg-sky-50 text-sky-800 hover:bg-sky-100'
@@ -5554,12 +5647,12 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           >
             {isFullscreen ? (
               <>
-                <Minimize2 className="h-3.5 w-3.5 shrink-0" />
+                <Minimize2 className="h-4 w-4 shrink-0" />
                 Exit
               </>
             ) : (
               <>
-                <Maximize2 className="h-3.5 w-3.5 shrink-0" />
+                <Maximize2 className="h-4 w-4 shrink-0" />
                 Fullscreen
               </>
             )}
@@ -5660,101 +5753,89 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
           onChangeLiveAiTurnReasoning={setLiveAiTurnReasoning}
           findMeta={findMeta}
           resolvingCustomMeta={resolvingCustomMeta}
+          soundEnabled={soundEnabled}
         />
       ) : (
         <>
 
-      {/* Dedicated Turn Counter, Real-Time Turn Timer & Game Progress Tracker */}
+      {/* Compact Match Tempo Bar: Turn Counter, Real-Time Clock & Turn Actions */}
       <div
         aria-label="Turn Counter and Turn Timer"
-        className="rounded-xl border border-sky-200 bg-sky-50/40 px-4 py-3 flex flex-wrap items-center justify-between gap-4"
+        className="rounded-lg border border-zinc-200 bg-zinc-50/70 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3"
       >
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2.5">
-            <Clock className="h-4 w-4 text-sky-700 shrink-0" />
-            <div>
-              <div className="text-[11px] font-medium text-zinc-500">
-                Turn Counter
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xl font-bold tabular-nums text-zinc-900">
-                  Turn {turn}
-                </span>
-                <div className="inline-flex items-center gap-1">
-                  <button
-                    type="button"
-                    aria-label="Decrement turn counter"
-                    disabled={turn <= 1 || botsAreActing || isSimulationFinished}
-                    onClick={() => setTurn((t) => Math.max(1, t - 1))}
-                    className="rounded border border-zinc-300 bg-white p-0.5 text-zinc-600 hover:text-zinc-900 disabled:opacity-35 cursor-pointer"
-                  >
-                    <Minus className="h-3 w-3" />
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Increment turn counter"
-                    disabled={botsAreActing || isSimulationFinished}
-                    onClick={() => setTurn((t) => t + 1)}
-                    className="rounded border border-zinc-300 bg-white p-0.5 text-zinc-600 hover:text-sky-700 disabled:opacity-35 cursor-pointer"
-                  >
-                    <Plus className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+          <div className="flex items-center gap-2">
+            <Clock className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+            <span className="font-semibold text-zinc-600">Turn</span>
+            <span className="font-mono text-base font-bold tabular-nums text-zinc-900">
+              {turn}
+            </span>
+            <div className="inline-flex items-center gap-0.5">
+              <button
+                type="button"
+                aria-label="Decrement turn counter"
+                disabled={turn <= 1 || botsAreActing || isSimulationFinished}
+                onClick={() => setTurn((t) => Math.max(1, t - 1))}
+                className="rounded border border-zinc-300 bg-white p-0.5 text-zinc-600 hover:text-zinc-900 disabled:opacity-35 cursor-pointer"
+              >
+                <Minus className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                aria-label="Increment turn counter"
+                disabled={botsAreActing || isSimulationFinished}
+                onClick={() => setTurn((t) => t + 1)}
+                className="rounded border border-zinc-300 bg-white p-0.5 text-zinc-600 hover:text-sky-700 disabled:opacity-35 cursor-pointer"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
             </div>
           </div>
 
-          {/* Real-Time Turn Timer */}
-          <div className="flex items-center gap-2.5 border-l border-zinc-200 pl-4">
-            <Timer className="h-4 w-4 text-sky-700 shrink-0" />
-            <div>
-              <div className="text-[11px] font-medium text-zinc-500">
-                Turn Timer ({botsAreActing ? 'Bot Turn' : isSimulationFinished ? 'Ended' : isTimerPaused ? 'Paused' : 'Live'})
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  aria-live="off"
-                  className="font-mono text-xl font-bold tabular-nums text-sky-700"
-                >
-                  {formatClockMs(currentTurnElapsedMs)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setIsTimerPaused((p) => !p)}
-                  disabled={botsAreActing || isSimulationFinished}
-                  aria-label={isTimerPaused ? 'Resume turn timer' : 'Pause turn timer'}
-                  title={isTimerPaused ? 'Resume turn timer' : 'Pause turn timer'}
-                  className="rounded border border-zinc-300 bg-white p-1 text-zinc-600 hover:text-sky-700 disabled:opacity-35 cursor-pointer"
-                >
-                  {isTimerPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
-                </button>
-              </div>
-            </div>
+          <span className="text-zinc-300 hidden sm:inline" aria-hidden="true">|</span>
+
+          <div className="flex items-center gap-2">
+            <Timer className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+            <span
+              aria-live="off"
+              className="font-mono text-base font-bold tabular-nums text-sky-700"
+            >
+              {formatClockMs(currentTurnElapsedMs)}
+            </span>
+            <span className="text-[11px] text-zinc-500">
+              ({botsAreActing ? 'Bot' : isSimulationFinished ? 'Ended' : isTimerPaused ? 'Paused' : 'Live'})
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsTimerPaused((p) => !p)}
+              disabled={botsAreActing || isSimulationFinished}
+              aria-label={isTimerPaused ? 'Resume turn timer' : 'Pause turn timer'}
+              title={isTimerPaused ? 'Resume turn timer' : 'Pause turn timer'}
+              className="rounded border border-zinc-300 bg-white p-1 text-zinc-600 hover:text-sky-700 disabled:opacity-35 cursor-pointer"
+            >
+              {isTimerPaused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+            </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-l border-zinc-200 pl-4 font-mono text-xs tabular-nums text-zinc-600">
+          <div className="hidden md:flex items-center gap-2 border-l border-zinc-200 pl-3 font-mono text-[11px] tabular-nums text-zinc-600">
             <span>
-              Turns Passed: <strong className="text-zinc-900">{turnsPassedCount}</strong>
+              Turns: <strong className="text-zinc-900">{turnsPassedCount}</strong>
             </span>
             <span className="text-zinc-300" aria-hidden="true">·</span>
             <span>
-              Cards Drawn: <strong className="text-sky-700">{cardsDrawnCount}</strong>
+              Drawn: <strong className="text-sky-700">{cardsDrawnCount}</strong>
             </span>
             {turnDurationStats.turnsTimed > 0 && (
               <>
                 <span className="text-zinc-300" aria-hidden="true">·</span>
                 <span>
-                  Avg Turn:{' '}
+                  Avg:{' '}
                   <strong className="text-zinc-900">
                     {formatDurationSummaryMs(turnDurationStats.avgMs)}
                   </strong>
                 </span>
               </>
             )}
-            <span className="text-zinc-300" aria-hidden="true">·</span>
-            <span>
-              Phase: <strong className="text-zinc-900">{botsAreActing ? 'Bot Turns' : activePhase}</strong>
-            </span>
           </div>
         </div>
 
@@ -5769,29 +5850,29 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
               hasActiveStack ||
               isSimulationFinished
             }
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
           >
-            <Plus className="h-3.5 w-3.5 text-sky-700" />
-            Draw Card (+1 Turn)
+            <Plus className="h-4 w-4 text-sky-700" />
+            Draw (+1)
           </button>
           <button
             type="button"
             onClick={handlePassTurn}
             disabled={botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack || isSimulationFinished}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-1.5 text-xs sm:text-sm font-bold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
           >
-            <ChevronRight className="h-3.5 w-3.5" />
-            {liveBotMode ? 'Pass Turn → Bots (+1)' : 'Pass Turn (+1)'}
+            <ChevronRight className="h-4 w-4" />
+            {liveBotMode ? 'Pass Turn → Bots' : 'Pass Turn'}
           </button>
           {!isSimulationFinished && (
             <button
               type="button"
               onClick={handleEndSimulation}
               disabled={botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:border-sky-600 hover:text-sky-700 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-zinc-700 hover:border-sky-600 hover:text-sky-700 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Flag className="h-3.5 w-3.5 text-sky-700" />
-              End Sim &amp; Summary
+              <Flag className="h-4 w-4 text-sky-700" />
+              End Match
             </button>
           )}
         </div>
@@ -5948,35 +6029,24 @@ export const InteractiveTurnSimulator: React.FC<InteractiveTurnSimulatorProps> =
                 hasActiveStack ||
                 isSimulationFinished
               }
-              className="inline-flex items-center gap-1 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
+              <ChevronLeft className="h-4 w-4" />
               Prev Phase
             </button>
             <button
               type="button"
               onClick={handleNextPhase}
               disabled={botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack || isSimulationFinished}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-4 py-1.5 text-xs sm:text-sm font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
             >
               {phaseIdx === PHASES.length - 1
                 ? liveBotMode
                   ? 'End Turn → Bots'
                   : `Next Turn (T${turn + 1})`
                 : `Next: ${PHASES[phaseIdx + 1]}`}
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ChevronRight className="h-4 w-4 text-sky-700" />
             </button>
-            {liveBotMode && phaseIdx < PHASES.length - 1 && (
-              <button
-                type="button"
-                onClick={startBotTurns}
-                disabled={botsAreActing || Boolean(pendingIncomingAttack) || hasActiveStack || isSimulationFinished}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
-              >
-                <Bot className="h-3.5 w-3.5 text-sky-700" />
-                End Turn → Bots
-              </button>
-            )}
           </div>
         </div>
 

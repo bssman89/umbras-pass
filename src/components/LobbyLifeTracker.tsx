@@ -190,25 +190,25 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
   return (
     <section
       aria-label="Lobby Life Total Tracker"
-      className="rounded-xl border border-zinc-200 bg-white p-4 space-y-3.5"
+      className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5 space-y-4"
     >
       {/* Header Row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <div className="inline-flex items-center gap-1.5 font-bold text-zinc-900">
+        <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+          <div className="inline-flex items-center gap-2 font-bold text-zinc-900 text-sm">
             <Heart className="h-4 w-4 text-rose-600 shrink-0" />
             <span>Lobby Life Total Tracker (Seats 1–4)</span>
           </div>
           <span className="text-zinc-300" aria-hidden="true">
             ·
           </span>
-          <span className="font-mono text-[11px] tabular-nums text-zinc-600">
+          <span className="font-mono text-xs tabular-nums text-zinc-600">
             Default {defaultStartingLife} Life
           </span>
           <span className="text-zinc-300" aria-hidden="true">
             ·
           </span>
-          <span className="text-[11px] text-zinc-600">
+          <span className="text-xs text-zinc-600">
             Synced live &amp; carried into match start
           </span>
           {dangerSeatCount > 0 && (
@@ -218,9 +218,9 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
               </span>
               <span
                 role="status"
-                className="inline-flex items-center gap-1 font-semibold text-red-700"
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-red-700"
               >
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <AlertTriangle className="h-4 w-4 shrink-0" />
                 <span>
                   {dangerSeatCount}{' '}
                   {dangerSeatCount === 1 ? 'Seat' : 'Seats'} in Danger Zone (&lt;{' '}
@@ -235,7 +235,7 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
           <button
             type="button"
             onClick={handleResetAll}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-800 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0"
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0"
           >
             <RotateCcw className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
             <span>Reset All ({defaultStartingLife})</span>
@@ -244,7 +244,7 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
       </div>
 
       {/* 4-Seat Tracker Grid */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
         {[0, 1, 2, 3].map((seatIdx) => {
           const seat = room.seats[seatIdx];
           const isSeatInPod = seatIdx < room.maxSeats;
@@ -274,7 +274,7 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
               key={seatIdx}
               data-testid={`lobby-life-seat-${seatIdx + 1}`}
               data-danger-zone={isDangerZone ? 'true' : 'false'}
-              className={`rounded-lg border p-3 space-y-2.5 transition-colors ${
+              className={`rounded-xl border p-3.5 space-y-3 transition-colors ${
                 isDangerZone
                   ? 'border-red-400 bg-red-50/75'
                   : isCallerSeat
@@ -287,14 +287,14 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
               {/* Seat Label & Role */}
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 text-[11px] font-mono font-bold tabular-nums text-zinc-500">
-                    <span>SEAT #{seatIdx + 1}</span>
+                  <div className="flex items-center gap-1.5 text-xs font-mono font-bold tabular-nums text-zinc-600">
+                    <span>Seat #{seatIdx + 1}</span>
                     {isCallerSeat && (
                       <>
                         <span className="text-zinc-300" aria-hidden="true">
                           ·
                         </span>
-                        <span className="font-sans text-sky-700">YOU</span>
+                        <span className="font-sans text-sky-700">You</span>
                       </>
                     )}
                     <span className="text-zinc-300" aria-hidden="true">
@@ -305,7 +305,7 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
                     </span>
                   </div>
                   <div
-                    className={`mt-0.5 truncate text-xs font-bold ${
+                    className={`mt-0.5 truncate text-sm font-bold ${
                       isSeatInPod ? 'text-zinc-900' : 'text-zinc-500'
                     }`}
                     title={seatTitle}
@@ -320,9 +320,9 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
                     onClick={() => resetSeatLife(seatIdx)}
                     title={`Reset Seat #${seatIdx + 1} to ${defaultStartingLife} life`}
                     aria-label={`Reset Seat #${seatIdx + 1} to ${defaultStartingLife} life`}
-                    className="inline-flex items-center gap-1 rounded border border-zinc-300 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <RotateCcw className="h-3 w-3 shrink-0" />
+                    <RotateCcw className="h-3.5 w-3.5 shrink-0" />
                     <span className="font-mono tabular-nums">
                       {defaultStartingLife}
                     </span>
@@ -331,16 +331,16 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
               </div>
 
               {/* Life Total Readout + Non-Hue-Only Danger Zone Indicator */}
-              <div className="flex items-center justify-between gap-2 rounded-md border border-zinc-200/80 bg-white px-3 py-2">
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-zinc-200/80 bg-white px-3.5 py-2.5">
                 <div className="flex items-baseline gap-1.5">
                   <span
-                    className={`font-mono text-2xl font-extrabold tabular-nums leading-none ${
+                    className={`font-mono text-2xl sm:text-3xl font-extrabold tabular-nums leading-none ${
                       isDangerZone ? 'text-red-700' : 'text-zinc-900'
                     }`}
                   >
                     {life}
                   </span>
-                  <span className="text-[11px] font-medium text-zinc-500">
+                  <span className="text-xs font-medium text-zinc-500">
                     life
                   </span>
                 </div>
@@ -349,26 +349,26 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
                   <div
                     role="status"
                     aria-label={`Seat ${seatIdx + 1} Danger Zone: ${life} life remaining`}
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-red-700 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1 text-xs font-bold text-red-700 whitespace-nowrap shrink-0"
                   >
-                    <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0" />
+                    <AlertTriangle className="h-4 w-4 text-red-600 shrink-0" />
                     <span>Danger Zone</span>
                   </div>
                 ) : (
-                  <span className="text-[11px] font-medium text-zinc-400 whitespace-nowrap shrink-0">
+                  <span className="text-xs font-medium text-zinc-500 whitespace-nowrap shrink-0">
                     Stable
                   </span>
                 )}
               </div>
 
               {/* Quick Increment / Decrement Controls */}
-              <div className="grid grid-cols-4 gap-1.5">
+              <div className="grid grid-cols-4 gap-2">
                 <button
                   type="button"
                   disabled={!canEdit || life <= 0}
                   onClick={() => adjustSeatLife(seatIdx, -5)}
                   aria-label={`Decrease Seat #${seatIdx + 1} life by 5`}
-                  className="inline-flex items-center justify-center rounded-md border border-red-200 bg-white py-1 font-mono text-xs font-bold tabular-nums text-red-700 hover:bg-red-50 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex min-h-[38px] items-center justify-center rounded-lg border border-red-200 bg-white py-2 font-mono text-sm font-bold tabular-nums text-red-700 hover:bg-red-50 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   -5
                 </button>
@@ -377,9 +377,9 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
                   disabled={!canEdit || life <= 0}
                   onClick={() => adjustSeatLife(seatIdx, -1)}
                   aria-label={`Decrease Seat #${seatIdx + 1} life by 1`}
-                  className="inline-flex items-center justify-center gap-0.5 rounded-md border border-zinc-300 bg-white py-1 font-mono text-xs font-bold tabular-nums text-zinc-800 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex min-h-[38px] items-center justify-center gap-0.5 rounded-lg border border-zinc-300 bg-white py-2 font-mono text-sm font-bold tabular-nums text-zinc-800 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <Minus className="h-3 w-3 shrink-0" />
+                  <Minus className="h-3.5 w-3.5 shrink-0" />
                   <span>1</span>
                 </button>
                 <button
@@ -387,9 +387,9 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
                   disabled={!canEdit || life >= 999}
                   onClick={() => adjustSeatLife(seatIdx, 1)}
                   aria-label={`Increase Seat #${seatIdx + 1} life by 1`}
-                  className="inline-flex items-center justify-center gap-0.5 rounded-md border border-zinc-300 bg-white py-1 font-mono text-xs font-bold tabular-nums text-zinc-800 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex min-h-[38px] items-center justify-center gap-0.5 rounded-lg border border-zinc-300 bg-white py-2 font-mono text-sm font-bold tabular-nums text-zinc-800 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <Plus className="h-3 w-3 shrink-0" />
+                  <Plus className="h-3.5 w-3.5 shrink-0" />
                   <span>1</span>
                 </button>
                 <button
@@ -397,7 +397,7 @@ export const LobbyLifeTracker: React.FC<LobbyLifeTrackerProps> = ({
                   disabled={!canEdit || life >= 999}
                   onClick={() => adjustSeatLife(seatIdx, 5)}
                   aria-label={`Increase Seat #${seatIdx + 1} life by 5`}
-                  className="inline-flex items-center justify-center rounded-md border border-emerald-200 bg-white py-1 font-mono text-xs font-bold tabular-nums text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex min-h-[38px] items-center justify-center rounded-lg border border-emerald-200 bg-white py-2 font-mono text-sm font-bold tabular-nums text-emerald-700 hover:bg-emerald-50 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   +5
                 </button>

@@ -123,7 +123,7 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close Version History"
-            className="rounded-lg border border-zinc-200 p-1.5 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 cursor-pointer shrink-0"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 text-zinc-500 hover:bg-zinc-50 hover:text-zinc-900 cursor-pointer shrink-0"
           >
             <X className="h-4 w-4" />
           </button>
@@ -135,20 +135,20 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
             onSubmit={handleSaveClick}
             className="border-b border-zinc-200 bg-zinc-50/70 px-6 py-4 space-y-2.5 shrink-0"
           >
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center">
               <input
                 type="text"
                 value={labelInput}
                 onChange={(e) => setLabelInput(e.target.value)}
                 placeholder={`Label snapshot (e.g. "${currentResultingLandCount} Lands + Shocklands")`}
                 aria-label="Snapshot label"
-                className="flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
+                className="min-h-[40px] flex-1 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs sm:text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none"
               />
               <button
                 type="submit"
-                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
+                className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
               >
-                <Save className="h-3.5 w-3.5" />
+                <Save className="h-4 w-4 shrink-0" />
                 Save Snapshot
               </button>
             </div>
@@ -239,16 +239,16 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
                         onClick={() =>
                           downloadDeckFile(snap.resultingDeckText, snap.deckName, 'txt')
                         }
                         title="Export snapshot as .txt"
-                        className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                       >
-                        <Download className="h-3.5 w-3.5" />
+                        <Download className="h-4 w-4 shrink-0" />
                         .txt
                       </button>
 
@@ -257,9 +257,9 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
                         onClick={() => onDeleteSnapshot(snap.id)}
                         aria-label={`Delete snapshot ${snap.label}`}
                         title="Delete snapshot"
-                        className="inline-flex items-center justify-center rounded-md border border-zinc-200 bg-white p-1.5 text-zinc-500 hover:border-red-200 hover:text-red-700 cursor-pointer shrink-0"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 hover:border-red-200 hover:text-red-700 cursor-pointer shrink-0"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
                   </div>
@@ -298,16 +298,16 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
                     <button
                       type="button"
                       onClick={() => toggleExpand(snap.id)}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-sky-700 hover:text-sky-900 cursor-pointer whitespace-nowrap shrink-0"
+                      className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-zinc-100 hover:text-sky-900 cursor-pointer whitespace-nowrap shrink-0"
                     >
                       {isExpanded ? (
                         <>
-                          <ChevronUp className="h-3.5 w-3.5" />
+                          <ChevronUp className="h-4 w-4 shrink-0" />
                           Hide diff &amp; decklist
                         </>
                       ) : (
                         <>
-                          <ChevronDown className="h-3.5 w-3.5" />
+                          <ChevronDown className="h-4 w-4 shrink-0" />
                           Compare diff &amp; decklist
                         </>
                       )}
@@ -317,9 +317,9 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
                       type="button"
                       disabled={isExactCurrent}
                       onClick={() => onRevertSnapshot(snap)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0"
+                      className="inline-flex min-h-[38px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer whitespace-nowrap shrink-0"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" />
+                      <RotateCcw className="h-4 w-4 shrink-0" />
                       {isExactCurrent ? 'Currently Active' : 'Revert to This Version'}
                     </button>
                   </div>
@@ -343,7 +343,7 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
                                   <div className="font-medium text-emerald-700">
                                     Restored / Added back:
                                   </div>
-                                  <ul className="font-mono text-[11px] text-zinc-700 space-y-0.5">
+                                  <ul className="font-mono text-xs text-zinc-700 space-y-0.5">
                                     {(diff.addedInSnapshot || []).map((entry) => (
                                       <li key={`add-${entry.name}`}>
                                         +{entry.delta} {entry.name}
@@ -357,7 +357,7 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
                                   <div className="font-medium text-red-700">
                                     Removed vs current:
                                   </div>
-                                  <ul className="font-mono text-[11px] text-zinc-700 space-y-0.5">
+                                  <ul className="font-mono text-xs text-zinc-700 space-y-0.5">
                                     {(diff.removedInSnapshot || []).map((entry) => (
                                       <li key={`rem-${entry.name}`}>
                                         -{entry.delta} {entry.name}
@@ -376,7 +376,7 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
                         rows={7}
                         value={snap.resultingDeckText}
                         aria-label={`Decklist preview for ${snap.label}`}
-                        className="w-full rounded-lg border border-zinc-200 bg-zinc-50 p-3 font-mono text-[11px] leading-relaxed text-zinc-800 focus:outline-none"
+                        className="w-full rounded-lg border border-zinc-200 bg-zinc-50 p-3 font-mono text-xs leading-relaxed text-zinc-800 focus:outline-none"
                       />
                     </div>
                   )}
@@ -398,7 +398,7 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => setConfirmClearAll(false)}
-                  className="text-xs font-medium text-zinc-600 hover:text-zinc-900 cursor-pointer whitespace-nowrap"
+                  className="inline-flex min-h-[36px] items-center rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   Cancel
                 </button>
@@ -408,7 +408,7 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
                     onClearHistory();
                     setConfirmClearAll(false);
                   }}
-                  className="rounded-md bg-red-700 px-3 py-1 text-xs font-semibold text-white hover:bg-red-800 cursor-pointer whitespace-nowrap"
+                  className="inline-flex min-h-[36px] items-center rounded-lg bg-red-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-red-800 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   Confirm Clear All
                 </button>
@@ -417,7 +417,7 @@ export const VersionHistoryDrawer: React.FC<VersionHistoryDrawerProps> = ({
               <button
                 type="button"
                 onClick={() => setConfirmClearAll(true)}
-                className="text-xs font-medium text-zinc-600 hover:text-red-700 cursor-pointer whitespace-nowrap"
+                className="inline-flex min-h-[36px] items-center rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-600 hover:border-red-300 hover:text-red-700 cursor-pointer whitespace-nowrap shrink-0"
               >
                 Clear All My Decks
               </button>

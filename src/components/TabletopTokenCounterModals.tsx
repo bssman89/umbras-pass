@@ -184,39 +184,41 @@ export const TokenCreatorPanel: React.FC<TokenCreatorPanelProps> = ({
           type="button"
           onClick={onClose}
           aria-label="Close token creator"
-          className="rounded border border-[#287D64] bg-[#0F4C3A] p-1 text-emerald-200 hover:text-white cursor-pointer"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#287D64] bg-[#0F4C3A] text-emerald-200 hover:text-white cursor-pointer"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="h-4 w-4" />
         </button>
       </div>
 
       {/* Quick Utility & Creature Token Presets */}
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="font-mono text-[10px] font-semibold uppercase tracking-wide text-emerald-200/80">
+          <span className="text-xs font-bold text-emerald-200">
             Quick Presets (adds {quantity}×)
           </span>
-          <div className="inline-flex items-center gap-1 font-mono text-[10px] tabular-nums">
+          <div className="inline-flex items-center gap-1.5 font-mono text-xs tabular-nums">
             <span className="text-emerald-200/80">Qty:</span>
             <button
               type="button"
               onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-              className="rounded border border-[#287D64] bg-[#0F4C3A] px-1.5 py-0.5 text-emerald-100 hover:bg-[#17614B] cursor-pointer"
+              aria-label="Decrease token quantity"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[#287D64] bg-[#0F4C3A] text-emerald-100 hover:bg-[#17614B] cursor-pointer"
             >
               -
             </button>
-            <span className="min-w-[20px] text-center font-bold text-white">{quantity}</span>
+            <span className="min-w-[24px] text-center font-bold text-white">{quantity}</span>
             <button
               type="button"
               onClick={() => setQuantity((q) => Math.min(10, q + 1))}
-              className="rounded border border-[#287D64] bg-[#0F4C3A] px-1.5 py-0.5 text-emerald-100 hover:bg-[#17614B] cursor-pointer"
+              aria-label="Increase token quantity"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-[#287D64] bg-[#0F4C3A] text-emerald-100 hover:bg-[#17614B] cursor-pointer"
             >
               +
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
           {[...UTILITY_TOKEN_PRESETS, ...CREATURE_TOKEN_PRESETS].map((preset) => (
             <button
               key={preset.label}
@@ -227,10 +229,10 @@ export const TokenCreatorPanel: React.FC<TokenCreatorPanelProps> = ({
                   quantity,
                 })
               }
-              className="rounded-lg border border-[#287D64] bg-[#0F4C3A] px-2.5 py-1.5 text-left hover:border-amber-300 hover:bg-[#145D47] transition-colors cursor-pointer"
+              className="min-h-[46px] rounded-lg border border-[#287D64] bg-[#0F4C3A] px-3 py-2 text-left hover:border-amber-300 hover:bg-[#145D47] transition-colors cursor-pointer"
             >
-              <div className="text-[11px] font-bold text-white truncate">{preset.label}</div>
-              <div className="text-[9px] font-mono text-emerald-200/80 truncate">
+              <div className="text-xs font-bold text-white truncate">{preset.label}</div>
+              <div className="text-[11px] font-mono text-emerald-200/80 truncate">
                 {preset.sublabel}
               </div>
             </button>
@@ -241,33 +243,33 @@ export const TokenCreatorPanel: React.FC<TokenCreatorPanelProps> = ({
       {/* Custom Token Builder */}
       <form
         onSubmit={handleSubmitCustom}
-        className="border-t border-[#1E6E56] pt-2.5 space-y-2.5"
+        className="border-t border-[#1E6E56] pt-3 space-y-2.5"
       >
-        <div className="font-mono text-[10px] font-semibold uppercase tracking-wide text-emerald-200/80">
+        <div className="text-xs font-bold text-emerald-200">
           Custom Token
         </div>
 
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1.4fr_1fr_auto_auto_auto] items-end">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-[1.4fr_1fr_auto_auto_auto] items-end">
           <div>
-            <label className="block text-[10px] text-emerald-200/80 mb-1">Token Name</label>
+            <label className="block text-xs font-medium text-emerald-200/90 mb-1">Token Name</label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={40}
               placeholder="e.g. Eldrazi Spawn"
-              className="w-full rounded-md border border-[#2A8469] bg-[#0F4C3A] px-2.5 py-1.5 text-xs text-white placeholder:text-emerald-300/50 focus:border-sky-400 focus:outline-none"
+              className="min-h-[38px] w-full rounded-lg border border-[#2A8469] bg-[#0F4C3A] px-3 py-2 text-xs text-white placeholder:text-emerald-300/50 focus:border-sky-400 focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-[10px] text-emerald-200/80 mb-1">Type</label>
+            <label className="block text-xs font-medium text-emerald-200/90 mb-1">Type</label>
             <select
               value={kind}
               onChange={(e) =>
                 setKind(e.target.value as 'creature' | 'artifact' | 'enchantment')
               }
-              className="w-full rounded-md border border-[#2A8469] bg-[#0F4C3A] px-2 py-1.5 text-xs text-white focus:border-sky-400 focus:outline-none cursor-pointer"
+              className="min-h-[38px] w-full rounded-lg border border-[#2A8469] bg-[#0F4C3A] px-2.5 py-2 text-xs text-white focus:border-sky-400 focus:outline-none cursor-pointer"
             >
               <option value="creature">Creature Token</option>
               <option value="artifact">Artifact Token</option>
@@ -278,18 +280,18 @@ export const TokenCreatorPanel: React.FC<TokenCreatorPanelProps> = ({
           {kind === 'creature' && (
             <>
               <div>
-                <label className="block text-[10px] text-emerald-200/80 mb-1">Power</label>
+                <label className="block text-xs font-medium text-emerald-200/90 mb-1">Power</label>
                 <input
                   type="number"
                   min={0}
                   max={30}
                   value={power}
                   onChange={(e) => setPower(Math.max(0, Math.min(30, Number(e.target.value) || 0)))}
-                  className="w-16 rounded-md border border-[#2A8469] bg-[#0F4C3A] px-2 py-1.5 text-xs font-mono tabular-nums text-white focus:border-sky-400 focus:outline-none"
+                  className="min-h-[38px] w-20 rounded-lg border border-[#2A8469] bg-[#0F4C3A] px-2.5 py-2 text-xs font-mono tabular-nums text-white focus:border-sky-400 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-emerald-200/80 mb-1">Toughness</label>
+                <label className="block text-xs font-medium text-emerald-200/90 mb-1">Toughness</label>
                 <input
                   type="number"
                   min={1}
@@ -298,7 +300,7 @@ export const TokenCreatorPanel: React.FC<TokenCreatorPanelProps> = ({
                   onChange={(e) =>
                     setToughness(Math.max(1, Math.min(30, Number(e.target.value) || 1)))
                   }
-                  className="w-16 rounded-md border border-[#2A8469] bg-[#0F4C3A] px-2 py-1.5 text-xs font-mono tabular-nums text-white focus:border-sky-400 focus:outline-none"
+                  className="min-h-[38px] w-20 rounded-lg border border-[#2A8469] bg-[#0F4C3A] px-2.5 py-2 text-xs font-mono tabular-nums text-white focus:border-sky-400 focus:outline-none"
                 />
               </div>
             </>
@@ -306,9 +308,9 @@ export const TokenCreatorPanel: React.FC<TokenCreatorPanelProps> = ({
 
           <button
             type="submit"
-            className="inline-flex items-center justify-center gap-1.5 rounded-md bg-amber-500 px-3.5 py-1.5 text-xs font-bold text-zinc-950 hover:bg-amber-400 cursor-pointer whitespace-nowrap shrink-0"
+            className="inline-flex min-h-[38px] items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-bold text-zinc-950 hover:bg-amber-400 cursor-pointer whitespace-nowrap shrink-0"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Plus className="h-4 w-4" />
             Create {quantity > 1 ? `${quantity}×` : ''}
           </button>
         </div>
@@ -322,7 +324,7 @@ export const TokenCreatorPanel: React.FC<TokenCreatorPanelProps> = ({
                   key={kw}
                   type="button"
                   onClick={() => toggleKeyword(kw)}
-                  className={`rounded border px-2 py-0.5 text-[10px] font-semibold transition-colors cursor-pointer ${
+                  className={`min-h-[32px] rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
                     active
                       ? 'border-sky-300 bg-sky-700 text-white'
                       : 'border-[#287D64] bg-[#0F4C3A] text-emerald-200 hover:border-emerald-300'
@@ -384,10 +386,10 @@ export const PermanentCounterEditor: React.FC<PermanentCounterEditorProps> = ({
     <div className="rounded-xl border border-sky-300/70 bg-[#0A3528] p-3.5 space-y-3 text-white shadow-lg">
       <div className="flex items-center justify-between gap-2 border-b border-[#1E6E56] pb-2">
         <div className="min-w-0">
-          <div className="text-xs font-bold text-sky-200 truncate">
+          <div className="text-xs sm:text-sm font-bold text-sky-200 truncate">
             Counters on {permanentName}
           </div>
-          <div className="text-[10px] text-emerald-200/80">
+          <div className="text-xs text-emerald-200/80">
             {isCreature
               ? '+1/+1 and -1/-1 counters automatically update combat Power/Toughness.'
               : 'Track Loyalty, Charge, Shield, Stun (skips next untap), or custom counters.'}
@@ -397,23 +399,23 @@ export const PermanentCounterEditor: React.FC<PermanentCounterEditorProps> = ({
           type="button"
           onClick={onClose}
           aria-label="Close permanent counter editor"
-          className="rounded border border-[#287D64] bg-[#0F4C3A] p-1 text-emerald-200 hover:text-white cursor-pointer shrink-0"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#287D64] bg-[#0F4C3A] text-emerald-200 hover:text-white cursor-pointer shrink-0"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="h-4 w-4" />
         </button>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
         {/* +1/+1 */}
-        <div className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-950/60 px-2.5 py-1 font-mono text-xs tabular-nums">
+        <div className="inline-flex items-center gap-2 rounded-lg border border-emerald-400/50 bg-emerald-950/60 px-3 py-1.5 font-mono text-xs tabular-nums">
           <span className="font-bold text-emerald-200">+1/+1</span>
           <button
             type="button"
             disabled={plusOneCounters <= 0}
             onClick={() => onAdjustCounter(permanentUid, '+1/+1', -1)}
-            className="rounded border border-emerald-400/40 bg-[#0F4C3A] p-0.5 text-emerald-100 hover:bg-[#17614B] disabled:opacity-35 cursor-pointer"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-emerald-400/40 bg-[#0F4C3A] text-emerald-100 hover:bg-[#17614B] disabled:opacity-35 cursor-pointer"
           >
-            <Minus className="h-3 w-3" />
+            <Minus className="h-3.5 w-3.5" />
           </button>
           <span className="min-w-[20px] text-center font-bold text-white">
             {plusOneCounters}
@@ -421,22 +423,22 @@ export const PermanentCounterEditor: React.FC<PermanentCounterEditorProps> = ({
           <button
             type="button"
             onClick={() => onAdjustCounter(permanentUid, '+1/+1', 1)}
-            className="rounded border border-emerald-400/40 bg-[#0F4C3A] p-0.5 text-emerald-100 hover:bg-[#17614B] cursor-pointer"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-emerald-400/40 bg-[#0F4C3A] text-emerald-100 hover:bg-[#17614B] cursor-pointer"
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
 
         {/* -1/-1 */}
-        <div className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/50 bg-red-950/50 px-2.5 py-1 font-mono text-xs tabular-nums">
+        <div className="inline-flex items-center gap-2 rounded-lg border border-red-400/50 bg-red-950/50 px-3 py-1.5 font-mono text-xs tabular-nums">
           <span className="font-bold text-red-200">-1/-1</span>
           <button
             type="button"
             disabled={minusOneCounters <= 0}
             onClick={() => onAdjustCounter(permanentUid, '-1/-1', -1)}
-            className="rounded border border-red-400/40 bg-[#2C1216] p-0.5 text-red-100 hover:bg-red-900 disabled:opacity-35 cursor-pointer"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-400/40 bg-[#2C1216] text-red-100 hover:bg-red-900 disabled:opacity-35 cursor-pointer"
           >
-            <Minus className="h-3 w-3" />
+            <Minus className="h-3.5 w-3.5" />
           </button>
           <span className="min-w-[20px] text-center font-bold text-white">
             {minusOneCounters}
@@ -444,9 +446,9 @@ export const PermanentCounterEditor: React.FC<PermanentCounterEditorProps> = ({
           <button
             type="button"
             onClick={() => onAdjustCounter(permanentUid, '-1/-1', 1)}
-            className="rounded border border-red-400/40 bg-[#2C1216] p-0.5 text-red-100 hover:bg-red-900 cursor-pointer"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-red-400/40 bg-[#2C1216] text-red-100 hover:bg-red-900 cursor-pointer"
           >
-            <Plus className="h-3 w-3" />
+            <Plus className="h-3.5 w-3.5" />
           </button>
         </div>
 
@@ -456,7 +458,7 @@ export const PermanentCounterEditor: React.FC<PermanentCounterEditorProps> = ({
           return (
             <div
               key={label}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 font-mono text-[11px] tabular-nums ${
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-xs tabular-nums ${
                 count > 0
                   ? 'border-amber-300/60 bg-amber-950/50 text-amber-100'
                   : 'border-[#287D64] bg-[#0F4C3A] text-emerald-200'
@@ -467,17 +469,17 @@ export const PermanentCounterEditor: React.FC<PermanentCounterEditorProps> = ({
                 type="button"
                 disabled={count <= 0}
                 onClick={() => onAdjustCounter(permanentUid, label, -1)}
-                className="rounded border border-white/15 bg-black/20 p-0.5 hover:bg-black/40 disabled:opacity-30 cursor-pointer"
+                className="inline-flex h-6 w-6 items-center justify-center rounded border border-white/15 bg-black/20 hover:bg-black/40 disabled:opacity-30 cursor-pointer"
               >
-                <Minus className="h-2.5 w-2.5" />
+                <Minus className="h-3 w-3" />
               </button>
-              <span className="min-w-[16px] text-center font-bold text-white">{count}</span>
+              <span className="min-w-[18px] text-center font-bold text-white">{count}</span>
               <button
                 type="button"
                 onClick={() => onAdjustCounter(permanentUid, label, 1)}
-                className="rounded border border-white/15 bg-black/20 p-0.5 hover:bg-black/40 cursor-pointer"
+                className="inline-flex h-6 w-6 items-center justify-center rounded border border-white/15 bg-black/20 hover:bg-black/40 cursor-pointer"
               >
-                <Plus className="h-2.5 w-2.5" />
+                <Plus className="h-3 w-3" />
               </button>
             </div>
           );
@@ -491,14 +493,14 @@ export const PermanentCounterEditor: React.FC<PermanentCounterEditorProps> = ({
           onChange={(e) => setCustomLabel(e.target.value)}
           maxLength={24}
           placeholder="Custom counter (e.g. Lore, Quest, Divinity)..."
-          className="flex-1 rounded-md border border-[#2A8469] bg-[#0F4C3A] px-2.5 py-1 text-xs text-white placeholder:text-emerald-300/50 focus:border-sky-400 focus:outline-none"
+          className="min-h-[36px] flex-1 rounded-lg border border-[#2A8469] bg-[#0F4C3A] px-3 py-1.5 text-xs text-white placeholder:text-emerald-300/50 focus:border-sky-400 focus:outline-none"
         />
         <button
           type="submit"
           disabled={!customLabel.trim()}
-          className="inline-flex items-center gap-1 rounded-md bg-sky-600 px-3 py-1 text-xs font-semibold text-white hover:bg-sky-500 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-sky-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-sky-500 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
         >
-          <Plus className="h-3 w-3" />
+          <Plus className="h-3.5 w-3.5" />
           Add Counter
         </button>
       </form>
@@ -540,17 +542,17 @@ export const PlayerCountersPanel: React.FC<PlayerCountersPanelProps> = ({
   return (
     <div className="rounded-xl border border-sky-300/60 bg-[#0A3528] p-3.5 space-y-2.5 text-white shadow-lg">
       <div className="flex items-center justify-between gap-2 border-b border-[#1E6E56] pb-2">
-        <div className="flex items-center gap-2 text-xs font-bold text-sky-200">
-          <Zap className="h-3.5 w-3.5 text-amber-300 shrink-0" />
+        <div className="flex items-center gap-2 text-xs sm:text-sm font-bold text-sky-200">
+          <Zap className="h-4 w-4 text-amber-300 shrink-0" />
           <span>Player Counters &amp; Designations</span>
         </div>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close player counters"
-          className="rounded border border-[#287D64] bg-[#0F4C3A] p-1 text-emerald-200 hover:text-white cursor-pointer"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-[#287D64] bg-[#0F4C3A] text-emerald-200 hover:text-white cursor-pointer"
         >
-          <X className="h-3.5 w-3.5" />
+          <X className="h-4 w-4" />
         </button>
       </div>
 
@@ -558,13 +560,13 @@ export const PlayerCountersPanel: React.FC<PlayerCountersPanelProps> = ({
         <button
           type="button"
           onClick={onToggleMonarch}
-          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold cursor-pointer transition-colors ${
+          className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer transition-colors ${
             isMonarch
               ? 'border-amber-300 bg-amber-500 text-zinc-950'
               : 'border-[#287D64] bg-[#0F4C3A] text-emerald-100 hover:border-amber-300'
           }`}
         >
-          <Crown className="h-3.5 w-3.5" />
+          <Crown className="h-4 w-4" />
           {isMonarch ? 'You are The Monarch' : 'Become Monarch'}
         </button>
 
@@ -573,7 +575,7 @@ export const PlayerCountersPanel: React.FC<PlayerCountersPanelProps> = ({
           return (
             <div
               key={label}
-              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 font-mono text-[11px] tabular-nums ${
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 font-mono text-xs tabular-nums ${
                 val > 0
                   ? 'border-sky-300/60 bg-sky-950/60 text-sky-100'
                   : 'border-[#287D64] bg-[#0F4C3A] text-emerald-200'
@@ -584,17 +586,17 @@ export const PlayerCountersPanel: React.FC<PlayerCountersPanelProps> = ({
                 type="button"
                 disabled={val <= 0}
                 onClick={() => onAdjustPlayerCounter(label, -1)}
-                className="rounded border border-white/15 bg-black/20 p-0.5 hover:bg-black/40 disabled:opacity-30 cursor-pointer"
+                className="inline-flex h-6 w-6 items-center justify-center rounded border border-white/15 bg-black/20 hover:bg-black/40 disabled:opacity-30 cursor-pointer"
               >
-                <Minus className="h-2.5 w-2.5" />
+                <Minus className="h-3 w-3" />
               </button>
-              <span className="min-w-[16px] text-center font-bold text-white">{val}</span>
+              <span className="min-w-[18px] text-center font-bold text-white">{val}</span>
               <button
                 type="button"
                 onClick={() => onAdjustPlayerCounter(label, 1)}
-                className="rounded border border-white/15 bg-black/20 p-0.5 hover:bg-black/40 cursor-pointer"
+                className="inline-flex h-6 w-6 items-center justify-center rounded border border-white/15 bg-black/20 hover:bg-black/40 cursor-pointer"
               >
-                <Plus className="h-2.5 w-2.5" />
+                <Plus className="h-3 w-3" />
               </button>
             </div>
           );
@@ -608,14 +610,14 @@ export const PlayerCountersPanel: React.FC<PlayerCountersPanelProps> = ({
           onChange={(e) => setCustomName(e.target.value)}
           maxLength={24}
           placeholder="Custom player counter (e.g. Floating, Emblem, Ring)..."
-          className="flex-1 rounded-md border border-[#2A8469] bg-[#0F4C3A] px-2.5 py-1 text-xs text-white placeholder:text-emerald-300/50 focus:border-sky-400 focus:outline-none"
+          className="min-h-[36px] flex-1 rounded-lg border border-[#2A8469] bg-[#0F4C3A] px-3 py-1.5 text-xs text-white placeholder:text-emerald-300/50 focus:border-sky-400 focus:outline-none"
         />
         <button
           type="submit"
           disabled={!customName.trim()}
-          className="inline-flex items-center gap-1 rounded-md bg-sky-600 px-3 py-1 text-xs font-semibold text-white hover:bg-sky-500 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-sky-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-sky-500 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
         >
-          <Plus className="h-3 w-3" />
+          <Plus className="h-3.5 w-3.5" />
           Add
         </button>
       </form>

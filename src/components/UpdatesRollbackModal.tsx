@@ -228,7 +228,7 @@ export const UpdateNotificationBanner: React.FC<UpdateNotificationBannerProps> =
       aria-live="polite"
       className="border-b border-sky-200 bg-sky-50/95 text-zinc-900"
     >
-      <div className="mx-auto flex max-w-[1360px] flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 sm:px-6 py-2 text-xs">
+      <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-x-4 gap-y-2.5 px-5 sm:px-8 py-2.5 text-xs sm:text-sm">
         <div className="flex items-center gap-2.5 min-w-0">
           <ArrowDownToLine className="h-4 w-4 text-sky-700 shrink-0" />
           <p className="text-zinc-800 leading-snug">
@@ -242,11 +242,11 @@ export const UpdateNotificationBanner: React.FC<UpdateNotificationBannerProps> =
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
             type="button"
             onClick={onOpenUpdatesModal}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap transition-colors"
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-sky-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap transition-colors"
           >
             <Download className="h-3.5 w-3.5" />
             <span>Download Update</span>
@@ -257,7 +257,7 @@ export const UpdateNotificationBanner: React.FC<UpdateNotificationBannerProps> =
               setGitHubUpdateNotifyEnabled(false);
               setNotifyEnabled(false);
             }}
-            className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap transition-colors"
+            className="inline-flex min-h-[36px] items-center rounded-lg border border-zinc-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap transition-colors"
           >
             Turn Off Alerts
           </button>
@@ -268,7 +268,7 @@ export const UpdateNotificationBanner: React.FC<UpdateNotificationBannerProps> =
               setDismissedUpdateTag(updateInfo.latestRelease.tag);
               setDismissedTag(updateInfo.latestRelease.tag);
             }}
-            className="rounded-lg p-1 text-zinc-500 hover:bg-sky-100 hover:text-zinc-900 cursor-pointer transition-colors"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 hover:bg-sky-100 hover:text-zinc-900 cursor-pointer transition-colors"
           >
             <X className="h-4 w-4" />
           </button>
@@ -554,29 +554,29 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2.5 shrink-0">
             <button
               type="button"
               disabled={isLoading}
               onClick={() => void loadUpdates(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 cursor-pointer whitespace-nowrap transition-colors"
+              className="inline-flex min-h-[38px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 cursor-pointer whitespace-nowrap transition-colors"
             >
-              <RefreshCw className={`h-3.5 w-3.5 text-sky-700 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 text-sky-700 ${isLoading ? 'animate-spin' : ''}`} />
               <span>{isLoading ? 'Checking...' : 'Check Now'}</span>
             </button>
             <button
               type="button"
               onClick={onClose}
               aria-label="Close Updates and Version Rollback"
-              className="rounded-lg p-1.5 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 cursor-pointer transition-colors"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 cursor-pointer transition-colors"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
           </div>
         </div>
 
         {/* Notification Toggle Strip */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-6 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-6 py-3.5">
           <div className="flex items-center gap-2.5 min-w-0">
             {notifyEnabled ? (
               <Bell className="h-4 w-4 text-sky-700 shrink-0" />
@@ -584,10 +584,10 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
               <BellOff className="h-4 w-4 text-zinc-400 shrink-0" />
             )}
             <div className="min-w-0">
-              <div className="text-xs font-semibold text-zinc-900">
+              <div className="text-xs sm:text-sm font-semibold text-zinc-900">
                 Notify me when a GitHub update is available
               </div>
-              <div className="text-[11px] text-zinc-600">
+              <div className="text-xs text-zinc-600">
                 {notifyEnabled
                   ? 'Quietly checks GitHub Releases on launch and alerts you when a newer version is posted.'
                   : 'Automatic update alerts are off. You can still check manually or roll back versions anytime.'}
@@ -601,30 +601,30 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
             aria-checked={notifyEnabled}
             aria-label="Toggle GitHub update notifications"
             onClick={handleToggleNotify}
-            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
+            className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
               notifyEnabled ? 'bg-sky-700' : 'bg-zinc-300'
             }`}
           >
             <span
-              className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
-                notifyEnabled ? 'translate-x-4.5' : 'translate-x-0.5'
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                notifyEnabled ? 'translate-x-6' : 'translate-x-1'
               }`}
             />
           </button>
         </div>
 
         {/* Clean Hairline Tabs */}
-        <div className="flex items-center gap-6 border-b border-zinc-200 px-6 text-xs font-semibold">
+        <div className="flex items-center gap-6 border-b border-zinc-200 px-6 text-xs sm:text-sm font-semibold">
           <button
             type="button"
             onClick={() => setActiveTab('latest')}
-            className={`inline-flex items-center gap-1.5 border-b-2 py-3 whitespace-nowrap cursor-pointer transition-colors ${
+            className={`inline-flex items-center gap-2 border-b-2 py-3.5 whitespace-nowrap cursor-pointer transition-colors ${
               activeTab === 'latest'
                 ? 'border-sky-700 text-zinc-900'
                 : 'border-transparent text-zinc-500 hover:text-zinc-800'
             }`}
           >
-            <ArrowDownToLine className="h-3.5 w-3.5" />
+            <ArrowDownToLine className="h-4 w-4" />
             <span>Latest Update</span>
             {data?.updateAvailable && (
               <span className="ml-1 inline-block h-2 w-2 rounded-full bg-sky-600" aria-hidden="true" />
@@ -633,13 +633,13 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('history')}
-            className={`inline-flex items-center gap-1.5 border-b-2 py-3 whitespace-nowrap cursor-pointer transition-colors tabular-nums ${
+            className={`inline-flex items-center gap-2 border-b-2 py-3.5 whitespace-nowrap cursor-pointer transition-colors tabular-nums ${
               activeTab === 'history'
                 ? 'border-sky-700 text-zinc-900'
                 : 'border-transparent text-zinc-500 hover:text-zinc-800'
             }`}
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="h-4 w-4" />
             <span>Version History &amp; Rollback ({releases.length})</span>
           </button>
         </div>
@@ -668,7 +668,7 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                       `Download cancelled (${downloadState.fileName || downloadState.tag})`}
                     {downloadState.status === 'error' && 'Download failed'}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-zinc-600 tabular-nums">
+                  <div className="mt-0.5 text-xs text-zinc-600 tabular-nums">
                     {downloadState.status === 'downloading' && (
                       <>
                         {formatBytes(downloadState.downloadedBytes)}
@@ -689,12 +689,12 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2.5 shrink-0">
                   {downloadState.status === 'downloading' && (
                     <button
                       type="button"
                       onClick={() => void handleCancelDownload()}
-                      className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer"
+                      className="inline-flex min-h-[38px] items-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -711,9 +711,9 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                             (downloadState.tag || '').replace(/^v/i, '') || 'selected'
                           )
                         }
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                        className="inline-flex min-h-[38px] items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-emerald-800 disabled:opacity-50 cursor-pointer whitespace-nowrap"
                       >
-                        <Play className="h-3.5 w-3.5" />
+                        <Play className="h-4 w-4" />
                         <span>
                           {launchingPath === downloadState.localFilePath
                             ? 'Launching...'
@@ -761,7 +761,7 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                     onClose();
                     onRequestExitForInstall();
                   }}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 py-2 text-xs font-semibold text-white hover:bg-zinc-800 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <Power className="h-3.5 w-3.5" />
                   <span>Close App for Setup</span>
@@ -781,7 +781,7 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                 href={repoReleasesUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-semibold text-amber-900 hover:bg-amber-100 whitespace-nowrap shrink-0"
+                className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-amber-300 bg-white px-3.5 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100 whitespace-nowrap shrink-0"
               >
                 <span>Open GitHub Releases</span>
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -810,10 +810,10 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                       href={repoReleasesUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-800 hover:border-sky-600 hover:text-sky-700 transition-colors"
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:border-sky-600 hover:text-sky-700 transition-colors"
                     >
                       <span>View Repository Releases</span>
-                      <ExternalLink className="h-3.5 w-3.5" />
+                      <ExternalLink className="h-4 w-4" />
                     </a>
                   </div>
                 </div>
@@ -848,7 +848,7 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                       )}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
                       {isDesktopRuntime ? (
                         latestRelease.isDownloadedLocally && latestRelease.localFilePath ? (
                           <>
@@ -861,9 +861,9 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                                   latestRelease.version
                                 )
                               }
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap transition-colors"
+                              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap transition-colors"
                             >
-                              <Play className="h-3.5 w-3.5" />
+                              <Play className="h-4 w-4" />
                               <span>
                                 {data?.updateAvailable ? 'Install Update' : 'Run Installer'}
                               </span>
@@ -873,9 +873,9 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                                 type="button"
                                 disabled={downloadState?.status === 'downloading'}
                                 onClick={() => void handleStartDesktopDownload(latestRelease)}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                                className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 cursor-pointer whitespace-nowrap"
                               >
-                                <Download className="h-3.5 w-3.5" />
+                                <Download className="h-4 w-4" />
                                 <span>Re-download</span>
                               </button>
                             )}
@@ -885,9 +885,9 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                             type="button"
                             disabled={downloadState?.status === 'downloading'}
                             onClick={() => void handleStartDesktopDownload(latestRelease)}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap transition-colors"
+                            className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap transition-colors"
                           >
-                            <Download className="h-3.5 w-3.5" />
+                            <Download className="h-4 w-4" />
                             <span>
                               {data?.updateAvailable
                                 ? `Download v${latestRelease.version}`
@@ -901,9 +901,9 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                           href={latestRelease.primaryAsset.downloadUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-800 whitespace-nowrap transition-colors"
+                          className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-sky-800 whitespace-nowrap transition-colors"
                         >
-                          <Download className="h-3.5 w-3.5" />
+                          <Download className="h-4 w-4" />
                           <span>
                             {data?.updateAvailable
                               ? `Download v${latestRelease.version}`
@@ -917,10 +917,10 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                           href={latestRelease.htmlUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 whitespace-nowrap transition-colors"
+                          className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-700 hover:bg-zinc-50 whitespace-nowrap transition-colors"
                         >
                           <span>Release Notes</span>
-                          <ExternalLink className="h-3.5 w-3.5" />
+                          <ExternalLink className="h-4 w-4" />
                         </a>
                       )}
                     </div>
@@ -928,10 +928,10 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
 
                   {/* Plain-text release notes */}
                   <div className="bg-zinc-50/70 p-5">
-                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                    <div className="mb-2 text-xs sm:text-sm font-bold text-zinc-700">
                       What&apos;s in {latestRelease.tag}
                     </div>
-                    <div className="max-h-52 overflow-y-auto whitespace-pre-wrap text-xs leading-relaxed text-zinc-700 font-sans">
+                    <div className="max-h-52 overflow-y-auto whitespace-pre-wrap text-xs sm:text-sm leading-relaxed text-zinc-700 font-sans">
                       {latestRelease.body.trim() || 'No release notes were provided for this release.'}
                     </div>
                   </div>
@@ -946,15 +946,15 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                     <strong className="font-semibold text-zinc-900">
                       Don&apos;t like an update after installing it?
                     </strong>{' '}
-                    You can restore Umbras Pass to any previous GitHub version at any time. Your saved decks, bot memory, and downloaded <code className="font-mono text-[11px]">.gguf</code> models are stored separately and remain untouched.
+                    You can restore Umbras Pass to any previous GitHub version at any time. Your saved decks, bot memory, and downloaded <code className="font-mono text-xs">.gguf</code> models are stored separately and remain untouched.
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setActiveTab('history')}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:border-sky-600 hover:text-sky-700 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+                  className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:border-sky-600 hover:text-sky-700 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
                 >
-                  <RotateCcw className="h-3.5 w-3.5" />
+                  <RotateCcw className="h-4 w-4" />
                   <span>
                     Browse {olderReleasesCount > 0 ? `${olderReleasesCount} Previous` : 'All'} Versions
                   </span>
@@ -981,9 +981,9 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                   <button
                     type="button"
                     onClick={() => void handleOpenUpdatesFolder()}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
                   >
-                    <FolderOpen className="h-3.5 w-3.5 text-sky-700" />
+                    <FolderOpen className="h-4 w-4 text-sky-700" />
                     <span>Open Saved Installers</span>
                   </button>
                 )}
@@ -1047,7 +1047,7 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                               {rel.name}
                             </div>
 
-                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-zinc-500 tabular-nums">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 tabular-nums">
                               <span>{formatReleaseDate(rel.publishedAt)}</span>
                               {rel.primaryAsset && (
                                 <>
@@ -1077,7 +1077,7 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                                       );
                                     }
                                   }}
-                                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors ${
+                                  className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors ${
                                     rel.relation === 'older'
                                       ? 'border border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
                                       : rel.relation === 'newer'
@@ -1103,7 +1103,7 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                                   type="button"
                                   disabled={downloadState?.status === 'downloading'}
                                   onClick={() => void handleStartDesktopDownload(rel)}
-                                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50 cursor-pointer whitespace-nowrap transition-colors ${
+                                  className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold disabled:opacity-50 cursor-pointer whitespace-nowrap transition-colors ${
                                     rel.relation === 'older'
                                       ? 'border border-zinc-300 bg-white text-zinc-800 hover:border-sky-600 hover:text-sky-700'
                                       : rel.relation === 'newer'
@@ -1133,7 +1133,7 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                                 href={rel.primaryAsset.downloadUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors ${
+                                className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors ${
                                   rel.relation === 'older'
                                     ? 'border border-zinc-300 bg-white text-zinc-800 hover:border-sky-600 hover:text-sky-700'
                                     : rel.relation === 'newer'
@@ -1160,16 +1160,16 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                               type="button"
                               onClick={() => handleCopyGitCheckout(rel.tag)}
                               title={`Copy git checkout command for ${rel.tag}`}
-                              className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-[11px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap"
+                              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap"
                             >
                               {copiedGitTag === rel.tag ? (
                                 <>
-                                  <Check className="h-3 w-3 text-emerald-700" />
+                                  <Check className="h-3.5 w-3.5 text-emerald-700" />
                                   <span>Copied git cmd</span>
                                 </>
                               ) : (
                                 <>
-                                  <Terminal className="h-3 w-3 text-zinc-500" />
+                                  <Terminal className="h-3.5 w-3.5 text-zinc-500" />
                                   <span>Git checkout</span>
                                 </>
                               )}
@@ -1181,10 +1181,10 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 aria-label={`View ${rel.tag} on GitHub`}
-                                className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-zinc-700 hover:border-sky-600 hover:text-sky-700 whitespace-nowrap"
+                                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:border-sky-600 hover:text-sky-700 whitespace-nowrap"
                               >
                                 <span>GitHub</span>
-                                <ExternalLink className="h-3 w-3" />
+                                <ExternalLink className="h-3.5 w-3.5" />
                               </a>
                             )}
                           </div>
@@ -1192,17 +1192,17 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
 
                         {/* Inline Rollback Confirmation */}
                         {isConfirmingRollback && rel.localFilePath && (
-                          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+                          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3.5 text-xs text-amber-950">
                             <div className="min-w-0 flex-1 leading-relaxed">
                               Launch the cached installer for{' '}
                               <strong className="font-semibold tabular-nums">v{rel.version}</strong>?
-                              This replaces the installed app version while keeping your saved decks, bot memory, and <code className="font-mono text-[11px]">.gguf</code> models intact.
+                              This replaces the installed app version while keeping your saved decks, bot memory, and <code className="font-mono text-xs">.gguf</code> models intact.
                             </div>
                             <div className="flex items-center gap-2 shrink-0">
                               <button
                                 type="button"
                                 onClick={() => setPendingRollbackTag(null)}
-                                className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer"
+                                className="inline-flex min-h-[38px] items-center rounded-lg border border-amber-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 cursor-pointer"
                               >
                                 Cancel
                               </button>
@@ -1212,7 +1212,7 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                                 onClick={() =>
                                   void handleLaunchInstaller(rel.localFilePath!, rel.version)
                                 }
-                                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                                className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg bg-amber-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-amber-800 disabled:opacity-50 cursor-pointer whitespace-nowrap"
                               >
                                 <RotateCcw className="h-3.5 w-3.5" />
                                 <span>
@@ -1233,22 +1233,22 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
                               onClick={() =>
                                 setExpandedNotesTag(isNotesOpen ? null : rel.tag)
                               }
-                              className="inline-flex items-center gap-1 text-[11px] font-medium text-sky-700 hover:text-sky-800 cursor-pointer"
+                              className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-sky-700 hover:bg-zinc-50 hover:text-sky-800 cursor-pointer"
                             >
                               {isNotesOpen ? (
                                 <>
-                                  <ChevronUp className="h-3.5 w-3.5" />
+                                  <ChevronUp className="h-4 w-4" />
                                   <span>Hide release notes</span>
                                 </>
                               ) : (
                                 <>
-                                  <ChevronDown className="h-3.5 w-3.5" />
+                                  <ChevronDown className="h-4 w-4" />
                                   <span>Show release notes</span>
                                 </>
                               )}
                             </button>
                             {isNotesOpen && (
-                              <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 whitespace-pre-wrap text-xs leading-relaxed text-zinc-700">
+                              <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3.5 whitespace-pre-wrap text-xs leading-relaxed text-zinc-700">
                                 {rel.body.trim()}
                               </div>
                             )}
@@ -1262,8 +1262,8 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
 
               {/* Source-build tip */}
               {!isDesktopRuntime && (
-                <div className="flex items-start gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 text-[11px] text-zinc-600 leading-relaxed">
-                  <Copy className="h-3.5 w-3.5 text-zinc-500 mt-0.5 shrink-0" />
+                <div className="flex items-start gap-2.5 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-xs text-zinc-600 leading-relaxed">
+                  <Copy className="h-4 w-4 text-zinc-500 mt-0.5 shrink-0" />
                   <span>
                     Running from source instead of the Windows installer? Use any release&apos;s{' '}
                     <strong className="font-semibold text-zinc-800">Git checkout</strong> button above, then run{' '}
@@ -1276,7 +1276,7 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-200 bg-zinc-50 px-6 py-3 text-[11px] text-zinc-500">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-200 bg-zinc-50 px-6 py-3.5 text-xs text-zinc-500">
           <span className="tabular-nums">
             {data?.checkedAt
               ? `Last checked ${new Date(data.checkedAt).toLocaleTimeString()}`
@@ -1286,10 +1286,10 @@ export const UpdatesRollbackModal: React.FC<UpdatesRollbackModalProps> = ({
             href={repoReleasesUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 font-semibold text-sky-700 hover:underline"
+            className="inline-flex items-center gap-1.5 font-semibold text-sky-700 hover:underline"
           >
             <span>github.com/bssman89/umbras-pass/releases</span>
-            <ExternalLink className="h-3 w-3" />
+            <ExternalLink className="h-3.5 w-3.5" />
           </a>
         </div>
       </div>

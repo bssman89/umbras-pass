@@ -64,7 +64,9 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
   }, [isOpen]);
 
   const buttonSizeClass =
-    size === 'md' ? 'px-4 py-2 text-sm' : 'px-3.5 py-2 text-xs';
+    size === 'md'
+      ? 'min-h-[44px] px-5 py-2.5 text-sm'
+      : 'min-h-[40px] px-4 py-2 text-xs sm:text-sm';
 
   const hasPlatformExports = Boolean(
     onCopyRawList ||
@@ -93,7 +95,7 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
         onClick={() => setIsOpen((prev) => !prev)}
         aria-haspopup="menu"
         aria-expanded={isOpen}
-        className={`inline-flex items-center gap-1.5 rounded-lg font-semibold text-white cursor-pointer whitespace-nowrap shrink-0 shadow-sm transition-colors ${
+        className={`inline-flex items-center gap-2 rounded-lg font-semibold text-white cursor-pointer whitespace-nowrap shrink-0 shadow-sm transition-colors ${
           rawCopied
             ? 'bg-emerald-700 hover:bg-emerald-800'
             : 'bg-sky-700 hover:bg-sky-800'
@@ -101,15 +103,15 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
       >
         {rawCopied ? (
           <>
-            <Check className="h-3.5 w-3.5 shrink-0" />
+            <Check className="h-4 w-4 shrink-0" />
             <span>Copied Raw List</span>
           </>
         ) : (
           <>
-            <Download className="h-3.5 w-3.5 shrink-0" />
+            <Download className="h-4 w-4 shrink-0" />
             <span>Export</span>
             <ChevronDown
-              className={`h-3.5 w-3.5 transition-transform duration-150 ${
+              className={`h-4 w-4 transition-transform duration-150 ${
                 isOpen ? 'rotate-180' : ''
               }`}
             />
@@ -121,9 +123,9 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
         <div
           role="menu"
           aria-label="Export options"
-          className="absolute right-0 z-40 mt-1.5 w-64 rounded-xl border border-zinc-200 bg-white py-1.5 shadow-lg"
+          className="absolute right-0 z-40 mt-2 w-72 rounded-xl border border-zinc-200 bg-white py-2 shadow-xl"
         >
-          <div className="px-3.5 pb-1 pt-1 text-[11px] font-semibold text-zinc-500">
+          <div className="px-4 pb-1.5 pt-1 text-xs font-bold text-zinc-500">
             Standard &amp; Reports
           </div>
           <button
@@ -133,9 +135,9 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
               setIsOpen(false);
               onExportPdf();
             }}
-            className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+            className="flex min-h-[40px] w-full items-center gap-2.5 px-4 py-2 text-left text-xs sm:text-sm font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
           >
-            <FileText className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+            <FileText className="h-4 w-4 text-sky-700 shrink-0" />
             <span>Export PDF Report</span>
           </button>
 
@@ -146,9 +148,9 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
               setIsOpen(false);
               onExportTxt();
             }}
-            className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+            className="flex min-h-[40px] w-full items-center gap-2.5 px-4 py-2 text-left text-xs sm:text-sm font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
           >
-            <Download className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+            <Download className="h-4 w-4 text-zinc-600 shrink-0" />
             <span>Standard Decklist (.txt)</span>
           </button>
 
@@ -159,9 +161,9 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
               setIsOpen(false);
               onExportCsv();
             }}
-            className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+            className="flex min-h-[40px] w-full items-center gap-2.5 px-4 py-2 text-left text-xs sm:text-sm font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
           >
-            <FileSpreadsheet className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+            <FileSpreadsheet className="h-4 w-4 text-zinc-600 shrink-0" />
             <span>Spreadsheet / ManaBox (.csv)</span>
           </button>
 
@@ -170,7 +172,7 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
               {(onCopyRawList || onExportRawListTxt) && (
                 <>
                   <div className="my-1.5 border-t border-zinc-100" />
-                  <div className="px-3.5 pb-1 pt-0.5 text-[11px] font-semibold text-zinc-500">
+                  <div className="px-4 pb-1.5 pt-1 text-xs font-bold text-zinc-500">
                     Raw List (Quick Copy)
                   </div>
                   {onCopyRawList && (
@@ -178,9 +180,9 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
                       type="button"
                       role="menuitem"
                       onClick={handleCopyRawList}
-                      className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+                      className="flex min-h-[40px] w-full items-center gap-2.5 px-4 py-2 text-left text-xs sm:text-sm font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
                     >
-                      <Copy className="h-3.5 w-3.5 text-zinc-700 shrink-0" />
+                      <Copy className="h-4 w-4 text-zinc-700 shrink-0" />
                       <span>Copy Raw List (Clipboard)</span>
                     </button>
                   )}
@@ -192,9 +194,9 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
                         setIsOpen(false);
                         onExportRawListTxt();
                       }}
-                      className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+                      className="flex min-h-[40px] w-full items-center gap-2.5 px-4 py-2 text-left text-xs sm:text-sm font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
                     >
-                      <Download className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+                      <Download className="h-4 w-4 text-zinc-600 shrink-0" />
                       <span>Raw List (.txt)</span>
                     </button>
                   )}
@@ -204,7 +206,7 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
               {(onExportMoxfieldTxt || onExportMoxfieldCsv) && (
                 <>
                   <div className="my-1.5 border-t border-zinc-100" />
-                  <div className="px-3.5 pb-1 pt-0.5 text-[11px] font-semibold text-zinc-500">
+                  <div className="px-4 pb-1.5 pt-1 text-xs font-bold text-zinc-500">
                     Moxfield Direct Import
                   </div>
                   {onExportMoxfieldTxt && (
@@ -215,9 +217,9 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
                         setIsOpen(false);
                         onExportMoxfieldTxt();
                       }}
-                      className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+                      className="flex min-h-[40px] w-full items-center gap-2.5 px-4 py-2 text-left text-xs sm:text-sm font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
                     >
-                      <Download className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                      <Download className="h-4 w-4 text-sky-700 shrink-0" />
                       <span>Moxfield Decklist (.txt)</span>
                     </button>
                   )}
@@ -229,9 +231,9 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
                         setIsOpen(false);
                         onExportMoxfieldCsv();
                       }}
-                      className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+                      className="flex min-h-[40px] w-full items-center gap-2.5 px-4 py-2 text-left text-xs sm:text-sm font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
                     >
-                      <FileSpreadsheet className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                      <FileSpreadsheet className="h-4 w-4 text-sky-700 shrink-0" />
                       <span>Moxfield Import (.csv)</span>
                     </button>
                   )}
@@ -241,7 +243,7 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
               {(onExportArchidektTxt || onExportArchidektCsv) && (
                 <>
                   <div className="my-1.5 border-t border-zinc-100" />
-                  <div className="px-3.5 pb-1 pt-0.5 text-[11px] font-semibold text-zinc-500">
+                  <div className="px-4 pb-1.5 pt-1 text-xs font-bold text-zinc-500">
                     Archidekt Direct Import
                   </div>
                   {onExportArchidektTxt && (
@@ -252,9 +254,9 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
                         setIsOpen(false);
                         onExportArchidektTxt();
                       }}
-                      className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+                      className="flex min-h-[40px] w-full items-center gap-2.5 px-4 py-2 text-left text-xs sm:text-sm font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
                     >
-                      <Download className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
+                      <Download className="h-4 w-4 text-emerald-700 shrink-0" />
                       <span>Archidekt Categorized (.txt)</span>
                     </button>
                   )}
@@ -266,9 +268,9 @@ export const ShareExportMenu: React.FC<ShareExportMenuProps> = ({
                         setIsOpen(false);
                         onExportArchidektCsv();
                       }}
-                      className="flex w-full items-center gap-2.5 px-3.5 py-2 text-left text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+                      className="flex min-h-[40px] w-full items-center gap-2.5 px-4 py-2 text-left text-xs sm:text-sm font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer"
                     >
-                      <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
+                      <FileSpreadsheet className="h-4 w-4 text-emerald-700 shrink-0" />
                       <span>Archidekt Import (.csv)</span>
                     </button>
                   )}

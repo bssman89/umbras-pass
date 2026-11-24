@@ -414,12 +414,12 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
               </div>
 
               <div
-                className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] ${
+                className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs ${
                   isDark ? 'text-slate-300' : 'text-zinc-600'
                 }`}
               >
                 <span className="inline-flex items-center gap-1 font-semibold">
-                  <Clock className="h-3 w-3 shrink-0" />
+                  <Clock className="h-3.5 w-3.5 shrink-0" />
                   {timerStatusText}
                 </span>
                 {hasTimer && (
@@ -462,13 +462,13 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
               <button
                 type="button"
                 onClick={onTapAllUntappedLands}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
                   isDark
                     ? 'border-sky-400/50 bg-sky-950/70 text-sky-100 hover:bg-sky-900'
                     : 'border-sky-300 bg-white text-sky-800 hover:bg-sky-50'
                 }`}
               >
-                <Droplets className="h-3.5 w-3.5" />
+                <Droplets className="h-4 w-4" />
                 Tap Lands ({untappedLandsCount})
               </button>
             )}
@@ -479,7 +479,7 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
                 onClick={onToggleHoldTimer}
                 aria-pressed={isTimerHeld}
                 title="Pause or resume the response countdown timer (Shortcut: H)"
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
                   isTimerHeld
                     ? isDark
                       ? 'border-sky-400 bg-sky-500/25 text-sky-100 hover:bg-sky-500/35'
@@ -491,12 +491,12 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
               >
                 {isTimerHeld ? (
                   <>
-                    <Play className="h-3.5 w-3.5" />
+                    <Play className="h-4 w-4" />
                     Resume Timer (H)
                   </>
                 ) : (
                   <>
-                    <Pause className="h-3.5 w-3.5" />
+                    <Pause className="h-4 w-4" />
                     Hold Priority (H)
                   </>
                 )}
@@ -507,13 +507,13 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
               <button
                 type="button"
                 onClick={onResolveTop}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+                className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border px-3.5 py-2 text-xs font-semibold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
                   isDark
                     ? 'border-slate-500 bg-slate-800 text-slate-100 hover:bg-slate-700'
                     : 'border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-100'
                 }`}
               >
-                <Zap className="h-3.5 w-3.5" />
+                <Zap className="h-4 w-4" />
                 Resolve Top
               </button>
             )}
@@ -522,13 +522,13 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
               type="button"
               onClick={onResolveAll}
               title="Pass priority and resolve the stack immediately (Shortcut: Space)"
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-bold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
+              className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-lg px-4 py-2 text-xs sm:text-sm font-bold cursor-pointer whitespace-nowrap shrink-0 transition-colors ${
                 isDark
                   ? 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400'
                   : 'bg-sky-700 text-white hover:bg-sky-800'
               }`}
             >
-              <Check className="h-3.5 w-3.5" />
+              <Check className="h-4 w-4" />
               {stackItems.length > 1 ? 'Resolve Stack (Space)' : 'Pass & Resolve (Space)'}
             </button>
           </div>
@@ -539,19 +539,19 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
           needsBotCreatureTargetSelect ||
           needsPlayerCreatureTargetSelect) && (
           <div
-            className={`flex flex-wrap items-center gap-3 border-t pt-2.5 text-[11px] ${
+            className={`flex flex-wrap items-center gap-3 border-t pt-2.5 text-xs ${
               isDark ? 'border-slate-700/80' : 'border-amber-200/90'
             }`}
           >
             {needsCounterTargetSelect && (
-              <label className="inline-flex items-center gap-1.5">
+              <label className="inline-flex items-center gap-2">
                 <span className={isDark ? 'text-sky-200 font-semibold' : 'text-zinc-700 font-semibold'}>
                   Counter Target:
                 </span>
                 <select
                   value={effectiveCounterTargetId}
                   onChange={(e) => setSelectedCounterTargetId(e.target.value)}
-                  className={`rounded border px-2 py-1 text-[11px] font-medium ${
+                  className={`min-h-[34px] rounded-md border px-2.5 py-1 text-xs font-medium ${
                     isDark
                       ? 'border-sky-500/50 bg-[#0D2137] text-white'
                       : 'border-zinc-300 bg-white text-zinc-900'
@@ -567,14 +567,14 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
             )}
 
             {needsBotCreatureTargetSelect && (
-              <label className="inline-flex items-center gap-1.5">
+              <label className="inline-flex items-center gap-2">
                 <span className={isDark ? 'text-sky-200 font-semibold' : 'text-zinc-700 font-semibold'}>
                   Removal Target:
                 </span>
                 <select
                   value={effectiveBotCreatureKey}
                   onChange={(e) => setSelectedBotCreatureKey(e.target.value)}
-                  className={`rounded border px-2 py-1 text-[11px] font-medium ${
+                  className={`min-h-[34px] rounded-md border px-2.5 py-1 text-xs font-medium ${
                     isDark
                       ? 'border-sky-500/50 bg-[#0D2137] text-white'
                       : 'border-zinc-300 bg-white text-zinc-900'
@@ -590,14 +590,14 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
             )}
 
             {needsPlayerCreatureTargetSelect && (
-              <label className="inline-flex items-center gap-1.5">
+              <label className="inline-flex items-center gap-2">
                 <span className={isDark ? 'text-sky-200 font-semibold' : 'text-zinc-700 font-semibold'}>
                   Protect / Buff Target:
                 </span>
                 <select
                   value={effectivePlayerCreatureUid}
                   onChange={(e) => setSelectedPlayerCreatureUid(e.target.value)}
-                  className={`rounded border px-2 py-1 text-[11px] font-medium ${
+                  className={`min-h-[34px] rounded-md border px-2.5 py-1 text-xs font-medium ${
                     isDark
                       ? 'border-sky-500/50 bg-[#0D2137] text-white'
                       : 'border-zinc-300 bg-white text-zinc-900'
@@ -634,11 +634,11 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
               {instantResponses.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span
-                    className={`inline-flex items-center gap-1 text-[11px] font-bold whitespace-nowrap ${
+                    className={`inline-flex items-center gap-1.5 text-xs font-bold whitespace-nowrap ${
                       isDark ? 'text-sky-300' : 'text-sky-800'
                     }`}
                   >
-                    <Sparkles className="h-3 w-3" />
+                    <Sparkles className="h-3.5 w-3.5" />
                     Instants &amp; Flash:
                   </span>
                   {instantResponses.map(({ card, profile, effectiveCost, canAfford }) => {
@@ -681,7 +681,7 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
                             )
                           )
                         }
-                        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
+                        className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
                           disabled
                             ? isDark
                               ? 'border-slate-700 bg-slate-900/60 text-slate-500 cursor-not-allowed'
@@ -691,9 +691,9 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
                             : 'border-sky-400 bg-white text-sky-900 hover:bg-sky-50 cursor-pointer'
                         }`}
                       >
-                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                        <Icon className="h-4 w-4 shrink-0" />
                         <span>{card.name}</span>
-                        <span className="font-mono text-[10px] opacity-85 tabular-nums">
+                        <span className="font-mono text-xs opacity-85 tabular-nums">
                           ({effectiveCost === 0 && profile.freeWithCommander ? 'Free' : `${effectiveCost}m`})
                         </span>
                       </button>
@@ -705,11 +705,11 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
               {activatedAbilities.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span
-                    className={`inline-flex items-center gap-1 text-[11px] font-bold whitespace-nowrap ${
+                    className={`inline-flex items-center gap-1.5 text-xs font-bold whitespace-nowrap ${
                       isDark ? 'text-emerald-300' : 'text-emerald-800'
                     }`}
                   >
-                    <Zap className="h-3 w-3" />
+                    <Zap className="h-3.5 w-3.5" />
                     Activated Abilities:
                   </span>
                   {activatedAbilities.map((ability) => {
@@ -744,7 +744,7 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
                         onClick={() =>
                           onActivateAbility(ability, buildTargetOptionsForAbility(ability))
                         }
-                        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
+                        className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 transition-colors ${
                           disabled
                             ? isDark
                               ? 'border-slate-700 bg-slate-900/60 text-slate-500 cursor-not-allowed'
@@ -758,9 +758,9 @@ export const InterruptResponseBanner: React.FC<InterruptResponseBannerProps> = (
                             : 'border-emerald-400 bg-white text-emerald-900 hover:bg-emerald-50 cursor-pointer'
                         }`}
                       >
-                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                        <Icon className="h-4 w-4 shrink-0" />
                         <span>{ability.permanentName}</span>
-                        <span className="font-mono text-[10px] opacity-85">
+                        <span className="font-mono text-xs opacity-85">
                           · {ability.label}
                         </span>
                       </button>

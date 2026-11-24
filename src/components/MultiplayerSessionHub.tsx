@@ -2,18 +2,21 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   ArrowDown,
+  BookOpen,
   Bot,
   Check,
   ChevronDown,
   ChevronUp,
   Copy,
   Crown,
+  ExternalLink,
   Globe,
   Layers,
   LayoutGrid,
   Loader2,
   Lock,
   MessageSquare,
+  Mountain,
   Move,
   Network,
   Palette,
@@ -51,7 +54,9 @@ import {
   configureRoomSeat,
   createMultiplayerRoom,
   fetchDiscoveredLanRooms,
+  fetchHostPublicIp,
   fetchNetworkDiagnostics,
+  lookupRoomOnHost,
   respondToJoinRequest,
   runPortReachabilityTest,
   sendMultiplayerChatMessage,
@@ -64,6 +69,13 @@ import {
   updateSeatReadyOrDeck,
   type DiscoveredLanRoomSummary,
 } from '../utils/multiplayerClient';
+import {
+  buildDirectInviteUrl,
+  isHttpsToHttpMixedContent,
+  isRemotePublicHostUrl,
+  parseMultiplayerJoinInput,
+  readJoinParamsFromWindowLocation,
+} from '../utils/multiplayerInvite';
 import { MultiplayerLobby } from './MultiplayerLobby';
 import { NetworkSetupPanel } from './NetworkSetupPanel';
 import {
@@ -100,6 +112,7 @@ import {
   isBacklinePlaymatCard,
   type PlaymatDropPoint,
 } from '../utils/playmatPositioning';
+import { PlaytestTutorialModal } from './PlaytestTutorialModal';
 
 const BOT_ARCHETYPES = [
   'Mono-Red Aggro / Burn',
@@ -164,6 +177,30 @@ interface MultiplayerSessionHubProps {
   onInspectCard: (name: string, meta?: CardMetadata | null) => void;
 }
 
+const MpCardBackFan: React.FC<{ count: number }> = ({ count }) => {
+  const visible = Math.max(0, Math.min(7, count));
+  const extra = Math.max(0, count - visible);
+  if (count <= 0) {
+    return <span className="font-mono text-xs text-sky-200/75">Hand: 0 cards</span>;
+  }
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex items-center -space-x-2.5 pl-0.5">
+        {Array.from({ length: visible }).map((_, i) => (
+          <div
+            key={i}
+            style={{ transform: `rotate(${(i - (visible - 1) / 2) * 3.5}deg)` }}
+            className="h-8 w-5.5 rounded-[3px] border border-amber-300/65 bg-gradient-to-br from-sky-950 via-zinc-900 to-amber-950 shadow-sm"
+          />
+        ))}
+      </div>
+      <span className="font-mono text-xs font-semibold tabular-nums text-sky-100">
+        {extra > 0 ? `+${extra} (${count} Hand)` : `${count} in Hand`}
+      </span>
+    </div>
+  );
+};
+
 export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
   isOpen,
   onClose,
@@ -193,6 +230,8 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
   const [netInfo, setNetInfo] = useState<NetworkDiagnosticsReport | null>(null);
   const [loadingNetInfo, setLoadingNetInfo] = useState(false);
   const [externalHostInput, setExternalHostInput] = useState('');
+  const [detectingPublicIp, setDetectingPublicIp] = useState(false);
+  const [publicIpError, setPublicIpError] = useState<string | null>(null);
   const [testingPort, setTestingPort] = useState(false);
   const [portTestMessage, setPortTestMessage] = useState<string | null>(null);
   const [portTestOk, setPortTestOk] = useState<boolean | null>(null);
@@ -201,6 +240,12 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
   const [joinHostUrl, setJoinHostUrl] = useState<string>('');
   const [joinRoomCode, setJoinRoomCode] = useState<string>('');
   const [joinPasscode, setJoinPasscode] = useState<string>('');
+  const [lookupResult, setLookupResult] = useState<{
+    roomCode: string;
+    format: string;
+    connectionMode: MultiplayerConnectionMode;
+  } | null>(null);
+  const [lookingUpRoom, setLookingUpRoom] = useState(false);
   const [discoveredRooms, setDiscoveredRooms] = useState<DiscoveredLanRoomSummary[]>([]);
   const [loadingDiscovered, setLoadingDiscovered] = useState(false);
   const [pendingRequestId, setPendingRequestId] = useState<string | null>(null);
@@ -362,22 +407,70 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
     };
   };
 
-  // Load network & LAN interface diagnostics when modal opens
-  const refreshNetworkDiagnostics = async () => {
+  // Load network & LAN interface diagnostics when modal opens (localhost host origins only)
+  const refreshNetworkDiagnostics = async (explicitRequest = false) => {
+    const isLocalOrigin =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1' ||
+        window.location.hostname === '::1' ||
+        window.location.hostname === '[::1]');
+    if (!isLocalOrigin && !explicitRequest) {
+      return;
+    }
+
     setLoadingNetInfo(true);
     try {
       const report = await fetchNetworkDiagnostics('');
       setNetInfo(report);
+      if (report.publicIpv4 && !externalHostInput.trim()) {
+        setExternalHostInput(report.publicIpv4);
+      }
     } catch (err) {
-      setErrorMsg(
-        err instanceof Error ? err.message : 'Unable to load network diagnostics.'
-      );
+      if (explicitRequest) {
+        setErrorMsg(
+          err instanceof Error ? err.message : 'Unable to load network diagnostics.'
+        );
+      }
     } finally {
       setLoadingNetInfo(false);
     }
   };
 
+  const handleDetectPublicIp = async (force = true) => {
+    setDetectingPublicIp(true);
+    setPublicIpError(null);
+    try {
+      const res = await fetchHostPublicIp(force, '');
+      if (res.publicIpv4) {
+        setExternalHostInput(res.publicIpv4);
+        setNetInfo((prev) =>
+          prev
+            ? {
+                ...prev,
+                publicIpv4: res.publicIpv4,
+                publicHostUrl: res.publicHostUrl,
+              }
+            : prev
+        );
+      }
+    } catch (err) {
+      setPublicIpError(
+        err instanceof Error
+          ? err.message
+          : 'Could not detect public IPv4 automatically.'
+      );
+    } finally {
+      setDetectingPublicIp(false);
+    }
+  };
+
   const refreshDiscoveredRooms = async (targetBaseUrl = joinHostUrl) => {
+    if (isRemotePublicHostUrl(targetBaseUrl) || isHttpsToHttpMixedContent(targetBaseUrl)) {
+      setDiscoveredRooms([]);
+      setLoadingDiscovered(false);
+      return;
+    }
     setLoadingDiscovered(true);
     try {
       const list = await fetchDiscoveredLanRooms(targetBaseUrl);
@@ -391,8 +484,17 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    void refreshNetworkDiagnostics();
+    void refreshNetworkDiagnostics(false);
     void refreshDiscoveredRooms('');
+
+    const joinParams = readJoinParamsFromWindowLocation();
+    if (joinParams && !room) {
+      setSetupTab('join');
+      setJoinRoomCode(joinParams.joinCode);
+      if (joinParams.hostUrl) {
+        setJoinHostUrl(joinParams.hostUrl);
+      }
+    }
   }, [isOpen]);
 
   // Poll guest join approval status while waiting in the Host Approval Gate
@@ -405,16 +507,23 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
       return;
     }
 
+    let resolvedInput: { roomCode: string; hostBaseUrl: string };
+    try {
+      resolvedInput = parseMultiplayerJoinInput(joinRoomCode, joinHostUrl);
+    } catch {
+      resolvedInput = { roomCode: joinRoomCode, hostBaseUrl: joinHostUrl };
+    }
+
     const timer = window.setInterval(() => {
       void checkGuestJoinApprovalStatus({
-        baseUrl: joinHostUrl,
-        roomCode: joinRoomCode,
+        baseUrl: resolvedInput.hostBaseUrl,
+        roomCode: resolvedInput.roomCode,
         requestToken: pendingRequestToken,
       })
         .then((res) => {
           if (res.status === 'approved' && res.sessionToken && res.room) {
             setPendingRequestStatus('approved');
-            setActiveHostBaseUrl(joinHostUrl);
+            setActiveHostBaseUrl(resolvedInput.hostBaseUrl);
             setSessionToken(res.sessionToken);
             setRoom(res.room);
             setPendingRequestToken(null);
@@ -525,21 +634,71 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
     }
   };
 
+  const handleLookupRoomCode = async () => {
+    setErrorMsg(null);
+    setLookupResult(null);
+    setLookingUpRoom(true);
+    try {
+      const parsed = parseMultiplayerJoinInput(joinRoomCode, joinHostUrl);
+      if (parsed.hostBaseUrl && parsed.hostBaseUrl !== joinHostUrl) {
+        setJoinHostUrl(parsed.hostBaseUrl);
+      }
+      if (parsed.roomCode && parsed.roomCode !== joinRoomCode) {
+        setJoinRoomCode(parsed.roomCode);
+      }
+      if (isHttpsToHttpMixedContent(parsed.hostBaseUrl)) {
+        setErrorMsg(
+          'Your browser is on HTTPS and blocks background HTTP connections to a host public IPv4. Use the Open Direct Host Session button below.'
+        );
+        return;
+      }
+      const res = await lookupRoomOnHost({
+        baseUrl: parsed.hostBaseUrl,
+        roomCode: parsed.roomCode,
+      });
+      setLookupResult({
+        roomCode: res.roomCode,
+        format: res.format,
+        connectionMode: res.connectionMode,
+      });
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Room lookup failed on that host.'
+      );
+    } finally {
+      setLookingUpRoom(false);
+    }
+  };
+
   const handleRequestJoinRoom = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
     setBusyAction(true);
     try {
+      const parsed = parseMultiplayerJoinInput(joinRoomCode, joinHostUrl);
+      if (parsed.hostBaseUrl && parsed.hostBaseUrl !== joinHostUrl) {
+        setJoinHostUrl(parsed.hostBaseUrl);
+      }
+      if (parsed.roomCode && parsed.roomCode !== joinRoomCode) {
+        setJoinRoomCode(parsed.roomCode);
+      }
+      if (isHttpsToHttpMixedContent(parsed.hostBaseUrl)) {
+        setErrorMsg(
+          'Browsers block HTTPS -> HTTP background requests. Click "Open Direct Host Session" below to connect cleanly on the host public IPv4.'
+        );
+        return;
+      }
+
       const res = await submitGuestJoinRequest({
-        baseUrl: joinHostUrl,
-        roomCode: joinRoomCode,
+        baseUrl: parsed.hostBaseUrl,
+        roomCode: parsed.roomCode,
         playerName: playerName.trim() || 'Guest Player',
         passcode: joinPasscode,
         deckSummary: userDeckSummary,
       });
       if (res.status === 'approved' && res.sessionToken && res.room) {
         setPendingRequestStatus('approved');
-        setActiveHostBaseUrl(joinHostUrl);
+        setActiveHostBaseUrl(parsed.hostBaseUrl);
         setSessionToken(res.sessionToken);
         setRoom(res.room);
         setPendingRequestToken(null);
@@ -691,7 +850,10 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
     }
   };
 
-  const handleStartMatch = async () => {
+  const handleStartMatch = async (options?: {
+    firstSeatIndex?: number;
+    diceSummary?: string;
+  }) => {
     if (!room || !sessionToken) return;
     setBusyAction(true);
     setErrorMsg(null);
@@ -700,6 +862,8 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
         baseUrl: activeHostBaseUrl,
         roomCode: room.roomCode,
         hostToken: sessionToken,
+        firstSeatIndex: options?.firstSeatIndex,
+        diceSummary: options?.diceSummary,
       });
       setRoom(res.room);
     } catch (err) {
@@ -924,6 +1088,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
     loadTabletopPlaymatPreferences()
   );
   const [showPlaymatCustomizer, setShowPlaymatCustomizer] = useState(false);
+  const [showGuideModal, setShowGuideModal] = useState(false);
 
   useEffect(() => {
     const handleSync = () => {
@@ -985,11 +1150,15 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
   );
 
   const shareEndpointUrl = useMemo(() => {
-    if (connectionMode === 'online' && externalHostInput.trim()) {
-      const raw = externalHostInput.trim();
-      const port = netInfo?.listeningPort || 3000;
-      if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
-      return raw.includes(':') ? `http://${raw}` : `http://${raw}:${port}`;
+    if (connectionMode === 'online') {
+      const candidate = externalHostInput.trim() || netInfo?.publicHostUrl || '';
+      if (candidate) {
+        const port = netInfo?.listeningPort || 3000;
+        if (candidate.startsWith('http://') || candidate.startsWith('https://')) {
+          return candidate;
+        }
+        return candidate.includes(':') ? `http://${candidate}` : `http://${candidate}:${port}`;
+      }
     }
     return netInfo?.primaryLanUrl || window.location.origin;
   }, [connectionMode, externalHostInput, netInfo]);
@@ -1003,58 +1172,72 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
       aria-label="Multiplayer Tabletop Session Hub"
       className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/70 p-3 sm:p-6 backdrop-blur-xs overflow-y-auto"
     >
-      <div className="my-auto flex max-h-[94vh] w-full max-w-[1380px] flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-2xl">
+      <div
+        className={`my-auto flex w-full flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white text-zinc-900 shadow-2xl transition-all ${
+          room?.status === 'playing'
+            ? 'max-h-[96vh] max-w-[96vw] xl:max-w-[1540px]'
+            : 'max-h-[94vh] max-w-[1380px]'
+        }`}
+      >
         {/* Top Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 bg-zinc-50 px-5 py-3.5 sm:px-6">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-700 text-white shrink-0">
-              <Users className="h-4 w-4" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-700 text-white shrink-0">
+              <Users className="h-5 w-5" />
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="font-display text-sm sm:text-base font-bold text-zinc-900 truncate">
+                <h2 className="font-display text-base sm:text-lg font-bold text-zinc-900 truncate">
                   Multiplayer Tabletop · LAN &amp; Self-Hosted Online
                 </h2>
                 {room && (
-                  <span className="font-mono text-xs font-bold tabular-nums text-sky-800">
+                  <span className="font-mono text-xs sm:text-sm font-bold tabular-nums text-sky-800">
                     · Room {room.roomCode} · {room.maxSeats}-Seat Pod ·{' '}
                     {streamConnected ? 'Synced' : 'Reconnecting'}
                   </span>
                 )}
               </div>
-              <p className="text-[11px] text-zinc-500 truncate">
+              <p className="text-xs text-zinc-500 truncate">
                 1–4 player hybrid pods with friends and AI bots over local LAN or port-forwarded host.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setShowGuideModal(true)}
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3.5 py-2 text-sm font-semibold text-sky-900 hover:bg-sky-100 cursor-pointer whitespace-nowrap"
+            >
+              <BookOpen className="h-4 w-4 text-sky-700" />
+              <span>Guide</span>
+            </button>
             <button
               type="button"
               onClick={() => {
                 setCustomCardsInitialTab('card-art');
                 setShowCustomCardsModal(true);
               }}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap"
             >
-              <Wand2 className="h-3.5 w-3.5 text-violet-700" />
+              <Wand2 className="h-4 w-4 text-violet-700" />
               <span>Art &amp; Proxies</span>
             </button>
             <button
               type="button"
               onClick={() => setShowPlaymatCustomizer(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap"
             >
-              <Palette className="h-3.5 w-3.5 text-emerald-700" />
+              <Palette className="h-4 w-4 text-emerald-700" />
               <span>Playmats</span>
             </button>
             {room && (
               <button
                 type="button"
                 onClick={handleLeaveSession}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100 cursor-pointer whitespace-nowrap"
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-red-300 bg-red-50 px-3.5 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 cursor-pointer whitespace-nowrap"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
+                <RotateCcw className="h-4 w-4" />
                 <span>Leave</span>
               </button>
             )}
@@ -1062,9 +1245,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
               type="button"
               onClick={onClose}
               aria-label="Close Multiplayer Hub"
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
               <span>Close</span>
             </button>
           </div>
@@ -1092,9 +1275,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
             /* ============================================================================
                VIEW 1: CLEAN SETUP & CONNECTION HUB (HOST SESSION vs JOIN FRIEND'S SESSION)
                ============================================================================ */
-            <div className="space-y-4">
+            <div className="space-y-5">
               {/* Top Control Row: Host/Join Segmented Toggle + Active Deck Summary */}
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 pb-3.5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200 pb-4">
                 <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
                   <button
                     type="button"
@@ -1102,13 +1285,13 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                       setSetupTab('host');
                       setErrorMsg(null);
                     }}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                    className={`inline-flex min-h-[38px] items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                       setupTab === 'host'
                         ? 'bg-white text-zinc-900 shadow-xs'
                         : 'text-zinc-600 hover:text-zinc-900'
                     }`}
                   >
-                    <Server className="h-3.5 w-3.5 text-sky-700" />
+                    <Server className="h-4 w-4 text-sky-700" />
                     <span>Host Session</span>
                   </button>
                   <button
@@ -1118,18 +1301,18 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                       setErrorMsg(null);
                       void refreshDiscoveredRooms(joinHostUrl);
                     }}
-                    className={`inline-flex items-center gap-1.5 rounded-md px-3.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                    className={`inline-flex min-h-[38px] items-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                       setupTab === 'join'
                         ? 'bg-white text-zinc-900 shadow-xs'
                         : 'text-zinc-600 hover:text-zinc-900'
                     }`}
                   >
-                    <UserPlus className="h-3.5 w-3.5 text-sky-700" />
+                    <UserPlus className="h-4 w-4 text-sky-700" />
                     <span>Join Session</span>
                   </button>
                 </div>
 
-                <div className="text-xs text-zinc-600 truncate">
+                <div className="text-sm text-zinc-600 truncate">
                   <span className="font-semibold text-zinc-900">{userDeckSummary.deckName}</span>
                   <span className="mx-1.5 text-zinc-300" aria-hidden="true">·</span>
                   <span className="capitalize">{userDeckSummary.format}</span>
@@ -1153,52 +1336,57 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                   {/* Left Column (7 cols): Streamlined Room & Seat Configuration */}
                   <form
                     onSubmit={handleCreateRoom}
-                    className="lg:col-span-7 rounded-xl border border-zinc-200 bg-white p-4 sm:p-5 space-y-4"
+                    className="lg:col-span-7 rounded-xl border border-zinc-200 bg-white p-5 sm:p-6 space-y-5"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
-                        <h3 className="text-sm font-bold text-zinc-900">
+                        <h3 className="text-base font-bold text-zinc-900">
                           Room &amp; Pod Setup
                         </h3>
-                        <p className="text-[11px] text-zinc-500">
+                        <p className="text-xs text-zinc-500">
                           Protected by Room Code, passcode, and Host Approval.
                         </p>
                       </div>
 
                       {/* Compact Mode Segmented Switch */}
-                      <div className="inline-flex items-center rounded-lg bg-zinc-100 p-1 text-xs">
+                      <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1 text-sm">
                         <button
                           type="button"
                           onClick={() => setConnectionMode('lan')}
-                          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                          className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-md px-3.5 py-1.5 text-xs sm:text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                             connectionMode === 'lan'
                               ? 'bg-white text-zinc-900 shadow-xs'
                               : 'text-zinc-600 hover:text-zinc-900'
                           }`}
                         >
-                          <Wifi className="h-3.5 w-3.5 text-sky-700" />
+                          <Wifi className="h-4 w-4 text-sky-700" />
                           <span>Offline LAN</span>
                         </button>
                         <button
                           type="button"
-                          onClick={() => setConnectionMode('online')}
-                          className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                          onClick={() => {
+                            setConnectionMode('online');
+                            if (!externalHostInput.trim()) {
+                              void handleDetectPublicIp(false);
+                            }
+                          }}
+                          className={`inline-flex min-h-[38px] items-center gap-1.5 rounded-md px-3.5 py-1.5 text-xs sm:text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                             connectionMode === 'online'
                               ? 'bg-white text-zinc-900 shadow-xs'
                               : 'text-zinc-600 hover:text-zinc-900'
                           }`}
                         >
-                          <Globe className="h-3.5 w-3.5 text-sky-700" />
+                          <Globe className="h-4 w-4 text-sky-700" />
                           <span>Self-Hosted Online</span>
                         </button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
                         <label
                           htmlFor="mp-host-name"
-                          className="block text-[11px] font-semibold text-zinc-700 mb-1"
+                          className="block text-xs font-semibold text-zinc-700 mb-1.5"
                         >
                           Host Display Name
                         </label>
@@ -1209,14 +1397,14 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                           maxLength={32}
                           value={playerName}
                           onChange={(e) => setPlayerName(e.target.value)}
-                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
+                          className="w-full min-h-[42px] rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm text-zinc-900 focus:border-sky-600 focus:outline-none"
                         />
                       </div>
 
                       <div>
                         <label
                           htmlFor="mp-room-name"
-                          className="block text-[11px] font-semibold text-zinc-700 mb-1"
+                          className="block text-xs font-semibold text-zinc-700 mb-1.5"
                         >
                           Room Name
                         </label>
@@ -1227,12 +1415,12 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                           maxLength={48}
                           value={roomName}
                           onChange={(e) => setRoomName(e.target.value)}
-                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
+                          className="w-full min-h-[42px] rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm text-zinc-900 focus:border-sky-600 focus:outline-none"
                         />
                       </div>
 
                       <div>
-                        <label className="block text-[11px] font-semibold text-zinc-700 mb-1">
+                        <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
                           Pod Size
                         </label>
                         <div className="inline-flex w-full items-center gap-1 rounded-lg bg-zinc-100 p-1">
@@ -1241,7 +1429,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                               key={cnt}
                               type="button"
                               onClick={() => setMaxSeats(cnt)}
-                              className={`flex-1 rounded-md px-2 py-1 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+                              className={`flex-1 min-h-[36px] rounded-md px-2.5 py-1.5 text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap ${
                                 maxSeats === cnt
                                   ? 'bg-white text-zinc-900 shadow-xs'
                                   : 'text-zinc-600 hover:text-zinc-900'
@@ -1256,11 +1444,11 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                       <div>
                         <label
                           htmlFor="mp-session-passcode"
-                          className="block text-[11px] font-semibold text-zinc-700 mb-1"
+                          className="block text-xs font-semibold text-zinc-700 mb-1.5"
                         >
                           Session Passcode
                         </label>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                           <input
                             id="mp-session-passcode"
                             type="text"
@@ -1269,13 +1457,13 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                             maxLength={24}
                             value={passcode}
                             onChange={(e) => setPasscode(e.target.value)}
-                            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-mono text-xs font-bold tracking-wider text-zinc-900 focus:border-sky-600 focus:outline-none"
+                            className="w-full min-h-[42px] rounded-lg border border-zinc-300 bg-white px-3.5 py-2 font-mono text-sm font-bold tracking-wider text-zinc-900 focus:border-sky-600 focus:outline-none"
                           />
                           <button
                             type="button"
                             onClick={() => setPasscode(generateRandomPasscode())}
                             title="Generate a fresh random passcode"
-                            className="rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap"
+                            className="min-h-[42px] rounded-lg border border-zinc-300 bg-zinc-50 px-3.5 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0"
                           >
                             New
                           </button>
@@ -1285,9 +1473,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
 
                     {/* Seat Assignment List (only shown when > 1 seat) */}
                     {maxSeats > 1 && (
-                      <div className="space-y-2 border-t border-zinc-100 pt-3">
-                        <div className="flex items-center justify-between text-[11px]">
-                          <span className="font-semibold text-zinc-800">
+                      <div className="space-y-2.5 border-t border-zinc-100 pt-4">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-zinc-800">
                             Seats 2–{maxSeats}
                           </span>
                           <span className="text-zinc-500">
@@ -1295,7 +1483,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                           </span>
                         </div>
 
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           {[1, 2, 3]
                             .filter((idx) => idx < maxSeats)
                             .map((seatIdx) => {
@@ -1306,9 +1494,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                               return (
                                 <div
                                   key={seatIdx}
-                                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-zinc-50/70 px-3 py-1.5 text-xs"
+                                  className="flex flex-wrap items-center justify-between gap-2.5 rounded-lg border border-zinc-200 bg-zinc-50/70 px-3.5 py-2.5 text-sm"
                                 >
-                                  <span className="font-semibold text-zinc-800">
+                                  <span className="font-bold text-zinc-800">
                                     Seat #{seatIdx + 1}
                                   </span>
 
@@ -1325,7 +1513,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                           },
                                         }))
                                       }
-                                      className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-800"
+                                      className="min-h-[38px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 cursor-pointer"
                                     >
                                       <option value="open">Open for Friend</option>
                                       <option value="bot">AI Bot</option>
@@ -1344,7 +1532,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                             },
                                           }))
                                         }
-                                        className="rounded-md border border-zinc-300 bg-white px-2 py-1 text-xs font-medium text-zinc-800"
+                                        className="min-h-[38px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 cursor-pointer"
                                       >
                                         {BOT_ARCHETYPES.map((arch) => (
                                           <option key={arch} value={arch}>
@@ -1361,8 +1549,8 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                       </div>
                     )}
 
-                    <div className="flex items-center justify-between gap-3 border-t border-zinc-100 pt-3">
-                      <span className="text-[11px] text-zinc-500">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 pt-4">
+                      <span className="text-xs text-zinc-600">
                         {connectionMode === 'lan'
                           ? 'Same-Wi-Fi LAN mode · no router setup needed'
                           : 'Remote WAN mode · forward TCP port on right'}
@@ -1370,16 +1558,16 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                       <button
                         type="submit"
                         disabled={busyAction}
-                        className="inline-flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                        className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap"
                       >
                         {busyAction ? (
                           <>
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            <Loader2 className="h-4 w-4 animate-spin" />
                             <span>Creating...</span>
                           </>
                         ) : (
                           <>
-                            <ShieldCheck className="h-3.5 w-3.5" />
+                            <ShieldCheck className="h-4 w-4" />
                             <span>Create Multiplayer Room</span>
                           </>
                         )}
@@ -1387,7 +1575,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                     </div>
                   </form>
 
-                  {/* Right Column (5 cols): Local IP, Port Check & Port-Forwarding Helper */}
+                  {/* Right Column (5 cols): Local IP, Public IPv4 Detection, Port Check & Port-Forwarding Helper */}
                   <div className="lg:col-span-5">
                     <NetworkSetupPanel
                       netInfo={netInfo}
@@ -1395,6 +1583,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                       onRefreshDiagnostics={() => void refreshNetworkDiagnostics()}
                       externalHostInput={externalHostInput}
                       onExternalHostInputChange={setExternalHostInput}
+                      detectingPublicIp={detectingPublicIp}
+                      publicIpError={publicIpError}
+                      onDetectPublicIp={() => void handleDetectPublicIp(true)}
                       testingPort={testingPort}
                       portTestOk={portTestOk}
                       portTestMessage={portTestMessage}
@@ -1405,44 +1596,47 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                 </div>
               ) : (
                 /* ============================================================================
-                   JOIN SESSION TAB (GUEST FLOW + LAN DISCOVERY + APPROVAL GATE WAIT)
+                   JOIN SESSION TAB (DIRECT PUBLIC IPV4 + PORTABLE ROOM CODE + LOOKUP + GATE)
                    ============================================================================ */
                 <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 items-start">
                   <form
                     onSubmit={handleRequestJoinRoom}
-                    className="lg:col-span-7 rounded-xl border border-zinc-200 bg-white p-4 sm:p-5 space-y-4"
+                    className="lg:col-span-7 rounded-xl border border-zinc-200 bg-white p-5 sm:p-6 space-y-5"
                   >
-                    <div>
-                      <h3 className="text-sm font-bold text-zinc-900">
+                    <div className="space-y-1">
+                      <h3 className="text-base font-bold text-zinc-900">
                         Join a Friend&apos;s Table
                       </h3>
-                      <p className="text-[11px] text-zinc-500">
-                        Leave Host URL blank if you opened your friend&apos;s shared browser link directly.
+                      <p className="text-xs leading-relaxed text-zinc-600">
+                        Enter the host&apos;s Public IPv4 URL + Room Code, or paste a Portable Connect Code (<span className="font-mono font-semibold">UP-XXXX@IP:3000</span>) directly into Room Code.
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
                         <label
                           htmlFor="mp-join-host-url"
-                          className="block text-[11px] font-semibold text-zinc-700 mb-1"
+                          className="block text-xs font-semibold text-zinc-700 mb-1.5"
                         >
-                          Host Server URL (Optional)
+                          Host Public IPv4 / LAN URL
                         </label>
                         <input
                           id="mp-join-host-url"
                           type="text"
                           value={joinHostUrl}
-                          onChange={(e) => setJoinHostUrl(e.target.value)}
-                          placeholder="http://192.168.1.42:3000"
-                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-mono text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
+                          onChange={(e) => {
+                            setJoinHostUrl(e.target.value);
+                            setLookupResult(null);
+                          }}
+                          placeholder="http://203.0.113.45:3000 (blank if opened directly)"
+                          className="w-full min-h-[42px] rounded-lg border border-zinc-300 bg-white px-3.5 py-2 font-mono text-sm text-zinc-900 focus:border-sky-600 focus:outline-none"
                         />
                       </div>
 
                       <div>
                         <label
                           htmlFor="mp-join-player-name"
-                          className="block text-[11px] font-semibold text-zinc-700 mb-1"
+                          className="block text-xs font-semibold text-zinc-700 mb-1.5"
                         >
                           Your Display Name
                         </label>
@@ -1453,33 +1647,59 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                           maxLength={32}
                           value={playerName}
                           onChange={(e) => setPlayerName(e.target.value)}
-                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
+                          className="w-full min-h-[42px] rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm text-zinc-900 focus:border-sky-600 focus:outline-none"
                         />
                       </div>
 
                       <div>
                         <label
                           htmlFor="mp-join-room-code"
-                          className="block text-[11px] font-semibold text-zinc-700 mb-1"
+                          className="block text-xs font-semibold text-zinc-700 mb-1.5"
                         >
-                          Room Code
+                          Room Code or Portable Code
                         </label>
-                        <input
-                          id="mp-join-room-code"
-                          type="text"
-                          required
-                          maxLength={12}
-                          value={joinRoomCode}
-                          onChange={(e) => setJoinRoomCode(e.target.value.toUpperCase())}
-                          placeholder="UP-XXXX"
-                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-mono text-xs font-bold uppercase tracking-wider text-zinc-900 focus:border-sky-600 focus:outline-none"
-                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            id="mp-join-room-code"
+                            type="text"
+                            required
+                            maxLength={120}
+                            value={joinRoomCode}
+                            onChange={(e) => {
+                              const nextVal = e.target.value;
+                              setLookupResult(null);
+                              if (nextVal.includes('@') || nextVal.includes('?join=')) {
+                                try {
+                                  const parsed = parseMultiplayerJoinInput(nextVal, joinHostUrl);
+                                  setJoinRoomCode(parsed.roomCode);
+                                  if (parsed.hostBaseUrl) {
+                                    setJoinHostUrl(parsed.hostBaseUrl);
+                                  }
+                                  return;
+                                } catch {
+                                  // Fall back to raw text while typing
+                                }
+                              }
+                              setJoinRoomCode(nextVal.toUpperCase());
+                            }}
+                            placeholder="UP-XXXX or UP-XXXX@IP:3000"
+                            className="w-full min-h-[42px] rounded-lg border border-zinc-300 bg-white px-3.5 py-2 font-mono text-sm font-bold tracking-wider text-zinc-900 focus:border-sky-600 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => void handleLookupRoomCode()}
+                            disabled={lookingUpRoom || !joinRoomCode.trim()}
+                            className="min-h-[42px] rounded-lg border border-zinc-300 bg-zinc-50 px-3.5 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+                          >
+                            {lookingUpRoom ? 'Checking...' : 'Check'}
+                          </button>
+                        </div>
                       </div>
 
                       <div>
                         <label
                           htmlFor="mp-join-passcode"
-                          className="block text-[11px] font-semibold text-zinc-700 mb-1"
+                          className="block text-xs font-semibold text-zinc-700 mb-1.5"
                         >
                           Session Passcode
                         </label>
@@ -1491,20 +1711,73 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                           value={joinPasscode}
                           onChange={(e) => setJoinPasscode(e.target.value)}
                           placeholder="Enter host passcode"
-                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 font-mono text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
+                          className="w-full min-h-[42px] rounded-lg border border-zinc-300 bg-white px-3.5 py-2 font-mono text-sm text-zinc-900 focus:border-sky-600 focus:outline-none"
                         />
                       </div>
                     </div>
 
+                    {lookupResult && (
+                      <div className="flex items-center justify-between gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-950">
+                        <div className="flex items-center gap-2">
+                          <Check className="h-4 w-4 text-emerald-700 shrink-0" />
+                          <span>
+                            Room <span className="font-mono font-bold">{lookupResult.roomCode}</span> verified ·{' '}
+                            <span className="capitalize">{lookupResult.format}</span> ·{' '}
+                            Passcode + Host Approval required
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {(() => {
+                      let parsedPreview: { roomCode: string; hostBaseUrl: string } | null = null;
+                      try {
+                        parsedPreview = parseMultiplayerJoinInput(joinRoomCode, joinHostUrl);
+                      } catch {
+                        parsedPreview = null;
+                      }
+                      if (!parsedPreview || !isHttpsToHttpMixedContent(parsedPreview.hostBaseUrl)) {
+                        return null;
+                      }
+                      const directHref = buildDirectInviteUrl(
+                        parsedPreview.hostBaseUrl,
+                        parsedPreview.roomCode || 'UP-JOIN'
+                      );
+                      return (
+                        <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950 space-y-2.5">
+                          <div className="font-bold">
+                            Browser Mixed-Content Protection Detected
+                          </div>
+                          <p className="text-xs text-sky-900 leading-relaxed">
+                            You are viewing this page over HTTPS, so your browser blocks background requests to an HTTP public IPv4 server. Open the host&apos;s direct HTTP session link below to join securely on their server origin.
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            <a
+                              href={directHref}
+                              target="_top"
+                              rel="noopener noreferrer"
+                              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-800 whitespace-nowrap"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              <span>Open Direct Host Session</span>
+                            </a>
+                            <span className="font-mono text-xs text-sky-900 truncate">
+                              {directHref}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {pendingRequestStatus === 'pending' && (
-                      <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950">
+                      <div className="flex items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3.5 text-sm text-amber-950">
                         <div className="flex items-center gap-2.5">
                           <Loader2 className="h-4 w-4 animate-spin text-amber-700 shrink-0" />
                           <div>
                             <div className="font-bold">
                               Waiting for Host Approval...
                             </div>
-                            <div className="text-[11px] text-amber-800">
+                            <div className="text-xs text-amber-800">
                               Request ID <span className="font-mono">{pendingRequestId}</span> verified. Host can now approve your seat.
                             </div>
                           </div>
@@ -1515,52 +1788,67 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                             setPendingRequestStatus(null);
                             setPendingRequestToken(null);
                           }}
-                          className="rounded border border-amber-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+                          className="min-h-[36px] rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer"
                         >
                           Cancel
                         </button>
                       </div>
                     )}
 
-                    <div className="flex items-center justify-end border-t border-zinc-100 pt-3">
+                    <div className="flex items-center justify-end border-t border-zinc-100 pt-4">
                       <button
                         type="submit"
                         disabled={busyAction || pendingRequestStatus === 'pending'}
-                        className="inline-flex items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                        className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-sky-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap"
                       >
-                        <Lock className="h-3.5 w-3.5" />
+                        <Lock className="h-4 w-4" />
                         <span>Request to Join</span>
                       </button>
                     </div>
                   </form>
 
-                  {/* Discovered Active Rooms on Target Host */}
-                  <div className="lg:col-span-5 rounded-xl border border-zinc-200 bg-zinc-50/70 p-4 space-y-3">
+                  {/* Discovered Local LAN Rooms (Hidden on Public WAN Hosts for Privacy) */}
+                  <div className="lg:col-span-5 rounded-xl border border-zinc-200 bg-zinc-50/70 p-5 space-y-3.5">
                     <div className="flex items-center justify-between gap-2">
                       <div>
-                        <h3 className="text-xs font-bold uppercase tracking-wide text-zinc-900">
-                          Active Host Rooms
+                        <h3 className="text-sm font-bold text-zinc-900">
+                          {isRemotePublicHostUrl(joinHostUrl)
+                            ? 'Private Host Security'
+                            : 'Local LAN Rooms'}
                         </h3>
-                        <p className="text-[11px] text-zinc-500">
-                          Click a session to fill its Room Code.
+                        <p className="text-xs text-zinc-500">
+                          {isRemotePublicHostUrl(joinHostUrl)
+                            ? 'Public room browsing is disabled to prevent scanning.'
+                            : 'Click a local LAN session to fill its Room Code.'}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void refreshDiscoveredRooms(joinHostUrl)}
-                        disabled={loadingDiscovered}
-                        className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
-                      >
-                        <RefreshCw
-                          className={`h-3 w-3 ${loadingDiscovered ? 'animate-spin' : ''}`}
-                        />
-                        <span>Scan</span>
-                      </button>
+                      {!isRemotePublicHostUrl(joinHostUrl) && (
+                        <button
+                          type="button"
+                          onClick={() => void refreshDiscoveredRooms(joinHostUrl)}
+                          disabled={loadingDiscovered}
+                          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap shrink-0"
+                        >
+                          <RefreshCw
+                            className={`h-3.5 w-3.5 ${loadingDiscovered ? 'animate-spin' : ''}`}
+                          />
+                          <span>Scan LAN</span>
+                        </button>
+                      )}
                     </div>
 
-                    {discoveredRooms.length === 0 ? (
-                      <div className="rounded-lg border border-zinc-200 bg-white p-3.5 text-xs text-zinc-500">
-                        No open rooms detected yet. Enter the host&apos;s Room Code directly or click Scan after the host creates a session.
+                    {isRemotePublicHostUrl(joinHostUrl) ? (
+                      <div className="rounded-lg border border-zinc-200 bg-white p-4 text-xs text-zinc-600 space-y-1.5 leading-relaxed">
+                        <div className="text-sm font-semibold text-zinc-900">
+                          Room List Hidden on Public Hosts
+                        </div>
+                        <p>
+                          For privacy, remote connections cannot scan active lobbies on a host&apos;s public IPv4. Enter your Room Code and Session Passcode, then click Check or Request to Join.
+                        </p>
+                      </div>
+                    ) : discoveredRooms.length === 0 ? (
+                      <div className="rounded-lg border border-zinc-200 bg-white p-4 text-xs text-zinc-500 leading-relaxed">
+                        No open LAN rooms detected on this subnet yet. Enter the Room Code + Passcode or click Scan LAN after the host creates a session.
                       </div>
                     ) : (
                       <div className="space-y-2">
@@ -1569,17 +1857,17 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                             key={r.roomCode}
                             type="button"
                             onClick={() => setJoinRoomCode(r.roomCode)}
-                            className={`flex w-full items-center justify-between gap-3 rounded-lg border p-2.5 text-left text-xs transition-colors cursor-pointer ${
+                            className={`flex w-full items-center justify-between gap-3 rounded-lg border p-3 text-left text-xs transition-colors cursor-pointer ${
                               joinRoomCode === r.roomCode
                                 ? 'border-sky-600 bg-sky-50'
                                 : 'border-zinc-200 bg-white hover:bg-zinc-50'
                             }`}
                           >
                             <div className="min-w-0">
-                              <div className="font-bold text-zinc-900 truncate">
+                              <div className="text-sm font-bold text-zinc-900 truncate">
                                 {r.roomName}
                               </div>
-                              <div className="text-[11px] text-zinc-600">
+                              <div className="text-xs text-zinc-600">
                                 <span className="font-mono font-bold text-sky-800">
                                   {r.roomCode}
                                 </span>
@@ -1591,7 +1879,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                 </span>
                               </div>
                             </div>
-                            <span className="font-semibold text-sky-700 shrink-0">
+                            <span className="text-sm font-semibold text-sky-700 shrink-0">
                               Select
                             </span>
                           </button>
@@ -1631,29 +1919,29 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                VIEW 3: LIVE SYNCHRONIZED MULTIPLAYER TABLETOP ARENA (1–4 PLAYERS + AI BOTS)
                ============================================================================ */
             <div
-              className={`relative overflow-hidden rounded-xl border-2 p-4 text-zinc-100 space-y-4 transition-colors ${mpTabletopSurface.outerClass}`}
+              className={`relative overflow-hidden rounded-xl border-2 p-4 sm:p-5 text-zinc-100 space-y-4 transition-colors ${mpTabletopSurface.outerClass}`}
             >
               <PlaymatSurfaceBackdrop surface={mpTabletopSurface} variant="table" />
               {/* Top Multiplayer Match HUD Bar */}
               <div
-                className={`relative z-10 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-2.5 text-xs ${mpTabletopSurface.hudClass}`}
+                className={`relative z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 sm:px-5 py-3.5 text-sm ${mpTabletopSurface.hudClass}`}
               >
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono font-bold text-amber-300 tabular-nums">
-                    TURN {tabletop.turnNumber}
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="font-mono text-base font-bold text-amber-300 tabular-nums">
+                    Turn {tabletop.turnNumber}
                   </span>
                   <span className="text-sky-400/50">·</span>
-                  <span className="font-bold text-white uppercase">
+                  <span className="font-bold text-white">
                     Phase: {tabletop.phase}
                   </span>
                   <span className="text-sky-400/50">·</span>
                   <span className="font-semibold text-emerald-300">
-                    Active Turn:{' '}
+                    Active:{' '}
                     {tabletop.seats[tabletop.activeSeatIndex]?.playerName || 'Seat 1'}
-                    {tabletop.activeSeatIndex === callerSeatIdx ? ' (YOUR TURN)' : ''}
+                    {tabletop.activeSeatIndex === callerSeatIdx ? ' (Your Turn)' : ''}
                   </span>
                   <span className="text-sky-400/50">·</span>
-                  <span className="font-mono text-[11px] tabular-nums text-sky-200">
+                  <span className="font-mono text-xs tabular-nums text-sky-200">
                     Room {room.roomCode}
                   </span>
                 </div>
@@ -1662,7 +1950,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                   <button
                     type="button"
                     onClick={() => void dispatchGameAction({ type: 'next-phase' })}
-                    className="inline-flex items-center gap-1 rounded-md border border-sky-400/50 bg-sky-500/20 px-2.5 py-1 text-xs font-semibold text-sky-100 hover:bg-sky-500/30 cursor-pointer"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-sky-400/50 bg-sky-500/20 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-sky-100 hover:bg-sky-500/30 cursor-pointer whitespace-nowrap shrink-0"
                   >
                     <span>Next Phase</span>
                   </button>
@@ -1670,7 +1958,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                   <button
                     type="button"
                     onClick={() => void dispatchGameAction({ type: 'pass-turn' })}
-                    className="inline-flex items-center gap-1 rounded-md bg-amber-400 px-3 py-1 text-xs font-bold text-zinc-950 hover:bg-amber-300 cursor-pointer"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg bg-amber-400 px-4 py-1.5 text-xs sm:text-sm font-bold text-zinc-950 hover:bg-amber-300 cursor-pointer whitespace-nowrap shrink-0"
                   >
                     <span>Pass Turn</span>
                   </button>
@@ -1679,9 +1967,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                     <button
                       type="button"
                       onClick={() => void dispatchGameAction({ type: 'run-bot-step' })}
-                      className="inline-flex items-center gap-1 rounded-md border border-violet-400/60 bg-violet-500/25 px-2.5 py-1 text-xs font-semibold text-violet-100 hover:bg-violet-500/40 cursor-pointer"
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-violet-400/60 bg-violet-500/25 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-violet-100 hover:bg-violet-500/40 cursor-pointer whitespace-nowrap shrink-0"
                     >
-                      <Bot className="h-3.5 w-3.5" />
+                      <Bot className="h-4 w-4" />
                       <span>Step Bot Turn</span>
                     </button>
                   )}
@@ -1692,27 +1980,27 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                       setCustomCardsInitialTab('card-art');
                       setShowCustomCardsModal(true);
                     }}
-                    className="inline-flex items-center gap-1 rounded-md border border-violet-400/50 bg-violet-950/60 px-2.5 py-1 text-xs font-semibold text-violet-100 hover:bg-violet-900/70 cursor-pointer"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-violet-400/50 bg-violet-950/60 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-violet-100 hover:bg-violet-900/70 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <Wand2 className="h-3.5 w-3.5 text-violet-300" />
+                    <Wand2 className="h-4 w-4 text-violet-300" />
                     <span>Proxies &amp; Tokens</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowPlaymatCustomizer(true)}
-                    className="inline-flex items-center gap-1 rounded-md border border-emerald-400/50 bg-emerald-950/60 px-2.5 py-1 text-xs font-semibold text-emerald-100 hover:bg-emerald-900/70 cursor-pointer"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-emerald-400/50 bg-emerald-950/60 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-emerald-100 hover:bg-emerald-900/70 cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <Palette className="h-3.5 w-3.5 text-emerald-300" />
+                    <Palette className="h-4 w-4 text-emerald-300" />
                     <span>Playmats &amp; Theme</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setShowChatDrawer((v) => !v)}
-                    className="inline-flex items-center gap-1 rounded-md border border-sky-400/40 bg-[#0D233A] px-2.5 py-1 text-xs font-semibold text-sky-200 hover:bg-[#132E4B] cursor-pointer"
+                    className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-sky-400/40 bg-[#0D233A] px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-sky-200 hover:bg-[#132E4B] cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <MessageSquare className="h-3.5 w-3.5" />
+                    <MessageSquare className="h-4 w-4" />
                     <span>Table Chat ({room.chatMessages.length})</span>
                   </button>
 
@@ -1720,29 +2008,80 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                     <button
                       type="button"
                       onClick={() => void dispatchGameAction({ type: 'reset-match' })}
-                      className="inline-flex items-center gap-1 rounded-md border border-red-400/40 bg-red-950/50 px-2.5 py-1 text-xs font-semibold text-red-200 hover:bg-red-900/60 cursor-pointer"
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-red-400/40 bg-red-950/50 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-red-200 hover:bg-red-900/60 cursor-pointer whitespace-nowrap shrink-0"
                     >
-                      <RotateCcw className="h-3.5 w-3.5" />
+                      <RotateCcw className="h-4 w-4" />
                       <span>Rematch</span>
                     </button>
                   )}
                 </div>
               </div>
 
+              {/* Pod Seat Turn-Order & Life Strip */}
+              <div
+                className={`relative z-10 grid gap-2.5 ${
+                  tabletop.seats.length <= 2
+                    ? 'grid-cols-1 sm:grid-cols-2'
+                    : tabletop.seats.length === 3
+                    ? 'grid-cols-1 sm:grid-cols-3'
+                    : 'grid-cols-2 lg:grid-cols-4'
+                }`}
+              >
+                {tabletop.seats.map((seat) => {
+                  const isActive = tabletop.activeSeatIndex === seat.seatIndex;
+                  const isYou = seat.seatIndex === callerSeatIdx;
+                  return (
+                    <div
+                      key={`seat-strip-${seat.seatIndex}`}
+                      className={`rounded-xl border px-3.5 py-2.5 flex items-center justify-between gap-2.5 ${
+                        isActive
+                          ? 'border-amber-400 bg-amber-950/35 ring-1 ring-amber-400/45'
+                          : isYou
+                          ? 'border-sky-400/50 bg-[#0B2239]/90'
+                          : 'border-sky-500/30 bg-[#081728]/85'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 text-xs font-bold text-white">
+                          <span className="font-mono text-sky-300">S{seat.seatIndex + 1}</span>
+                          <span className="truncate">{seat.playerName}</span>
+                          {isYou && (
+                            <span className="font-mono text-[10px] font-bold text-emerald-300">
+                              (You)
+                            </span>
+                          )}
+                          {isActive && (
+                            <span className="rounded bg-amber-400 px-1.5 py-0.5 font-mono text-[10px] font-bold text-zinc-950 shrink-0">
+                              Turn
+                            </span>
+                          )}
+                        </div>
+                        <div className="font-mono text-[11px] tabular-nums text-sky-200/80 mt-0.5">
+                          {seat.kind === 'bot' ? 'AI Bot' : 'Human'} · {seat.handCount}H · {seat.battlefield.length} BF · {seat.libraryCount} Lib
+                        </div>
+                      </div>
+                      <div className="font-mono text-base font-bold tabular-nums text-emerald-300 shrink-0">
+                        {seat.life} HP
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
               {tabletop.winReason && (
-                <div className="relative z-10 rounded-lg border border-amber-400 bg-amber-500/20 px-4 py-3 text-center text-sm font-bold text-amber-200">
+                <div className="relative z-10 rounded-xl border border-amber-400 bg-amber-500/20 px-4 py-3 text-center text-sm font-bold text-amber-200">
                   {tabletop.winReason}
                 </div>
               )}
 
               {/* Opponent / Pod Seats Row */}
               <div
-                className={`relative z-10 grid grid-cols-1 gap-3 ${
+                className={`relative z-10 grid grid-cols-1 gap-4 ${
                   opponentSeats.length === 1
-                    ? 'lg:grid-cols-1'
+                    ? 'lg:grid-cols-1 max-w-3xl mx-auto w-full'
                     : opponentSeats.length === 2
                     ? 'lg:grid-cols-2'
-                    : 'lg:grid-cols-3'
+                    : 'xl:grid-cols-3'
                 }`}
               >
                 {opponentSeats.map((oppSeat) => {
@@ -1771,28 +2110,33 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                   return (
                     <div
                       key={oppSeat.seatIndex}
-                      className={`relative overflow-hidden rounded-lg border p-3 space-y-2.5 transition-colors ${
+                      className={`relative overflow-hidden rounded-xl border p-4 space-y-3 transition-colors ${
                         isTurn
                           ? oppSeatSurface.seatActiveClass
                           : oppSeatSurface.seatClass
                       }`}
                     >
                       <PlaymatSurfaceBackdrop surface={oppSeatSurface} variant="seat" />
-                      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
+                      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2.5">
+                        <div className="flex flex-wrap items-center gap-2 min-w-0">
                           <span className="font-mono text-xs font-bold text-sky-300">
-                            #{oppSeat.seatIndex + 1}
+                            Seat #{oppSeat.seatIndex + 1}
                           </span>
-                          <span className="text-xs font-bold text-white">
+                          <span className="text-sm font-bold text-white truncate">
                             {oppSeat.playerName}
                           </span>
-                          <span className="text-[11px] text-sky-200/80">
+                          <span className="text-xs text-sky-200/80">
                             · {oppSeat.kind === 'bot' ? 'AI Bot' : 'Human'}
                           </span>
+                          {isTurn && (
+                            <span className="rounded bg-amber-400 px-1.5 py-0.5 font-mono text-[10px] font-bold text-zinc-950">
+                              Active
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2 font-mono text-xs tabular-nums">
-                          <span className="font-bold text-emerald-300">
+                          <span className="text-base font-bold text-emerald-300">
                             {oppSeat.life} Life
                           </span>
                           <button
@@ -1804,7 +2148,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                 delta: -1,
                               })
                             }
-                            className="rounded border border-sky-500/40 bg-[#0D2137] px-1.5 py-0.5 text-[10px] text-sky-200 hover:bg-sky-800/50 cursor-pointer"
+                            className="min-h-[30px] min-w-[32px] rounded-md border border-sky-500/40 bg-[#0D2137] px-2 py-1 text-xs font-bold text-sky-200 hover:bg-sky-800/50 cursor-pointer"
                           >
                             -1
                           </button>
@@ -1817,33 +2161,36 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                 delta: 1,
                               })
                             }
-                            className="rounded border border-sky-500/40 bg-[#0D2137] px-1.5 py-0.5 text-[10px] text-sky-200 hover:bg-sky-800/50 cursor-pointer"
+                            className="min-h-[30px] min-w-[32px] rounded-md border border-sky-500/40 bg-[#0D2137] px-2 py-1 text-xs font-bold text-sky-200 hover:bg-sky-800/50 cursor-pointer"
                           >
                             +1
                           </button>
-                          <span className="text-sky-300/70">·</span>
-                          <span className="text-violet-300">
-                            {oppSeat.poison} Poison
+                          <span className="text-sky-300/60">·</span>
+                          <span className="text-xs text-violet-300">
+                            {oppSeat.poison} PSN
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono tabular-nums text-sky-200/80">
-                        <span>Hand: {oppSeat.handCount} (Hidden)</span>
-                        <span>·</span>
-                        <span>Library: {oppSeat.libraryCount}</span>
-                        <span>·</span>
-                        <span>Graveyard: {oppSeat.graveyard.length}</span>
-                        {oppSeat.commandZone.length > 0 && (
-                          <>
-                            <span>·</span>
-                            <span className="text-amber-300">
-                              Cmdr: {oppSeat.commandZone.map((c) => c.name).join(', ')} (+{'{'}
-                              {oppSeat.commanderTax}
-                              {'}'})
-                            </span>
-                          </>
-                        )}
+                      <div className="relative z-10 flex flex-wrap items-center justify-between gap-2.5 border-y border-sky-500/20 py-2">
+                        <MpCardBackFan count={oppSeat.handCount} />
+                        <div className="flex flex-wrap items-center gap-2 text-xs font-mono tabular-nums text-sky-200/85">
+                          <span>Lib {oppSeat.libraryCount}</span>
+                          <span>·</span>
+                          <span>GY {oppSeat.graveyard.length}</span>
+                          <span>·</span>
+                          <span>Exile {oppSeat.exile.length}</span>
+                          {oppSeat.commandZone.length > 0 && (
+                            <>
+                              <span>·</span>
+                              <span className="text-amber-300 font-semibold">
+                                Cmdr: {oppSeat.commandZone.map((c) => c.name).join(', ')} (+{'{'}
+                                {oppSeat.commanderTax}
+                                {'}'})
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
 
                       {/* Opponent / Bot Free-Form Playmat Canvas */}
@@ -1851,11 +2198,13 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                         ref={(el) => {
                           botPlaymatRefs.current[oppSeat.seatIndex] = el;
                         }}
-                        className="relative z-10 min-h-[185px] overflow-hidden rounded-lg border border-sky-500/25 bg-[#07111E]/90 p-2 select-none"
+                        className={`relative z-10 overflow-hidden rounded-xl border border-sky-500/25 bg-[#07111E]/90 p-2.5 select-none ${
+                          oppSeat.battlefield.length > 0 ? 'min-h-[260px]' : 'min-h-[165px]'
+                        }`}
                       >
-                        <div className="flex items-center justify-between gap-2 pb-1">
-                          <span className="font-mono text-[9px] uppercase tracking-wider text-sky-200/55 inline-flex items-center gap-1">
-                            <Move className="h-2.5 w-2.5" />
+                        <div className="flex items-center justify-between gap-2 pb-1.5">
+                          <span className="font-mono text-xs font-medium text-sky-200/70 inline-flex items-center gap-1.5">
+                            <Move className="h-3.5 w-3.5 text-sky-300" />
                             <span>
                               {oppSeat.kind === 'bot'
                                 ? 'Bot Playmat · Drag cards anywhere'
@@ -1871,26 +2220,28 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                   targetSeatIndex: oppSeat.seatIndex,
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded border border-sky-400/35 bg-[#0D2137] px-1.5 py-0.5 text-[9px] font-semibold text-sky-200 hover:bg-sky-900/60 cursor-pointer"
+                              className="inline-flex min-h-[28px] items-center gap-1 rounded-md border border-sky-400/35 bg-[#0D2137] px-2.5 py-1 text-xs font-semibold text-sky-200 hover:bg-sky-900/60 cursor-pointer whitespace-nowrap"
                             >
-                              <LayoutGrid className="h-2.5 w-2.5" />
+                              <LayoutGrid className="h-3.5 w-3.5" />
                               <span>Tidy</span>
                             </button>
                           )}
                         </div>
 
                         {showPlaymatGuides && (
-                          <div className="pointer-events-none absolute inset-x-2.5 top-[48%] border-t border-dashed border-sky-400/20" />
+                          <div className="pointer-events-none absolute inset-x-3 top-[50%] border-t border-dashed border-sky-400/25" />
                         )}
 
                         {oppSeat.battlefield.length === 0 ? (
-                          <div className="flex h-[135px] items-center justify-center text-[11px] text-sky-200/50">
+                          <div className="flex h-[120px] items-center justify-center text-xs text-sky-200/60">
                             No permanents on battlefield
                           </div>
                         ) : (
-                          <div className="relative h-[150px] w-full">
+                          <div className="relative h-[215px] w-full">
                             {oppSeat.battlefield.map((perm, pIdx) => {
                               const vis = resolveMultiplayerCardInstance(perm, false);
+                              const isLandPerm = (perm.typeLine || '').toLowerCase().includes('land');
+                              const isCreaturePerm = (perm.typeLine || '').toLowerCase().includes('creature');
                               const coordKey = `${oppSeat.seatIndex}:${perm.uid}`;
                               const isDraggingThis =
                                 mpPointerDrag?.kind === 'bot' &&
@@ -1941,10 +2292,10 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                       initialY: posY,
                                     });
                                   }}
-                                  className={`absolute w-[144px] touch-none ${
+                                  className={`absolute w-[114px] touch-none ${
                                     isDraggingThis
                                       ? 'transition-none ring-2 ring-amber-300 shadow-2xl scale-[1.04]'
-                                      : 'transition-[left,top] duration-200 ease-out'
+                                      : 'transition-[left,top] duration-200 ease-out hover:z-30'
                                   } ${
                                     oppSeat.kind === 'bot'
                                       ? 'cursor-grab active:cursor-grabbing'
@@ -1960,36 +2311,57 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                       }
                                       onInspectCard(vis.displayTitle, vis.inspectMeta);
                                     }}
-                                    className={`flex w-full items-center gap-1.5 rounded border px-1.5 py-1 text-left text-[10px] transition-transform cursor-pointer ${
+                                    className={`flex w-full flex-col rounded-lg border p-1.5 text-left transition-transform cursor-pointer ${
                                       perm.tapped
-                                        ? 'rotate-3 border-amber-400/50 bg-amber-950/75 text-amber-200'
-                                        : 'border-sky-400/45 bg-[#10263F]/95 text-white hover:border-sky-300'
+                                        ? 'rotate-3 border-amber-400/65 bg-amber-950/80 text-amber-100'
+                                        : 'border-sky-400/50 bg-[#10263F]/95 text-white hover:border-sky-300'
                                     } ${getCustomFrameBorderClass(vis.frameStyle)}`}
                                   >
-                                    {vis.effectiveImageUri && (
-                                      <img
-                                        src={vis.effectiveImageUri}
-                                        alt={vis.displayTitle}
-                                        draggable={false}
-                                        className="h-7 w-9 rounded object-cover border border-white/15 shrink-0"
-                                      />
-                                    )}
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center gap-1">
-                                        <span className="font-semibold truncate">
-                                          {vis.displayTitle}
-                                        </span>
-                                        {vis.badgeLabel && (
-                                          <span className="rounded bg-amber-400 px-1 font-mono text-[7px] font-bold text-zinc-950 shrink-0">
-                                            {vis.badgeLabel}
+                                    <div className="relative h-[66px] w-full overflow-hidden rounded border border-white/10 bg-zinc-950">
+                                      {vis.effectiveImageUri ? (
+                                        <img
+                                          src={vis.effectiveImageUri}
+                                          alt={vis.displayTitle}
+                                          draggable={false}
+                                          referrerPolicy="no-referrer"
+                                          className="h-full w-full object-cover object-top"
+                                        />
+                                      ) : (
+                                        <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-zinc-900 px-1 text-center">
+                                          {isLandPerm ? (
+                                            <Mountain className="h-4 w-4 text-emerald-300" />
+                                          ) : isCreaturePerm ? (
+                                            <Swords className="h-4 w-4 text-amber-300" />
+                                          ) : (
+                                            <Sparkles className="h-4 w-4 text-sky-300" />
+                                          )}
+                                          <span className="line-clamp-1 font-mono text-[9px] text-zinc-300">
+                                            {perm.typeLine.split('—')[0].trim() || 'Card'}
                                           </span>
-                                        )}
+                                        </div>
+                                      )}
+                                      {vis.badgeLabel && (
+                                        <span className="absolute top-0.5 left-0.5 rounded bg-amber-400 px-1 py-0.5 font-mono text-[8px] font-bold text-zinc-950 leading-none">
+                                          {vis.badgeLabel}
+                                        </span>
+                                      )}
+                                      {perm.tapped && (
+                                        <span className="absolute top-0.5 right-0.5 rounded bg-amber-400 px-1 py-0.5 font-mono text-[8px] font-bold text-zinc-950 leading-none">
+                                          TAP
+                                        </span>
+                                      )}
+                                      {perm.power && perm.toughness && (
+                                        <span className="absolute bottom-0.5 right-0.5 rounded bg-zinc-950/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-300 leading-none tabular-nums">
+                                          {perm.power}/{perm.toughness}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="mt-1 space-y-0.5">
+                                      <div className="truncate text-[11px] font-bold leading-snug text-white">
+                                        {vis.displayTitle}
                                       </div>
-                                      <div className="font-mono text-[9px] text-sky-300 truncate">
-                                        {perm.power && perm.toughness
-                                          ? `${perm.power}/${perm.toughness}`
-                                          : perm.typeLine.split('—')[0].trim()}
-                                        {perm.tapped ? ' · Tapped' : ''}
+                                      <div className="truncate font-mono text-[10px] text-sky-200/80">
+                                        {perm.typeLine.split('—')[0].trim() || 'Permanent'}
                                       </div>
                                     </div>
                                   </button>
@@ -2005,11 +2377,11 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
               </div>
 
               {/* Shared LIFO Visual Stack & Trigger Resolution Queue */}
-              <div className="rounded-lg border border-sky-400/40 bg-[#0B1C2E] p-3.5 space-y-3">
+              <div className="rounded-xl border border-sky-400/40 bg-[#0B1C2E] p-4 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center gap-2 text-sm">
                     <Layers className="h-4 w-4 text-amber-300" />
-                    <span className="font-bold text-white uppercase tracking-wide">
+                    <span className="font-bold text-white">
                       Shared LIFO Stack &amp; Trigger Queue (CR 405)
                     </span>
                     <span className="font-mono text-amber-300 tabular-nums font-bold">
@@ -2026,9 +2398,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                           onClick={() =>
                             void dispatchGameAction({ type: 'resolve-top' })
                           }
-                          className="inline-flex items-center gap-1 rounded-md bg-amber-400 px-3 py-1 text-xs font-bold text-zinc-950 hover:bg-amber-300 cursor-pointer"
+                          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-amber-400 px-3.5 py-1.5 text-xs sm:text-sm font-bold text-zinc-950 hover:bg-amber-300 cursor-pointer whitespace-nowrap"
                         >
-                          <Check className="h-3.5 w-3.5" />
+                          <Check className="h-4 w-4" />
                           <span>Resolve Top (#1)</span>
                         </button>
                         <button
@@ -2036,7 +2408,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                           onClick={() =>
                             void dispatchGameAction({ type: 'pass-priority' })
                           }
-                          className="inline-flex items-center gap-1 rounded-md border border-emerald-400/60 bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200 hover:bg-emerald-500/35 cursor-pointer"
+                          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-emerald-400/60 bg-emerald-500/20 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-emerald-200 hover:bg-emerald-500/35 cursor-pointer whitespace-nowrap"
                         >
                           <span>Pass Priority (Resolve All)</span>
                         </button>
@@ -2046,7 +2418,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                       <button
                         type="button"
                         onClick={() => setShowResolvedHistory((v) => !v)}
-                        className="rounded border border-sky-400/40 bg-[#0F243C] px-2.5 py-1 text-[11px] font-semibold text-sky-200 hover:bg-[#153152] cursor-pointer"
+                        className="min-h-[36px] rounded-lg border border-sky-400/40 bg-[#0F243C] px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-[#153152] cursor-pointer whitespace-nowrap"
                       >
                         {showResolvedHistory
                           ? 'Hide Resolved History'
@@ -2057,39 +2429,39 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                 </div>
 
                 {reversedStack.length === 0 ? (
-                  <div className="text-xs text-sky-200/70">
+                  <div className="text-xs text-sky-200/75">
                     Stack is empty. Cast a spell or push a triggered ability below to place it on top of the LIFO resolution queue.
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {reversedStack.map(({ item, resolutionRank }, idx) => (
                       <React.Fragment key={item.id}>
-                        <div className="animate-stack-item-slide flex items-start justify-between gap-3 rounded-lg border border-amber-400/60 bg-[#132942] p-2.5 text-xs">
+                        <div className="animate-stack-item-slide flex items-start justify-between gap-3 rounded-lg border border-amber-400/60 bg-[#132942] p-3 text-xs">
                           <div className="flex items-start gap-2.5 min-w-0">
                             <span className="rounded bg-amber-400 px-2 py-0.5 font-mono text-[11px] font-bold text-zinc-950 shrink-0">
-                              #{resolutionRank} {idx === 0 ? 'NEXT UP' : ''}
+                              #{resolutionRank} {idx === 0 ? 'Next' : ''}
                             </span>
                             <div className="min-w-0 space-y-0.5">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="font-bold text-white">
                                   {item.cardName}
                                 </span>
-                                <span className="text-[11px] font-semibold text-sky-300 uppercase">
+                                <span className="text-xs font-semibold text-sky-300">
                                   · {item.kind.replace('-', ' ')}
                                 </span>
-                                <span className="text-[11px] text-emerald-300">
+                                <span className="text-xs text-emerald-300">
                                   · Controller: {item.seatName}
                                 </span>
                               </div>
-                              <div className="text-[11px] text-sky-100/90">
+                              <div className="text-xs text-sky-100/90">
                                 {item.effectSummary}
                               </div>
                             </div>
                           </div>
                         </div>
                         {idx < reversedStack.length - 1 && (
-                          <div className="animate-stack-flow-slide flex items-center gap-1.5 pl-4 font-mono text-[10px] text-sky-300/80">
-                            <ArrowDown className="h-3 w-3 text-amber-300" />
+                          <div className="animate-stack-flow-slide flex items-center gap-1.5 pl-4 font-mono text-[11px] text-sky-300/85">
+                            <ArrowDown className="h-3.5 w-3.5 text-amber-300" />
                             <span>
                               Then resolves #{resolutionRank + 1} (
                               {reversedStack[idx + 1].item.cardName})
@@ -2102,7 +2474,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                 )}
 
                 {showResolvedHistory && tabletop.resolvedHistory.length > 0 && (
-                  <div className="border-t border-sky-500/30 pt-2.5 space-y-1 text-[11px] text-sky-200/80">
+                  <div className="border-t border-sky-500/30 pt-2.5 space-y-1 text-xs text-sky-200/85">
                     {tabletop.resolvedHistory.slice(0, 8).map((h) => (
                       <div key={h.id} className="flex items-center justify-between gap-2">
                         <span>
@@ -2144,19 +2516,19 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                   <div
                     className={`${
                       showChatDrawer ? 'lg:col-span-8' : 'lg:col-span-12'
-                    } relative overflow-hidden rounded-lg border p-4 space-y-4 transition-colors ${mySeatSurface.seatClass}`}
+                    } relative overflow-hidden rounded-xl border p-4 sm:p-5 space-y-4 transition-colors ${mySeatSurface.seatClass}`}
                   >
                     <PlaymatSurfaceBackdrop surface={mySeatSurface} variant="seat" />
                     {/* Your Seat Status & Controls */}
                     <div
-                      className={`relative z-10 flex flex-wrap items-center justify-between gap-3 border-b pb-3 ${mySeatSurface.dividerBorderClass}`}
+                      className={`relative z-10 flex flex-wrap items-center justify-between gap-3 border-b pb-3.5 ${mySeatSurface.dividerBorderClass}`}
                     >
-                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <div className="flex flex-wrap items-center gap-2.5 text-sm">
                         <span className="font-bold text-emerald-300">
-                          YOU · Seat #{mySeatGame.seatIndex + 1} ({mySeatGame.playerName})
+                          You · Seat #{mySeatGame.seatIndex + 1} ({mySeatGame.playerName})
                         </span>
                         <span className="text-sky-400/40">·</span>
-                        <span className="font-mono font-bold tabular-nums text-white">
+                        <span className="font-mono text-base sm:text-lg font-bold tabular-nums text-white">
                           {mySeatGame.life} Life
                         </span>
                         <button
@@ -2168,7 +2540,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                               delta: -1,
                             })
                           }
-                          className="rounded border border-sky-400/40 bg-[#10263F] px-2 py-0.5 font-mono text-[11px] text-sky-100 hover:bg-sky-800/50 cursor-pointer"
+                          className="min-h-[34px] min-w-[38px] rounded-md border border-sky-400/40 bg-[#10263F] px-2.5 py-1 font-mono text-xs font-bold text-sky-100 hover:bg-sky-800/50 cursor-pointer"
                         >
                           -1
                         </button>
@@ -2181,24 +2553,24 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                               delta: 1,
                             })
                           }
-                          className="rounded border border-sky-400/40 bg-[#10263F] px-2 py-0.5 font-mono text-[11px] text-sky-100 hover:bg-sky-800/50 cursor-pointer"
+                          className="min-h-[34px] min-w-[38px] rounded-md border border-sky-400/40 bg-[#10263F] px-2.5 py-1 font-mono text-xs font-bold text-sky-100 hover:bg-sky-800/50 cursor-pointer"
                         >
                           +1
                         </button>
                         <span className="text-sky-400/40">·</span>
-                        <span className="font-mono tabular-nums text-violet-300">
+                        <span className="font-mono text-xs tabular-nums text-violet-300">
                           {mySeatGame.poison} Poison
                         </span>
                         <span className="text-sky-400/40">·</span>
-                        <span className="font-mono tabular-nums text-amber-300">
-                          Mana Pool: {mySeatGame.manaPool}
+                        <span className="font-mono text-xs sm:text-sm font-bold tabular-nums text-amber-300">
+                          Mana: {mySeatGame.manaPool}
                         </span>
                         <button
                           type="button"
                           onClick={() =>
                             void dispatchGameAction({ type: 'add-mana', delta: 1 })
                           }
-                          className="rounded border border-amber-400/50 bg-amber-500/20 px-2 py-0.5 font-mono text-[11px] text-amber-200 hover:bg-amber-500/30 cursor-pointer"
+                          className="min-h-[34px] rounded-md border border-amber-400/50 bg-amber-500/20 px-3 py-1 font-mono text-xs font-bold text-amber-200 hover:bg-amber-500/30 cursor-pointer whitespace-nowrap"
                         >
                           +1 Mana
                         </button>
@@ -2211,7 +2583,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                             setCustomCardsInitialTab('custom-tokens');
                             setShowCustomCardsModal(true);
                           }}
-                          className="inline-flex items-center gap-1 rounded-md border border-amber-400/60 bg-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-200 hover:bg-amber-500/35 cursor-pointer"
+                          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-amber-400/60 bg-amber-500/20 px-3 py-1.5 text-xs sm:text-sm font-semibold text-amber-200 hover:bg-amber-500/35 cursor-pointer whitespace-nowrap shrink-0"
                         >
                           <Sparkles className="h-3.5 w-3.5 text-amber-300" />
                           <span>+ Token</span>
@@ -2222,7 +2594,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                             setCustomCardsInitialTab('playtest-proxies');
                             setShowCustomCardsModal(true);
                           }}
-                          className="inline-flex items-center gap-1 rounded-md border border-violet-400/60 bg-violet-500/20 px-2.5 py-1 text-xs font-semibold text-violet-200 hover:bg-violet-500/35 cursor-pointer"
+                          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-violet-400/60 bg-violet-500/20 px-3 py-1.5 text-xs sm:text-sm font-semibold text-violet-200 hover:bg-violet-500/35 cursor-pointer whitespace-nowrap shrink-0"
                         >
                           <Wand2 className="h-3.5 w-3.5 text-violet-300" />
                           <span>+ Proxy</span>
@@ -2232,9 +2604,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                           onClick={() =>
                             void dispatchGameAction({ type: 'draw-card' })
                           }
-                          className="inline-flex items-center gap-1 rounded-md border border-sky-400/50 bg-sky-500/20 px-2.5 py-1 text-xs font-semibold text-sky-100 hover:bg-sky-500/35 cursor-pointer"
+                          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-sky-400/50 bg-sky-500/20 px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-sky-100 hover:bg-sky-500/35 cursor-pointer whitespace-nowrap shrink-0"
                         >
-                          <Plus className="h-3.5 w-3.5" />
+                          <Plus className="h-4 w-4" />
                           <span>Draw Card ({mySeatGame.libraryCount})</span>
                         </button>
                         <button
@@ -2242,7 +2614,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                           onClick={() =>
                             void dispatchGameAction({ type: 'mulligan' })
                           }
-                          className="inline-flex items-center gap-1 rounded-md border border-sky-400/40 bg-[#10263F] px-2.5 py-1 text-xs font-semibold text-sky-200 hover:bg-[#163456] cursor-pointer"
+                          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-sky-400/40 bg-[#10263F] px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-sky-200 hover:bg-[#163456] cursor-pointer whitespace-nowrap shrink-0"
                         >
                           <Shuffle className="h-3.5 w-3.5" />
                           <span>London Mulligan</span>
@@ -2251,7 +2623,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                     </div>
 
                     {/* Command Zone & Manual Trigger Builder */}
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="relative z-10 flex flex-wrap items-center justify-between gap-3 text-xs">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-semibold text-amber-300">
                           Command Zone (+{'{'}
@@ -2271,7 +2643,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                   cardUid: cmd.uid,
                                 })
                               }
-                              className="inline-flex items-center gap-1.5 rounded-md border border-amber-400/70 bg-amber-500/20 px-2.5 py-1 text-xs font-bold text-amber-200 hover:bg-amber-500/35 cursor-pointer"
+                              className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-amber-400/70 bg-amber-500/20 px-3 py-1.5 text-xs font-bold text-amber-200 hover:bg-amber-500/35 cursor-pointer whitespace-nowrap"
                             >
                               <Crown className="h-3.5 w-3.5" />
                               <span>Cast {cmd.name} to Stack</span>
@@ -2281,14 +2653,14 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                       </div>
 
                       {mySeatGame.battlefield.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
                           <select
                             aria-label="Select permanent for triggered ability"
                             value={
                               triggerPermUid || mySeatGame.battlefield[0]?.uid || ''
                             }
                             onChange={(e) => setTriggerPermUid(e.target.value)}
-                            className="rounded border border-violet-400/50 bg-[#0D1F33] px-2 py-1 text-[11px] text-white"
+                            className="min-h-[36px] rounded-lg border border-violet-400/50 bg-[#0D1F33] px-2.5 py-1.5 text-xs text-white"
                           >
                             {mySeatGame.battlefield.map((p) => (
                               <option key={p.uid} value={p.uid}>
@@ -2310,7 +2682,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                   | 'activated'
                               )
                             }
-                            className="rounded border border-violet-400/50 bg-[#0D1F33] px-2 py-1 text-[11px] text-white"
+                            className="min-h-[36px] rounded-lg border border-violet-400/50 bg-[#0D1F33] px-2.5 py-1.5 text-xs text-white"
                           >
                             <option value="etb">ETB Trigger</option>
                             <option value="landfall">Landfall Trigger</option>
@@ -2331,9 +2703,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                 triggerKind,
                               });
                             }}
-                            className="inline-flex items-center gap-1 rounded bg-violet-500 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-violet-400 cursor-pointer"
+                            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-violet-500 cursor-pointer whitespace-nowrap"
                           >
-                            <Zap className="h-3 w-3" />
+                            <Zap className="h-3.5 w-3.5" />
                             <span>Push Trigger</span>
                           </button>
                         </div>
@@ -2341,23 +2713,23 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                     </div>
 
                     {/* Your Free-Form Playmat Battlefield + Combat Attack Controls */}
-                    <div className="relative z-10 space-y-2">
+                    <div className="relative z-10 space-y-2.5">
                       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-bold text-sky-200">
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          <span className="text-sm font-bold text-sky-200">
                             Your Playmat ({mySeatGame.battlefield.length})
                           </span>
-                          <span className="hidden sm:inline-flex items-center gap-1 text-[10px] text-sky-200/70">
-                            <Move className="h-3 w-3 text-sky-300" />
+                          <span className="hidden sm:inline-flex items-center gap-1 text-xs text-sky-200/75">
+                            <Move className="h-3.5 w-3.5 text-sky-300" />
                             <span>Drag cards anywhere on playmat · Drop from hand to play</span>
                           </span>
                         </div>
 
-                        <div className="flex flex-wrap items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setShowPlaymatGuides((v) => !v)}
-                            className={`rounded border px-2 py-0.5 text-[10px] font-semibold cursor-pointer ${
+                            className={`min-h-[34px] rounded-lg border px-3 py-1.5 text-xs font-semibold cursor-pointer whitespace-nowrap ${
                               showPlaymatGuides
                                 ? 'border-sky-400/60 bg-sky-500/20 text-sky-100'
                                 : 'border-sky-500/35 bg-[#0B1C2E] text-sky-300 hover:text-white'
@@ -2375,9 +2747,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                   targetSeatIndex: mySeatGame.seatIndex,
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded border border-sky-500/40 bg-[#0B1C2E] px-2 py-0.5 text-[10px] font-semibold text-sky-200 hover:bg-[#14304E] cursor-pointer"
+                              className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-sky-500/40 bg-[#0B1C2E] px-3 py-1.5 text-xs font-semibold text-sky-200 hover:bg-[#14304E] cursor-pointer whitespace-nowrap"
                             >
-                              <LayoutGrid className="h-3 w-3" />
+                              <LayoutGrid className="h-3.5 w-3.5" />
                               <span>Tidy Board</span>
                             </button>
                           )}
@@ -2390,7 +2762,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                 onChange={(e) =>
                                   setAttackTargetSeatIdx(Number(e.target.value))
                                 }
-                                className="rounded border border-amber-400/60 bg-[#0F243C] px-2 py-0.5 text-[11px] text-white"
+                                className="min-h-[36px] rounded-lg border border-amber-400/60 bg-[#0F243C] px-2.5 py-1.5 text-xs text-white"
                               >
                                 {opponentSeats.map((opp) => (
                                   <option key={opp.seatIndex} value={opp.seatIndex}>
@@ -2413,9 +2785,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                   });
                                   setSelectedAttackerUids([]);
                                 }}
-                                className="inline-flex items-center gap-1 rounded bg-red-600 px-2.5 py-0.5 text-[11px] font-bold text-white hover:bg-red-500 cursor-pointer"
+                                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-red-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-500 cursor-pointer whitespace-nowrap"
                               >
-                                <Swords className="h-3 w-3" />
+                                <Swords className="h-3.5 w-3.5" />
                                 <span>
                                   Attack ({selectedAttackerUids.length})
                                 </span>
@@ -2431,24 +2803,24 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                           if (mpHandDrag) e.preventDefault();
                         }}
                         onDrop={handleDropOnSelfPlaymat}
-                        className={`relative min-h-[340px] sm:min-h-[370px] overflow-hidden rounded-xl border p-3 transition-colors select-none ${
+                        className={`relative min-h-[470px] sm:min-h-[520px] overflow-hidden rounded-xl border p-3.5 transition-colors select-none ${
                           mpHandDrag
                             ? 'border-amber-400 ring-2 ring-amber-400/70 bg-[#091829]/95'
                             : 'border-sky-500/30 bg-[#071220]/90'
                         }`}
                       >
                         {showPlaymatGuides && (
-                          <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-3">
+                          <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-3.5">
                             <div className="border-b border-dashed border-red-400/20 pb-1 flex items-center justify-between">
-                              <span className="font-mono text-[9px] uppercase tracking-wider text-red-200/45">
+                              <span className="font-mono text-[11px] font-medium text-red-200/55">
                                 Frontline · Creatures &amp; Attackers
                               </span>
-                              <span className="font-mono text-[9px] text-sky-200/40">
+                              <span className="font-mono text-[11px] text-sky-200/45">
                                 Free-Form Playmat
                               </span>
                             </div>
                             <div className="border-t border-dashed border-emerald-400/25 pt-1 flex items-center justify-between">
-                              <span className="font-mono text-[9px] uppercase tracking-wider text-emerald-200/45">
+                              <span className="font-mono text-[11px] font-medium text-emerald-200/55">
                                 Backline · Lands &amp; Mana Artifacts
                               </span>
                             </div>
@@ -2456,7 +2828,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                         )}
 
                         {mySeatGame.battlefield.length === 0 ? (
-                          <div className="relative z-10 flex h-[310px] items-center justify-center text-center text-xs text-sky-200/60 px-6">
+                          <div className="relative z-10 flex h-[400px] items-center justify-center text-center text-sm text-sky-200/65 px-6">
                             Your playmat is open. Drag any card from your hand onto this surface to play/cast it at that exact spot.
                           </div>
                         ) : (
@@ -2464,6 +2836,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                             const isCreature = (perm.typeLine || '')
                               .toLowerCase()
                               .includes('creature');
+                            const isLandPerm = (perm.typeLine || '')
+                              .toLowerCase()
+                              .includes('land');
                             const isSelectedAttacker = selectedAttackerUids.includes(perm.uid);
                             const vis = resolveMultiplayerCardInstance(perm, true);
                             const coordKey = `${mySeatGame.seatIndex}:${perm.uid}`;
@@ -2513,33 +2888,57 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                     initialY: posY,
                                   });
                                 }}
-                                className={`absolute w-[148px] rounded-lg border p-1.5 text-xs space-y-1 cursor-grab active:cursor-grabbing touch-none ${
+                                className={`absolute w-[154px] rounded-xl border p-2 text-xs space-y-1.5 cursor-grab active:cursor-grabbing touch-none shadow-md ${
                                   isDraggingThis
                                     ? 'transition-none border-amber-300 ring-2 ring-amber-300 shadow-2xl scale-[1.05]'
                                     : 'transition-[left,top,transform] duration-150 ease-out hover:z-30'
                                 } ${
                                   perm.tapped
-                                    ? 'rotate-2 border-amber-400/60 bg-amber-950/85'
+                                    ? 'rotate-2 border-amber-400/65 bg-amber-950/85'
                                     : isSelectedAttacker
                                     ? 'border-red-400 bg-red-950/85'
                                     : 'border-sky-400/50 bg-[#10263F]/95'
                                 } ${getCustomFrameBorderClass(vis.frameStyle)}`}
                               >
-                                {vis.effectiveImageUri && (
-                                  <div className="relative h-14 w-full overflow-hidden rounded border border-white/10 bg-zinc-950">
+                                <div className="relative h-[86px] w-full overflow-hidden rounded border border-white/10 bg-zinc-950">
+                                  {vis.effectiveImageUri ? (
                                     <img
                                       src={vis.effectiveImageUri}
                                       alt={vis.displayTitle}
                                       draggable={false}
-                                      className="h-full w-full object-cover"
+                                      referrerPolicy="no-referrer"
+                                      className="h-full w-full object-cover object-top"
                                     />
-                                    {vis.badgeLabel && (
-                                      <span className="absolute top-1 left-1 rounded bg-amber-400 px-1 py-0.2 font-mono text-[8px] font-bold text-zinc-950">
-                                        {vis.badgeLabel}
+                                  ) : (
+                                    <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-zinc-900 px-1.5 text-center">
+                                      {isLandPerm ? (
+                                        <Mountain className="h-5 w-5 text-emerald-300" />
+                                      ) : isCreature ? (
+                                        <Swords className="h-5 w-5 text-amber-300" />
+                                      ) : (
+                                        <Sparkles className="h-5 w-5 text-sky-300" />
+                                      )}
+                                      <span className="line-clamp-1 font-mono text-[10px] text-zinc-300">
+                                        {perm.typeLine.split('—')[0].trim() || 'Permanent'}
                                       </span>
-                                    )}
-                                  </div>
-                                )}
+                                    </div>
+                                  )}
+                                  {vis.badgeLabel && (
+                                    <span className="absolute top-1 left-1 rounded bg-amber-400 px-1.5 py-0.5 font-mono text-[8px] font-bold text-zinc-950 leading-none">
+                                      {vis.badgeLabel}
+                                    </span>
+                                  )}
+                                  {perm.tapped && (
+                                    <span className="absolute top-1 right-1 rounded bg-amber-400 px-1.5 py-0.5 font-mono text-[8px] font-bold text-zinc-950 leading-none">
+                                      TAP
+                                    </span>
+                                  )}
+                                  {perm.power && perm.toughness && (
+                                    <span className="absolute bottom-1 right-1 rounded bg-zinc-950/90 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-300 leading-none tabular-nums">
+                                      {perm.power}/{perm.toughness}
+                                    </span>
+                                  )}
+                                </div>
 
                                 <div className="flex items-center justify-between gap-1.5">
                                   <button
@@ -2551,15 +2950,10 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                       }
                                       onInspectCard(vis.displayTitle, vis.inspectMeta);
                                     }}
-                                    className="font-bold text-[11px] text-white hover:underline cursor-pointer truncate max-w-[105px] text-left"
+                                    className="font-bold text-xs text-white hover:underline cursor-pointer truncate text-left"
                                   >
                                     {vis.displayTitle}
                                   </button>
-                                  {perm.power && perm.toughness && (
-                                    <span className="font-mono text-[10px] font-bold text-amber-300 tabular-nums shrink-0">
-                                      {perm.power}/{perm.toughness}
-                                    </span>
-                                  )}
                                 </div>
 
                                 <div className="flex flex-wrap items-center gap-1">
@@ -2572,7 +2966,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                         cardUid: perm.uid,
                                       })
                                     }
-                                    className="rounded border border-sky-400/40 bg-[#0A1828] px-1.5 py-0.5 text-[9px] font-semibold text-sky-200 hover:bg-sky-800/50 cursor-pointer"
+                                    className="min-h-[28px] rounded border border-sky-400/40 bg-[#0A1828] px-2 py-1 text-[11px] font-semibold text-sky-200 hover:bg-sky-800/50 cursor-pointer"
                                   >
                                     {perm.tapped ? 'Untap' : 'Tap'}
                                   </button>
@@ -2588,7 +2982,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                             : [...prev, perm.uid]
                                         )
                                       }
-                                      className={`rounded border px-1.5 py-0.5 text-[9px] font-semibold cursor-pointer ${
+                                      className={`min-h-[28px] rounded border px-2 py-1 text-[11px] font-semibold cursor-pointer ${
                                         isSelectedAttacker
                                           ? 'border-red-400 bg-red-600 text-white'
                                           : 'border-red-400/50 bg-red-950/40 text-red-200'
@@ -2609,7 +3003,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                         toZone: 'graveyard',
                                       })
                                     }
-                                    className="rounded border border-zinc-600 bg-zinc-900 px-1.5 py-0.5 text-[9px] text-zinc-300 hover:bg-zinc-800 cursor-pointer"
+                                    className="min-h-[28px] rounded border border-zinc-600 bg-zinc-900 px-2 py-1 text-[11px] font-semibold text-zinc-200 hover:bg-zinc-800 cursor-pointer"
                                   >
                                     GY
                                   </button>
@@ -2622,18 +3016,18 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                     </div>
 
                     {/* Your Private Hand (Redacted from All Other Players) */}
-                    <div className="relative z-10 space-y-2">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-white">
+                    <div className="relative z-10 rounded-xl border border-sky-400/25 bg-[#0A1828]/80 p-3.5 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <span className="text-sm font-bold text-white">
                           Your Private Hand ({mySeatGame.hand.length} cards · Drag onto playmat or click action)
                         </span>
-                        <span className="font-mono text-[11px] text-sky-300 tabular-nums">
+                        <span className="font-mono text-xs text-sky-300 tabular-nums">
                           Graveyard: {mySeatGame.graveyard.length} · Exile:{' '}
                           {mySeatGame.exile.length}
                         </span>
                       </div>
 
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-3">
                         {mySeatGame.hand.map((card: MultiplayerCardInstance) => {
                           const isLand = (card.typeLine || '')
                             .toLowerCase()
@@ -2658,37 +3052,49 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                 }
                               }}
                               onDragEnd={() => setMpHandDrag(null)}
-                              className={`w-44 rounded-lg border border-sky-400/40 bg-[#0F243C] p-2.5 text-xs flex flex-col justify-between gap-2 cursor-grab active:cursor-grabbing ${getCustomFrameBorderClass(
+                              className={`w-[178px] rounded-xl border border-sky-400/40 bg-[#0F243C] p-2.5 text-xs flex flex-col justify-between gap-2.5 cursor-grab active:cursor-grabbing shadow-md ${getCustomFrameBorderClass(
                                 vis.frameStyle
                               )}`}
                             >
                               <div className="space-y-1.5">
-                                {vis.effectiveImageUri && (
-                                  <div className="relative h-24 w-full overflow-hidden rounded border border-white/10 bg-zinc-950">
+                                <div className="relative h-28 w-full overflow-hidden rounded-lg border border-white/10 bg-zinc-950">
+                                  {vis.effectiveImageUri ? (
                                     <img
                                       src={vis.effectiveImageUri}
                                       alt={vis.displayTitle}
                                       draggable={false}
-                                      className="h-full w-full object-cover"
+                                      referrerPolicy="no-referrer"
+                                      className="h-full w-full object-cover object-top"
                                     />
-                                    {vis.badgeLabel && (
-                                      <span className="absolute top-1 left-1 rounded bg-amber-400 px-1.5 py-0.5 font-mono text-[8px] font-bold text-zinc-950">
-                                        {vis.badgeLabel}
+                                  ) : (
+                                    <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-zinc-900 px-2 text-center">
+                                      {isLand ? (
+                                        <Mountain className="h-6 w-6 text-emerald-300" />
+                                      ) : (
+                                        <Sparkles className="h-6 w-6 text-sky-300" />
+                                      )}
+                                      <span className="line-clamp-2 font-mono text-[10px] text-zinc-300">
+                                        {card.typeLine || (isLand ? 'Land' : 'Spell')}
                                       </span>
-                                    )}
-                                  </div>
-                                )}
+                                    </div>
+                                  )}
+                                  {vis.badgeLabel && (
+                                    <span className="absolute top-1 left-1 rounded bg-amber-400 px-1.5 py-0.5 font-mono text-[8px] font-bold text-zinc-950">
+                                      {vis.badgeLabel}
+                                    </span>
+                                  )}
+                                </div>
                                 <div>
                                   <button
                                     type="button"
                                     onClick={() =>
                                       onInspectCard(vis.displayTitle, vis.inspectMeta)
                                     }
-                                    className="font-bold text-white hover:underline text-left cursor-pointer line-clamp-1"
+                                    className="text-sm font-bold leading-snug text-white hover:underline text-left cursor-pointer line-clamp-1"
                                   >
                                     {vis.displayTitle}
                                   </button>
-                                  <div className="text-[10px] text-sky-300 truncate">
+                                  <div className="text-[11px] text-sky-300 truncate mt-0.5">
                                     {card.typeLine || (isLand ? 'Land' : 'Spell')}
                                     {!isLand ? ` · MV ${card.cmc}` : ''}
                                   </div>
@@ -2705,7 +3111,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                         cardUid: card.uid,
                                       })
                                     }
-                                    className="w-full rounded bg-emerald-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-emerald-500 cursor-pointer"
+                                    className="min-h-[36px] w-full rounded-lg bg-emerald-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 cursor-pointer"
                                   >
                                     Play Land
                                   </button>
@@ -2722,7 +3128,7 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                                             : undefined,
                                       })
                                     }
-                                    className="w-full rounded bg-sky-600 px-2 py-1 text-[11px] font-bold text-white hover:bg-sky-500 cursor-pointer"
+                                    className="min-h-[36px] w-full rounded-lg bg-sky-600 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-sky-500 cursor-pointer"
                                   >
                                     Cast to Stack
                                   </button>
@@ -2737,18 +3143,18 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
 
                   {/* Right Column: Synchronized Table Chat & Action Log Feed */}
                   {showChatDrawer && (
-                    <div className="lg:col-span-4 rounded-lg border border-sky-400/30 bg-[#0A1828] p-3.5 flex flex-col justify-between space-y-3">
-                      <div className="space-y-2">
-                        <div className="text-xs font-bold text-white">
+                    <div className="lg:col-span-4 rounded-xl border border-sky-400/30 bg-[#0A1828] p-4 flex flex-col justify-between space-y-3">
+                      <div className="space-y-3">
+                        <div className="text-sm font-bold text-white">
                           Table Chat &amp; Live Action Log
                         </div>
 
-                        <div className="max-h-44 overflow-y-auto space-y-1.5 rounded border border-sky-500/20 bg-[#07111E] p-2.5 text-[11px]">
+                        <div className="max-h-56 overflow-y-auto space-y-1.5 rounded-lg border border-sky-500/20 bg-[#07111E] p-3 text-xs">
                           {tabletop.actionLog
                             .slice(-14)
                             .reverse()
                             .map((entry) => (
-                              <div key={entry.id} className="text-sky-200/90">
+                              <div key={entry.id} className="text-sky-200/90 leading-relaxed">
                                 <span className="font-mono font-bold text-amber-300">
                                   [T{entry.turnNumber}]
                                 </span>{' '}
@@ -2757,9 +3163,9 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                             ))}
                         </div>
 
-                        <div className="max-h-44 overflow-y-auto space-y-1.5 rounded border border-sky-500/20 bg-[#07111E] p-2.5 text-[11px]">
+                        <div className="max-h-56 overflow-y-auto space-y-1.5 rounded-lg border border-sky-500/20 bg-[#07111E] p-3 text-xs">
                           {room.chatMessages.slice(-20).map((msg) => (
-                            <div key={msg.id}>
+                            <div key={msg.id} className="leading-relaxed">
                               <span
                                 className={`font-bold ${
                                   msg.isSystem
@@ -2775,20 +3181,20 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
                         </div>
                       </div>
 
-                      <form onSubmit={handleSendChat} className="flex items-center gap-1.5">
+                      <form onSubmit={handleSendChat} className="flex items-center gap-2">
                         <input
                           type="text"
                           value={chatInput}
                           onChange={(e) => setChatInput(e.target.value)}
                           placeholder="Send message to table..."
                           maxLength={240}
-                          className="flex-1 rounded border border-sky-400/40 bg-[#0F243C] px-2.5 py-1.5 text-xs text-white placeholder:text-sky-300/50 focus:border-sky-300 focus:outline-none"
+                          className="min-h-[38px] flex-1 rounded-lg border border-sky-400/40 bg-[#0F243C] px-3 py-1.5 text-xs text-white placeholder:text-sky-300/50 focus:border-sky-300 focus:outline-none"
                         />
                         <button
                           type="submit"
-                          className="inline-flex items-center gap-1 rounded bg-sky-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-500 cursor-pointer"
+                          className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg bg-sky-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-sky-500 cursor-pointer whitespace-nowrap"
                         >
-                          <Send className="h-3 w-3" />
+                          <Send className="h-3.5 w-3.5" />
                           <span>Send</span>
                         </button>
                       </form>
@@ -2908,6 +3314,11 @@ export const MultiplayerSessionHub: React.FC<MultiplayerSessionHubProps> = ({
             .then((res) => setRoom(res.room))
             .catch(() => {});
         }}
+      />
+      <PlaytestTutorialModal
+        isOpen={showGuideModal}
+        onClose={() => setShowGuideModal(false)}
+        initialStep="multiplayer"
       />
     </div>
   );

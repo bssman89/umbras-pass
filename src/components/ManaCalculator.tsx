@@ -210,7 +210,7 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
           <button
             type="button"
             onClick={onSyncManaToPlaytest}
-            className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`inline-flex min-h-[40px] items-center gap-2 rounded-lg border px-4 py-2 text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               isPlaytestManaSynced
                 ? 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100'
                 : 'border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50'
@@ -218,13 +218,13 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
           >
             {isPlaytestManaSynced ? (
               <>
-                <Check className="h-3.5 w-3.5 text-sky-700" />
+                <Check className="h-4 w-4 text-sky-700 shrink-0" />
                 <span>Mana Synced · Open Playtest</span>
               </>
             ) : (
               <>
                 <span>Test Updated Mana in Playtest</span>
-                <ArrowRight className="h-3.5 w-3.5 text-sky-700" />
+                <ArrowRight className="h-4 w-4 text-sky-700 shrink-0" />
               </>
             )}
           </button>
@@ -236,11 +236,11 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-zinc-100 pb-4">
           <div className="flex flex-wrap items-center gap-3">
             {/* Deck Version Switcher */}
-            <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
+            <div className="inline-flex flex-wrap items-center gap-1.5 rounded-xl bg-zinc-100 p-1.5">
               <button
                 type="button"
                 onClick={() => setDeckMode('current')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`min-h-[38px] px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   deckMode === 'current'
                     ? 'bg-white text-zinc-900 shadow-sm'
                     : 'text-zinc-600 hover:text-zinc-900'
@@ -251,7 +251,7 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
               <button
                 type="button"
                 onClick={() => setDeckMode('optimized')}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`min-h-[38px] px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   deckMode === 'optimized'
                     ? 'bg-white text-zinc-900 shadow-sm'
                     : 'text-zinc-600 hover:text-zinc-900'
@@ -262,11 +262,11 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
             </div>
 
             {/* Play / Draw Switcher */}
-            <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
+            <div className="inline-flex items-center gap-1.5 rounded-xl bg-zinc-100 p-1.5">
               <button
                 type="button"
                 onClick={() => setOnPlay(true)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`min-h-[38px] px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   onPlay
                     ? 'bg-white text-zinc-900 shadow-sm'
                     : 'text-zinc-600 hover:text-zinc-900'
@@ -277,7 +277,7 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
               <button
                 type="button"
                 onClick={() => setOnPlay(false)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`min-h-[38px] px-3.5 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   !onPlay
                     ? 'bg-white text-zinc-900 shadow-sm'
                     : 'text-zinc-600 hover:text-zinc-900'
@@ -288,31 +288,31 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button
               type="button"
               onClick={handleDrawNewHand}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg bg-sky-700 px-4 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <Dices className="h-3.5 w-3.5" />
+              <Dices className="h-4 w-4 shrink-0" />
               Draw New 7
             </button>
 
             <button
               type="button"
               onClick={handleMulligan}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <RotateCcw className="h-3.5 w-3.5" />
+              <RotateCcw className="h-4 w-4 shrink-0" />
               Mulligan{mulliganCount > 0 ? ` (#${mulliganCount})` : ''}
             </button>
 
             <button
               type="button"
               onClick={() => setSimSeed((s) => s + 1)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs font-medium text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
             >
-              <RefreshCw className="h-3.5 w-3.5 text-sky-700" />
+              <RefreshCw className="h-4 w-4 text-sky-700 shrink-0" />
               Re-simulate 2,000 Hands
             </button>
           </div>
@@ -352,16 +352,16 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
             <button
               type="button"
               onClick={() => setShowTopdecks((v) => !v)}
-              className="inline-flex items-center gap-1 text-xs font-medium text-sky-700 hover:text-sky-900 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-zinc-100 hover:text-sky-900 cursor-pointer whitespace-nowrap shrink-0"
             >
               {showTopdecks ? (
                 <>
-                  <ChevronUp className="h-3.5 w-3.5" />
+                  <ChevronUp className="h-4 w-4 shrink-0" />
                   Hide Turns 1–4 topdecks
                 </>
               ) : (
                 <>
-                  <ChevronDown className="h-3.5 w-3.5" />
+                  <ChevronDown className="h-4 w-4 shrink-0" />
                   Peek Turns 1–4 topdecks
                 </>
               )}
@@ -439,7 +439,7 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                     <div className="truncate text-xs font-semibold text-zinc-900 group-hover:text-sky-700">
                       {card.name}
                     </div>
-                    <div className="flex items-center justify-between gap-1 text-[11px] font-mono tabular-nums">
+                    <div className="flex items-center justify-between gap-1 text-xs font-mono tabular-nums">
                       <span className={`font-medium ${statusColor}`} title={statusTooltip}>
                         {card.statusLabel}
                       </span>
@@ -468,7 +468,7 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                     onInspect={onInspectCard}
                     className="text-xs"
                   />
-                  <span className="font-mono text-[11px] text-zinc-500">
+                  <span className="font-mono text-xs text-zinc-500">
                     ({d.statusLabel})
                   </span>
                 </div>
@@ -602,16 +602,16 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                   </span>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-end gap-3.5">
                   <div>
-                    <label htmlFor="calc-turn" className="block text-[11px] font-medium text-zinc-500">
+                    <label htmlFor="calc-turn" className="block text-xs font-medium text-zinc-500">
                       Cast by Turn
                     </label>
                     <select
                       id="calc-turn"
                       value={customTurn}
                       onChange={(e) => setCustomTurn(Number(e.target.value))}
-                      className="mt-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-mono text-zinc-900 focus:border-sky-600 focus:outline-none"
+                      className="mt-1.5 min-h-[38px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-mono text-zinc-900 focus:border-sky-600 focus:outline-none"
                     >
                       {[1, 2, 3, 4, 5].map((t) => (
                         <option key={t} value={t}>
@@ -622,14 +622,14 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                   </div>
 
                   <div>
-                    <label htmlFor="calc-generic" className="block text-[11px] font-medium text-zinc-500">
+                    <label htmlFor="calc-generic" className="block text-xs font-medium text-zinc-500">
                       Generic Mana
                     </label>
                     <select
                       id="calc-generic"
                       value={customGeneric}
                       onChange={(e) => setCustomGeneric(Number(e.target.value))}
-                      className="mt-1 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-mono text-zinc-900 focus:border-sky-600 focus:outline-none"
+                      className="mt-1.5 min-h-[38px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-mono text-zinc-900 focus:border-sky-600 focus:outline-none"
                     >
                       {[0, 1, 2, 3, 4, 5].map((g) => (
                         <option key={g} value={g}>
@@ -639,17 +639,17 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                     </select>
                   </div>
 
-                  <div className="flex-1 min-w-[200px]">
-                    <div className="text-[11px] font-medium text-zinc-500">
+                  <div className="flex-1 min-w-[220px]">
+                    <div className="text-xs font-medium text-zinc-500">
                       Add Colored Pips (Click to add)
                     </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-2">
                       {PIP_OPTIONS.map((pip) => (
                         <button
                           key={pip.color}
                           type="button"
                           onClick={() => addCustomPip(pip.color)}
-                          className={`rounded border px-2 py-1 font-mono text-xs font-semibold hover:opacity-85 cursor-pointer ${pip.badgeClass}`}
+                          className={`inline-flex min-h-[36px] items-center rounded-lg border px-3 py-1.5 font-mono text-xs sm:text-sm font-semibold hover:opacity-85 cursor-pointer whitespace-nowrap shrink-0 ${pip.badgeClass}`}
                         >
                           +{pip.label}
                         </button>
@@ -658,7 +658,7 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                         <button
                           type="button"
                           onClick={() => setCustomPips([])}
-                          className="text-xs font-medium text-zinc-500 hover:text-zinc-900 ml-1 cursor-pointer"
+                          className="inline-flex min-h-[36px] items-center rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 cursor-pointer whitespace-nowrap shrink-0"
                         >
                           Clear
                         </button>
@@ -668,14 +668,14 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                 </div>
 
                 {customPips.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="text-zinc-500">Required pips (click to remove):</span>
                     {customPips.map((p, idx) => (
                       <button
                         key={`${p}-${idx}`}
                         type="button"
                         onClick={() => removeCustomPip(idx)}
-                        className="rounded border border-zinc-300 bg-zinc-50 px-2 py-0.5 font-mono text-xs font-semibold text-zinc-800 hover:border-red-300 hover:text-red-700 cursor-pointer"
+                        className="inline-flex min-h-[34px] items-center rounded-lg border border-zinc-300 bg-zinc-50 px-2.5 py-1 font-mono text-xs font-semibold text-zinc-800 hover:border-red-300 hover:text-red-700 cursor-pointer whitespace-nowrap shrink-0"
                       >
                         {`{${p}}`} ×
                       </button>
@@ -755,7 +755,7 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                             <td className="py-2 pr-3">
                               <div className="flex items-center gap-1.5">
                                 {sp.quantity > 1 && (
-                                  <span className="font-mono text-[11px] tabular-nums text-zinc-400">
+                                  <span className="font-mono text-xs tabular-nums text-zinc-400">
                                     {sp.quantity}x
                                   </span>
                                 )}
@@ -763,7 +763,7 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                                   name={sp.name}
                                   meta={sp.meta}
                                   onInspect={onInspectCard}
-                                  className="text-xs"
+                                  className="text-xs sm:text-sm"
                                 />
                               </div>
                             </td>
@@ -787,7 +787,7 @@ export const ManaCalculator: React.FC<ManaCalculatorProps> = ({
                               </span>
                               {delta !== 0 && (
                                 <span
-                                  className={`ml-1 text-[11px] ${
+                                  className={`ml-1 text-xs ${
                                     delta > 0 ? 'text-emerald-700' : 'text-amber-700'
                                   }`}
                                 >

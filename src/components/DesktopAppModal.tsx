@@ -313,9 +313,9 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
             type="button"
             onClick={onClose}
             aria-label="Close AI engine settings modal"
-            className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer"
+            className="inline-flex h-10 w-10 items-center justify-center text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition cursor-pointer shrink-0"
           >
-            <X className="w-4 h-4" />
+            <X className="w-5 h-5" />
           </button>
         </div>
 
@@ -323,9 +323,9 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
         <div className="p-6 overflow-y-auto space-y-5 text-sm text-zinc-300">
           <div className="space-y-4">
               {/* Hardware & Engine Status Summary Bar */}
-              <div className="p-4 rounded-lg bg-zinc-950 border border-zinc-800 flex flex-wrap items-center justify-between gap-3">
+              <div className="p-4 rounded-xl bg-zinc-950 border border-zinc-800 flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
-                  <div className="text-xs font-semibold text-white">
+                  <div className="text-xs sm:text-sm font-semibold text-white">
                     Active Engine: {activeEngineSummary}
                   </div>
                   <div className="text-xs text-zinc-400 font-mono tabular-nums">
@@ -339,34 +339,34 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                   <button
                     type="button"
                     onClick={() => void window.desktopApp?.openModelsFolder?.()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs font-medium text-zinc-200 whitespace-nowrap shrink-0 cursor-pointer"
+                    className="inline-flex min-h-[38px] items-center gap-2 px-3.5 py-2 rounded-lg border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs sm:text-sm font-semibold text-zinc-200 whitespace-nowrap shrink-0 cursor-pointer"
                   >
-                    <FolderOpen className="w-3.5 h-3.5 text-sky-400" />
+                    <FolderOpen className="w-4 h-4 text-sky-400 shrink-0" />
                     Open Models Folder
                   </button>
                 )}
               </div>
 
               {statusError && (
-                <div className="p-3 rounded-lg border border-red-300 bg-red-50 text-xs text-red-700">
+                <div className="p-3.5 rounded-lg border border-red-300 bg-red-50 text-xs sm:text-sm text-red-700">
                   {statusError}
                 </div>
               )}
 
               {/* Engine Mode Switcher */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <button
                   type="button"
                   disabled={actionBusy}
                   onClick={() => void handleSelectEngine({ activeEngine: 'auto' })}
-                  className={`p-3 rounded-lg border text-left transition cursor-pointer ${
+                  className={`p-4 rounded-xl border text-left transition cursor-pointer ${
                     aiStatus?.activeEngine === 'auto'
                       ? 'border-sky-500 bg-sky-50'
                       : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700'
                   }`}
                 >
-                  <div className="text-xs font-semibold text-white">Auto (Recommended)</div>
-                  <div className="text-[11px] text-zinc-400 mt-0.5">
+                  <div className="text-sm font-semibold text-white">Auto (Recommended)</div>
+                  <div className="text-xs text-zinc-400 mt-1">
                     Uses local Qwen GGUF when available, falling back to deterministic engine offline.
                   </div>
                 </button>
@@ -375,14 +375,14 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                   type="button"
                   disabled={actionBusy || !aiStatus?.activeModelPath}
                   onClick={() => void handleSelectEngine({ activeEngine: 'local-gguf' })}
-                  className={`p-3 rounded-lg border text-left transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`p-4 rounded-xl border text-left transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
                     aiStatus?.activeEngine === 'local-gguf'
                       ? 'border-sky-500 bg-sky-50'
                       : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700'
                   }`}
                 >
-                  <div className="text-xs font-semibold text-white">Local Qwen GGUF</div>
-                  <div className="text-[11px] text-zinc-400 mt-0.5">
+                  <div className="text-sm font-semibold text-white">Local Qwen GGUF</div>
+                  <div className="text-xs text-zinc-400 mt-1">
                     {aiStatus?.activeModelPath
                       ? 'Runs 100% locally via compiled llama.cpp runtime.'
                       : 'Place a .gguf in models/ or download below to enable.'}
@@ -393,26 +393,26 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                   type="button"
                   disabled={actionBusy}
                   onClick={() => void handleSelectEngine({ activeEngine: 'deterministic' })}
-                  className={`p-3 rounded-lg border text-left transition cursor-pointer ${
+                  className={`p-4 rounded-xl border text-left transition cursor-pointer ${
                     aiStatus?.activeEngine === 'deterministic'
                       ? 'border-sky-500 bg-sky-50'
                       : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700'
                   }`}
                 >
-                  <div className="text-xs font-semibold text-white">Deterministic Offline</div>
-                  <div className="text-[11px] text-zinc-400 mt-0.5">
+                  <div className="text-sm font-semibold text-white">Deterministic Offline</div>
+                  <div className="text-xs text-zinc-400 mt-1">
                     Instant rule-accurate analysis &amp; tactical playtests with zero download.
                   </div>
                 </button>
               </div>
 
               {/* CPU Compute Mode & Thread Tuning */}
-              <div className="p-3.5 rounded-lg border border-zinc-800 bg-zinc-950 flex flex-wrap items-center justify-between gap-3">
+              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950 flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-0.5">
-                  <div className="text-xs font-semibold text-white">
+                  <div className="text-xs sm:text-sm font-semibold text-white">
                     Compute Acceleration &amp; CPU Threads
                   </div>
-                  <div className="text-[11px] text-zinc-400">
+                  <div className="text-xs text-zinc-400">
                     CPU Only disables GPU probing and caps context at 4096 tokens for 8 GB+ RAM desktops.
                   </div>
                 </div>
@@ -422,7 +422,7 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                     type="button"
                     disabled={actionBusy}
                     onClick={() => void handleSelectEngine({ computeMode: 'cpu' })}
-                    className={`px-2.5 py-1 rounded border text-xs font-semibold whitespace-nowrap cursor-pointer ${
+                    className={`min-h-[38px] px-3.5 py-2 rounded-lg border text-xs sm:text-sm font-semibold whitespace-nowrap shrink-0 cursor-pointer ${
                       (aiStatus?.computeMode ?? 'cpu') === 'cpu'
                         ? 'border-sky-500 bg-sky-50 text-sky-300'
                         : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-600'
@@ -434,7 +434,7 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                     type="button"
                     disabled={actionBusy}
                     onClick={() => void handleSelectEngine({ computeMode: 'auto' })}
-                    className={`px-2.5 py-1 rounded border text-xs font-semibold whitespace-nowrap cursor-pointer ${
+                    className={`min-h-[38px] px-3.5 py-2 rounded-lg border text-xs sm:text-sm font-semibold whitespace-nowrap shrink-0 cursor-pointer ${
                       aiStatus?.computeMode === 'auto'
                         ? 'border-sky-500 bg-sky-50 text-sky-300'
                         : 'border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-600'
@@ -450,7 +450,7 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                     onChange={(e) =>
                       void handleSelectEngine({ cpuThreads: Number(e.target.value) })
                     }
-                    className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs font-mono tabular-nums text-zinc-200 cursor-pointer"
+                    className="min-h-[38px] rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs sm:text-sm font-mono tabular-nums text-zinc-200 cursor-pointer"
                   >
                     {threadOptions.map((t) => (
                       <option key={t} value={t}>
@@ -462,17 +462,17 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
               </div>
 
               {/* Enable Auto-Learning Toggle */}
-              <div className="p-3.5 rounded-lg border border-zinc-800 bg-zinc-950 space-y-2.5">
+              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950 space-y-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <label
                     htmlFor="enable-auto-learning-toggle"
                     className="space-y-0.5 flex-1 min-w-[240px] cursor-pointer"
                   >
-                    <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                      <Brain className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                    <div className="text-xs sm:text-sm font-semibold text-white flex items-center gap-1.5">
+                      <Brain className="w-4 h-4 text-sky-400 shrink-0" />
                       <span>Enable Auto-Learning</span>
                     </div>
-                    <div className="text-[11px] text-zinc-400">
+                    <div className="text-xs text-zinc-400">
                       {autoLearnEnabled
                         ? 'Enabled — saves bot move outcomes to local bot_training.json in the user data folder so the GGUF bot iteratively improves its strategy over time without requiring user feedback.'
                         : 'Disabled — simulated matches will not write to bot_training.json or auto-update bot memory; bots only learn from manual coaching feedback.'}
@@ -509,7 +509,7 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                 </div>
 
                 {(aiStatus?.botTrainingPath || (aiStatus?.botTrainingMoveCount ?? 0) > 0) && (
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-800 pt-2 text-[11px] text-zinc-400">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-800 pt-2.5 text-xs text-zinc-400">
                     <span className="font-mono truncate" title={aiStatus?.botTrainingPath}>
                       Training log: bot_training.json · {aiStatus?.botTrainingMoveCount ?? 0} moves recorded
                     </span>
@@ -518,7 +518,7 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                         type="button"
                         disabled={actionBusy}
                         onClick={() => void handleResetBotTraining()}
-                        className="text-[11px] font-medium text-red-400 hover:text-red-300 cursor-pointer shrink-0"
+                        className="inline-flex min-h-[34px] items-center rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-400 hover:bg-red-500/20 hover:text-red-300 cursor-pointer whitespace-nowrap shrink-0"
                       >
                         Reset bot_training.json
                       </button>
@@ -529,7 +529,7 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
 
               {/* Active Download Banner */}
               {activeDownload && activeDownload.status !== 'idle' && (
-                <div className="p-3.5 rounded-lg border border-zinc-800 bg-zinc-950 space-y-2">
+                <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950 space-y-2.5">
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="font-semibold text-white truncate">
                       {activeDownload.status === 'downloading'
@@ -554,14 +554,14 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                           style={{ width: `${activeDownload.progressPct}%` }}
                         />
                       </div>
-                      <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono tabular-nums">
+                      <div className="flex items-center justify-between text-xs text-zinc-400 font-mono tabular-nums">
                         <span>Speed: {formatBytes(activeDownload.speedBytesPerSec)}/s</span>
                         <button
                           type="button"
                           onClick={() => void handleCancelDownload()}
-                          className="inline-flex items-center gap-1 text-red-400 hover:text-red-300 font-sans font-semibold cursor-pointer"
+                          className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-1 text-red-400 hover:bg-red-500/20 hover:text-red-300 font-sans text-xs font-semibold cursor-pointer whitespace-nowrap"
                         >
-                          <Square className="w-3 h-3" />
+                          <Square className="w-3.5 h-3.5 shrink-0" />
                           Cancel
                         </button>
                       </div>
@@ -571,12 +571,12 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
               )}
 
               {/* Recommended Hugging Face Qwen Catalog */}
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                  <h3 className="text-xs sm:text-sm font-bold text-zinc-300">
                     Recommended Hugging Face GGUF Models
                   </h3>
-                  <span className="text-[11px] text-zinc-500">
+                  <span className="text-xs text-zinc-500">
                     Auto-loads from local models directory
                   </span>
                 </div>
@@ -591,7 +591,7 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                   return (
                     <div
                       key={model.id}
-                      className={`p-3.5 rounded-lg border transition ${
+                      className={`p-4 rounded-xl border transition ${
                         isActiveSelected
                           ? 'border-sky-500 bg-sky-50'
                           : 'border-zinc-800 bg-zinc-950'
@@ -623,9 +623,9 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                                     selectedModelId: model.id,
                                   })
                                 }
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-700 hover:bg-sky-800 disabled:opacity-60 text-xs font-semibold whitespace-nowrap cursor-pointer"
+                                className="inline-flex min-h-[38px] items-center gap-2 px-3.5 py-2 rounded-lg bg-sky-700 hover:bg-sky-800 disabled:opacity-60 text-xs sm:text-sm font-semibold text-white whitespace-nowrap shrink-0 cursor-pointer"
                               >
-                                <Play className="w-3 h-3" />
+                                <Play className="w-3.5 h-3.5 shrink-0" />
                                 {isActiveSelected ? 'Active' : 'Activate'}
                               </button>
                               {!model.isBundled && (
@@ -634,9 +634,9 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                                   disabled={actionBusy}
                                   onClick={() => void handleDeleteModel(model.id)}
                                   title="Delete downloaded GGUF file"
-                                  className="p-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-red-400 hover:border-red-400/50 cursor-pointer"
+                                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-700 text-zinc-400 hover:text-red-400 hover:border-red-400/50 cursor-pointer shrink-0"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               )}
                             </>
@@ -645,9 +645,9 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                               type="button"
                               disabled={actionBusy || isDownloading}
                               onClick={() => void handleStartDownload(model.id)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-sky-500/60 bg-sky-500/10 hover:bg-sky-500/20 disabled:opacity-50 text-xs font-semibold text-sky-300 whitespace-nowrap cursor-pointer"
+                              className="inline-flex min-h-[38px] items-center gap-2 px-3.5 py-2 rounded-lg border border-sky-500/60 bg-sky-500/10 hover:bg-sky-500/20 disabled:opacity-50 text-xs sm:text-sm font-semibold text-sky-300 whitespace-nowrap shrink-0 cursor-pointer"
                             >
-                              <Download className="w-3.5 h-3.5" />
+                              <Download className="w-4 h-4 shrink-0" />
                               Download GGUF
                             </button>
                           )}
@@ -659,10 +659,10 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
               </div>
 
               {/* Load Custom Local .gguf File */}
-              <div className="p-3.5 rounded-lg border border-zinc-800 bg-zinc-950 space-y-2">
+              <div className="p-4 rounded-xl border border-zinc-800 bg-zinc-950 space-y-2.5">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                    <HardDrive className="w-3.5 h-3.5 text-sky-400" />
+                  <div className="text-xs sm:text-sm font-semibold text-white flex items-center gap-1.5">
+                    <HardDrive className="w-4 h-4 text-sky-400 shrink-0" />
                     Load Existing Local `.gguf` File
                   </div>
                   {isElectronDesktop && window.desktopApp?.selectGgufFile && (
@@ -670,21 +670,21 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                       type="button"
                       disabled={actionBusy}
                       onClick={() => void handleBrowseLocalGguf()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-zinc-700 hover:bg-zinc-800 text-xs font-semibold text-zinc-200 whitespace-nowrap cursor-pointer"
+                      className="inline-flex min-h-[36px] items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800 text-xs font-semibold text-zinc-200 whitespace-nowrap shrink-0 cursor-pointer"
                     >
-                      <FolderOpen className="w-3.5 h-3.5 text-sky-400" />
+                      <FolderOpen className="w-4 h-4 text-sky-400 shrink-0" />
                       Browse .gguf File
                     </button>
                   )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2.5">
                   <input
                     type="text"
                     value={customPathInput}
                     onChange={(e) => setCustomPathInput(e.target.value)}
                     placeholder="C:\UmbrasPass\models\Qwen3-4B-Q4_K_M.gguf"
-                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-mono text-zinc-200"
+                    className="min-h-[40px] flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3.5 py-2 text-xs sm:text-sm font-mono text-zinc-200"
                   />
                   <button
                     type="button"
@@ -696,7 +696,7 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
                         customModelPath: customPathInput.trim(),
                       })
                     }
-                    className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-xs font-semibold text-white whitespace-nowrap cursor-pointer"
+                    className="inline-flex min-h-[40px] items-center px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-xs sm:text-sm font-semibold text-white whitespace-nowrap shrink-0 cursor-pointer"
                   >
                     Use File
                   </button>
@@ -706,14 +706,14 @@ export const DesktopAppModal: React.FC<DesktopAppModalProps> = ({ isOpen, onClos
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3.5 border-t border-zinc-800 bg-zinc-950/60 flex items-center justify-between gap-4">
+        <div className="px-6 py-4 border-t border-zinc-800 bg-zinc-950/60 flex items-center justify-between gap-4">
           <span className="text-xs text-zinc-500 truncate">
             {aiStatus ? 'Local AI runtime configured' : 'Detecting local runtime...'}
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold transition whitespace-nowrap cursor-pointer"
+            className="inline-flex min-h-[40px] items-center px-5 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white text-xs sm:text-sm font-semibold transition whitespace-nowrap shrink-0 cursor-pointer"
           >
             Close
           </button>

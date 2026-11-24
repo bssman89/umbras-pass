@@ -6,23 +6,10 @@ import type {
   MultiplayerRoomClientView,
   NetworkDiagnosticsReport,
 } from '../types/multiplayer';
+import { normalizeMultiplayerHostUrl } from './multiplayerInvite';
 
 export function normalizeHostBaseUrl(rawUrl?: string): string {
-  const trimmed = (rawUrl || '').trim();
-  if (!trimmed) return '';
-  try {
-    const withProtocol =
-      trimmed.startsWith('http://') || trimmed.startsWith('https://')
-        ? trimmed
-        : `http://${trimmed}`;
-    const parsed = new URL(withProtocol);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-      throw new Error('Only HTTP or HTTPS host endpoints are allowed.');
-    }
-    return parsed.origin;
-  } catch {
-    throw new Error('Invalid host server URL. Example: http://192.168.1.42:3000');
-  }
+  return normalizeMultiplayerHostUrl(rawUrl);
 }
 
 async function fetchMultiplayerJson<T>(
@@ -62,6 +49,21 @@ export async function fetchNetworkDiagnostics(
   );
 }
 
+export async function fetchHostPublicIp(
+  force = false,
+  baseUrl = ''
+): Promise<{
+  publicIpv4: string;
+  publicHostUrl: string;
+  listeningPort: number;
+}> {
+  return fetchMultiplayerJson(
+    baseUrl,
+    `/api/multiplayer/host-public-ip${force ? '?force=1' : ''}`,
+    { method: 'GET' }
+  );
+}
+
 export async function runPortReachabilityTest(
   externalHost?: string,
   baseUrl = ''
@@ -71,12 +73,31 @@ export async function runPortReachabilityTest(
   lanReachable: boolean;
   externalHostInput: string;
   externalPortReachable: boolean | null;
+  externalHttpHealthOk?: boolean | null;
   externalCheckDetail: string;
 }> {
   return fetchMultiplayerJson(baseUrl, '/api/multiplayer/port-check', {
     method: 'POST',
     body: JSON.stringify({ externalHost: externalHost || '' }),
   });
+}
+
+export async function lookupRoomOnHost(params: {
+  baseUrl?: string;
+  roomCode: string;
+}): Promise<{
+  exists: boolean;
+  roomCode: string;
+  format: string;
+  connectionMode: MultiplayerConnectionMode;
+  requireHostApproval: boolean;
+}> {
+  const code = encodeURIComponent(params.roomCode.trim().toUpperCase());
+  return fetchMultiplayerJson(
+    params.baseUrl || '',
+    `/api/multiplayer/rooms/${code}/lookup`,
+    { method: 'GET' }
+  );
 }
 
 export interface DiscoveredLanRoomSummary {
@@ -316,12 +337,20 @@ export async function startMultiplayerMatch(params: {
   baseUrl?: string;
   roomCode: string;
   hostToken: string;
+  firstSeatIndex?: number;
+  diceSummary?: string;
 }): Promise<{ room: MultiplayerRoomClientView }> {
   const code = encodeURIComponent(params.roomCode.trim().toUpperCase());
   return fetchMultiplayerJson(
     params.baseUrl || '',
     `/api/multiplayer/rooms/${code}/start`,
-    { method: 'POST', body: JSON.stringify({}) },
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        firstSeatIndex: params.firstSeatIndex,
+        diceSummary: params.diceSummary,
+      }),
+    },
     params.hostToken
   );
 }
@@ -376,6 +405,21 @@ export async function sendMultiplayerGameAction(params: {
   );
 }
 
+export async function requestSseTicket(params: {
+  baseUrl?: string;
+  roomCode: string;
+  sessionToken: string;
+}): Promise<string> {
+  const code = encodeURIComponent(params.roomCode.trim().toUpperCase());
+  const res = await fetchMultiplayerJson<{ ticket: string; expiresInSeconds: number }>(
+    params.baseUrl || '',
+    `/api/multiplayer/rooms/${code}/sse-ticket`,
+    { method: 'POST', body: JSON.stringify({}) },
+    params.sessionToken
+  );
+  return res.ticket;
+}
+
 export function subscribeToMultiplayerRoomEvents(params: {
   baseUrl?: string;
   roomCode: string;
@@ -385,35 +429,64 @@ export function subscribeToMultiplayerRoomEvents(params: {
 }): () => void {
   const cleanBase = normalizeHostBaseUrl(params.baseUrl);
   const code = encodeURIComponent(params.roomCode.trim().toUpperCase());
-  const streamUrl = `${cleanBase}/api/multiplayer/rooms/${code}/events?token=${encodeURIComponent(
-    params.sessionToken
-  )}`;
 
   let disposed = false;
   let es: EventSource | null = null;
+  let reconnectTimer: number | null = null;
 
-  try {
-    es = new EventSource(streamUrl);
-    es.onopen = () => {
-      if (!disposed) params.onConnectionChange?.(true);
-    };
-    es.onmessage = (evt) => {
-      if (disposed || !evt.data) return;
-      try {
-        const parsed = JSON.parse(evt.data) as MultiplayerRoomClientView;
-        if (parsed && parsed.roomCode) {
-          params.onUpdate(parsed);
-        }
-      } catch {
-        // Ignore non-JSON frames
+  const connectStream = async () => {
+    if (disposed) return;
+    try {
+      const ticket = await requestSseTicket({
+        baseUrl: params.baseUrl,
+        roomCode: params.roomCode,
+        sessionToken: params.sessionToken,
+      });
+      if (disposed || !ticket) return;
+
+      const streamUrl = `${cleanBase}/api/multiplayer/rooms/${code}/events?ticket=${encodeURIComponent(
+        ticket
+      )}`;
+      if (es) {
+        es.close();
+        es = null;
       }
-    };
-    es.onerror = () => {
-      if (!disposed) params.onConnectionChange?.(false);
-    };
-  } catch {
-    params.onConnectionChange?.(false);
-  }
+
+      es = new EventSource(streamUrl);
+      es.onopen = () => {
+        if (!disposed) params.onConnectionChange?.(true);
+      };
+      es.onmessage = (evt) => {
+        if (disposed || !evt.data) return;
+        try {
+          const parsed = JSON.parse(evt.data) as MultiplayerRoomClientView;
+          if (parsed && parsed.roomCode) {
+            params.onUpdate(parsed);
+          }
+        } catch {
+          // Ignore non-JSON frames
+        }
+      };
+      es.onerror = () => {
+        if (disposed) return;
+        params.onConnectionChange?.(false);
+        es?.close();
+        es = null;
+        if (reconnectTimer === null) {
+          reconnectTimer = window.setTimeout(() => {
+            reconnectTimer = null;
+            void connectStream();
+          }, 3000);
+        }
+      };
+    } catch {
+      if (!disposed) {
+        params.onConnectionChange?.(false);
+      }
+    }
+  };
+
+  void connectStream();
 
   // Fallback polling reconciliation every 2.5s so state stays synced across strict network proxies
   const pollTimer = window.setInterval(() => {
@@ -437,6 +510,10 @@ export function subscribeToMultiplayerRoomEvents(params: {
   return () => {
     disposed = true;
     window.clearInterval(pollTimer);
+    if (reconnectTimer !== null) {
+      window.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
     if (es) {
       es.close();
       es = null;

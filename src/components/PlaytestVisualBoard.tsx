@@ -93,23 +93,23 @@ function isCreatureCard(name: string, meta: CardMetadata | null): boolean {
 }
 
 const ReplayCardBackFan: React.FC<{ count: number }> = ({ count }) => {
-  const visible = Math.max(0, Math.min(6, count));
+  const visible = Math.max(0, Math.min(7, count));
   const extra = Math.max(0, count - visible);
   if (count <= 0) {
-    return <span className="font-mono text-[10px] text-emerald-200/75">0 Hand</span>;
+    return <span className="font-mono text-xs text-emerald-200/75">0 Hand</span>;
   }
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2">
       <div className="flex items-center -space-x-2">
         {Array.from({ length: visible }).map((_, i) => (
           <div
             key={i}
             style={{ transform: `rotate(${(i - (visible - 1) / 2) * 3}deg)` }}
-            className="h-6 w-4 rounded-[2px] border border-amber-300/60 bg-gradient-to-br from-sky-950 via-zinc-900 to-amber-950 shadow-sm"
+            className="h-7 w-5 rounded-[3px] border border-amber-300/60 bg-gradient-to-br from-sky-950 via-zinc-900 to-amber-950 shadow-sm"
           />
         ))}
       </div>
-      <span className="font-mono text-[10px] font-semibold tabular-nums text-emerald-100">
+      <span className="font-mono text-xs font-semibold tabular-nums text-emerald-100">
         {extra > 0 ? `+${extra} (${count})` : `${count}H`}
       </span>
     </div>
@@ -155,8 +155,8 @@ const BoardCardTile: React.FC<BoardCardTileProps> = ({
       ? 'border-red-300'
       : 'border-zinc-200 hover:border-sky-500';
 
-  const sizeClass = compact ? 'w-[74px]' : 'w-[86px]';
-  const artHeightClass = compact ? 'h-[58px]' : 'h-[68px]';
+  const sizeClass = compact ? 'w-[96px]' : 'w-[116px]';
+  const artHeightClass = compact ? 'h-[70px]' : 'h-[86px]';
 
   if (isToken) {
     return (
@@ -165,15 +165,15 @@ const BoardCardTile: React.FC<BoardCardTileProps> = ({
       >
         <div className={`${artHeightClass} rounded border border-zinc-200 bg-zinc-100 flex flex-col items-center justify-center gap-1 text-zinc-500`}>
           {subtitle === 'Land' ? (
-            <Mountain className="h-4 w-4 text-emerald-700" />
+            <Mountain className="h-5 w-5 text-emerald-700" />
           ) : (
-            <Swords className="h-4 w-4 text-sky-700" />
+            <Swords className="h-5 w-5 text-sky-700" />
           )}
-          <span className="font-mono text-[9px] font-semibold uppercase tracking-wide">
+          <span className="font-mono text-[10px] font-semibold tracking-wide">
             {subtitle || 'Permanent'}
           </span>
         </div>
-        <div className="mt-1 truncate text-[10px] font-semibold text-zinc-700">
+        <div className="mt-1.5 truncate text-[11px] font-bold text-zinc-700">
           {name}
         </div>
       </div>
@@ -270,11 +270,11 @@ const BoardCardTile: React.FC<BoardCardTileProps> = ({
         )}
       </div>
 
-      <div className="mt-1 space-y-0.5">
-        <div className="truncate text-[10px] font-semibold text-zinc-900 group-hover:text-sky-700">
+      <div className="mt-1.5 space-y-0.5">
+        <div className="truncate text-[11px] font-bold text-zinc-900 group-hover:text-sky-700">
           {name}
         </div>
-        <div className="flex items-center justify-between gap-1 font-mono text-[9px] text-zinc-500">
+        <div className="flex items-center justify-between gap-1 font-mono text-[10px] text-zinc-500">
           <span className="truncate">{meta?.manaCost || (meta?.isLand ? 'Land' : '—')}</span>
           {typeof meta?.cmc === 'number' && !meta.isLand && (
             <span className="shrink-0">{meta.cmc}</span>
@@ -512,10 +512,10 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
 
   const botGridClass =
     botPlays.length <= 1
-      ? 'grid-cols-1 max-w-2xl mx-auto w-full'
+      ? 'grid-cols-1 max-w-3xl mx-auto w-full'
       : botPlays.length === 2
       ? 'grid-cols-1 md:grid-cols-2'
-      : 'grid-cols-1 lg:grid-cols-3';
+      : 'grid-cols-1 xl:grid-cols-3';
 
   return (
     <VisualBoardHoverContext.Provider
@@ -534,11 +534,11 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
       }
     >
       {/* Top Tabletop Control Bar */}
-      <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="border-b border-zinc-200 bg-zinc-50 px-4 sm:px-5 py-3.5 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2.5">
           <div className="flex items-center gap-2">
             <Layers className="h-4 w-4 text-sky-700 shrink-0" />
-            <h3 className="font-display text-sm font-bold text-zinc-900">
+            <h3 className="font-display text-sm sm:text-base font-bold text-zinc-900">
               Visual Board Play Area
             </h3>
           </div>
@@ -557,7 +557,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
           <button
             type="button"
             onClick={() => setTurnFocus('all')}
-            className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`min-h-[34px] px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               turnFocus === 'all'
                 ? 'bg-white text-zinc-900 shadow-sm'
                 : 'text-zinc-600 hover:text-zinc-900'
@@ -568,7 +568,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
           <button
             type="button"
             onClick={() => setTurnFocus('you')}
-            className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`min-h-[34px] px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               turnFocus === 'you'
                 ? 'bg-white text-sky-900 shadow-sm'
                 : 'text-zinc-600 hover:text-zinc-900'
@@ -581,7 +581,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
               key={`${bp.botName}-${idx}`}
               type="button"
               onClick={() => setTurnFocus(idx)}
-              className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`min-h-[34px] px-3 py-1.5 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 turnFocus === idx
                   ? 'bg-white text-zinc-900 shadow-sm'
                   : 'text-zinc-600 hover:text-zinc-900'
@@ -604,7 +604,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
               disabled={activeRoundIdx === 0 && !isAutoPlaying}
               title="Restart at Round 1"
               aria-label="Restart at Round 1"
-              className="rounded px-1.5 py-1 text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer"
+              className="min-h-[34px] rounded px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer"
             >
               <RotateCcw className="h-3.5 w-3.5" />
             </button>
@@ -616,7 +616,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
               }}
               disabled={activeRoundIdx === 0}
               aria-label="Previous round"
-              className="rounded px-1.5 py-1 text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer"
+              className="min-h-[34px] rounded px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </button>
@@ -628,16 +628,16 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                 }
                 setIsAutoPlaying((v) => !v);
               }}
-              className="inline-flex items-center gap-1 rounded bg-sky-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[34px] items-center gap-1.5 rounded bg-sky-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
             >
               {isAutoPlaying ? (
                 <>
-                  <Pause className="h-3 w-3" />
+                  <Pause className="h-3.5 w-3.5" />
                   Pause
                 </>
               ) : (
                 <>
-                  <Play className="h-3 w-3" />
+                  <Play className="h-3.5 w-3.5" />
                   {activeRoundIdx >= rounds.length - 1 ? 'Replay' : 'Play Rounds'}
                 </>
               )}
@@ -650,7 +650,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
               }}
               disabled={activeRoundIdx >= rounds.length - 1}
               aria-label="Next round"
-              className="rounded px-1.5 py-1 text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer"
+              className="min-h-[34px] rounded px-2 py-1 text-xs text-zinc-600 hover:bg-zinc-100 disabled:opacity-40 cursor-pointer"
             >
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
@@ -665,7 +665,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                 ? 'Disable enlarged card preview when hovering cards on the board'
                 : 'Enable enlarged card preview when hovering cards on the board'
             }
-            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               hoverZoomEnabled
                 ? 'border-sky-300 bg-sky-50 text-sky-900 hover:bg-sky-100'
                 : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
@@ -679,7 +679,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
             type="button"
             onClick={() => setShowPlaymatCustomizer(true)}
             title="Customize tabletop background and per-seat TCG playmats"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-semibold text-emerald-900 hover:bg-emerald-100 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+            className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-100 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
           >
             <Palette className="h-3.5 w-3.5 text-emerald-700" />
             <span>Playmats &amp; Theme</span>
@@ -689,7 +689,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
             aria-label="Playback speed"
             value={playbackSpeed}
             onChange={(e) => setPlaybackSpeed(Number(e.target.value) as PlaybackSpeed)}
-            className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 font-mono text-[11px] text-zinc-700 focus:border-sky-600 focus:outline-none cursor-pointer"
+            className="min-h-[36px] rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 font-mono text-xs text-zinc-700 focus:border-sky-600 focus:outline-none cursor-pointer"
           >
             <option value={1800}>1x Speed</option>
             <option value={1100}>1.5x Speed</option>
@@ -700,7 +700,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
             <button
               type="button"
               onClick={onSwitchToLivePlay}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-2.5 py-1.5 text-xs font-semibold text-sky-900 hover:bg-sky-100 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-900 hover:bg-sky-100 cursor-pointer whitespace-nowrap shrink-0"
             >
               <Play className="h-3.5 w-3.5 text-sky-700" />
               Play Live vs Bots
@@ -709,7 +709,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
             <button
               type="button"
               onClick={onHideBoard}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
             >
               <EyeOff className="h-3.5 w-3.5" />
               Hide Board
@@ -720,12 +720,12 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
 
       {/* Tabletop Playmat Surface (2 / 3 / 4 Player Felt Arena) */}
       <div
-        className={`relative overflow-hidden border-t-2 p-4 sm:p-5 space-y-4 transition-colors ${tabletopSurface.outerClass}`}
+        className={`relative overflow-hidden border-t-2 p-4 sm:p-6 space-y-4 transition-colors ${tabletopSurface.outerClass}`}
       >
         <PlaymatSurfaceBackdrop surface={tabletopSurface} variant="table" />
         {/* 2 / 3 / 4 Seat Turn Order Track */}
         <div
-          className={`relative z-10 grid gap-2 ${
+          className={`relative z-10 grid gap-2.5 ${
             1 + botPlays.length === 2
               ? 'grid-cols-2'
               : 1 + botPlays.length === 3
@@ -736,7 +736,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
           <button
             type="button"
             onClick={() => setTurnFocus(turnFocus === 'you' ? 'all' : 'you')}
-            className={`rounded-lg border px-3 py-2 flex items-center justify-between gap-2 text-left transition-colors cursor-pointer ${
+            className={`rounded-xl border px-3.5 py-2.5 flex items-center justify-between gap-2 text-left transition-colors cursor-pointer ${
               youStats?.eliminatedBy
                 ? 'border-red-400/50 bg-red-950/50 text-red-100'
                 : turnFocus === 'you'
@@ -745,18 +745,18 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
             }`}
           >
             <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-[11px] font-bold">
+              <div className="flex items-center gap-1.5 text-xs font-bold">
                 <span className="font-mono text-sky-300">S1</span>
                 <span className="truncate">You</span>
                 {youStats?.eliminatedBy && (
-                  <span className="font-mono text-[9px] font-bold uppercase text-red-300">KO</span>
+                  <span className="font-mono text-[10px] font-bold uppercase text-red-300">KO</span>
                 )}
               </div>
-              <div className="font-mono text-[10px] tabular-nums text-emerald-200/80">
+              <div className="font-mono text-[11px] tabular-nums text-emerald-200/80 mt-0.5">
                 {handCards.length}H · {activeRound.landsInPlay} Lands · {activeRound.playerStats?.creaturesOnBoard ?? 0} Cr
               </div>
             </div>
-            <div className="font-mono text-sm font-bold tabular-nums shrink-0">
+            <div className="font-mono text-base font-bold tabular-nums shrink-0">
               {youStats ? youStats.life : result.startingLife} HP
             </div>
           </button>
@@ -772,7 +772,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                 key={`seat-track-${bp.botName}-${idx}`}
                 type="button"
                 onClick={() => setTurnFocus(turnFocus === idx ? 'all' : idx)}
-                className={`rounded-lg border px-3 py-2 flex items-center justify-between gap-2 text-left transition-colors cursor-pointer ${
+                className={`rounded-xl border px-3.5 py-2.5 flex items-center justify-between gap-2 text-left transition-colors cursor-pointer ${
                   bKO
                     ? 'border-red-400/45 bg-red-950/45 text-red-100 opacity-70'
                     : turnFocus === idx
@@ -781,18 +781,18 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                 }`}
               >
                 <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                  <div className="flex items-center gap-1.5 text-xs font-bold">
                     <span className="font-mono text-emerald-300">S{idx + 2}</span>
                     <span className="truncate">{bp.botName.split('(')[0].trim()}</span>
                     {bKO && (
-                      <span className="font-mono text-[9px] font-bold uppercase text-red-300">KO</span>
+                      <span className="font-mono text-[10px] font-bold uppercase text-red-300">KO</span>
                     )}
                   </div>
-                  <div className="font-mono text-[10px] tabular-nums text-emerald-200/80">
+                  <div className="font-mono text-[11px] tabular-nums text-emerald-200/80 mt-0.5">
                     {bp.handSize ?? bStat?.handSize ?? 0}H · {bp.landsInPlay ?? bStat?.landsInPlay ?? 0}L · {bp.creaturesOnBoard ?? bStat?.creaturesInPlay ?? 0} Cr
                   </div>
                 </div>
-                <div className="font-mono text-sm font-bold tabular-nums shrink-0">
+                <div className="font-mono text-base font-bold tabular-nums shrink-0">
                   {bStat ? bStat.life : '—'} HP
                 </div>
               </button>
@@ -801,7 +801,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
         </div>
 
         {/* Top Zone: Bot Opponent Seats */}
-        <div className={`relative z-10 grid gap-3.5 ${botGridClass}`}>
+        <div className={`relative z-10 grid gap-4 ${botGridClass}`}>
           {botPlays.map((bp, idx) => {
             const botStats = getParticipantStat(activeRound, bp.botName);
             const isEliminated =
@@ -837,7 +837,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
               <div
                 key={`${bp.botName}-${idx}`}
                 onClick={() => setTurnFocus(isFocused ? 'all' : idx)}
-                className={`relative overflow-hidden rounded-xl border p-3.5 space-y-3 transition-opacity duration-150 cursor-pointer text-white ${
+                className={`relative overflow-hidden rounded-xl border p-4 space-y-3.5 transition-opacity duration-150 cursor-pointer text-white ${
                   isEliminated
                     ? 'border-red-400/45 bg-[#2A171C]/85'
                     : isFocused
@@ -847,23 +847,23 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
               >
                 <PlaymatSurfaceBackdrop surface={botSeatSurface} variant="seat" />
                 {/* Bot Seat Header */}
-                <div className="relative z-10 flex items-start justify-between gap-2">
+                <div className="relative z-10 flex items-start justify-between gap-2.5">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="font-mono text-[10px] font-bold text-emerald-300">
+                      <span className="font-mono text-xs font-bold text-emerald-300">
                         Seat {idx + 2}
                       </span>
-                      <span className="truncate text-xs font-bold text-white">
+                      <span className="truncate text-sm font-bold text-white">
                         {bp.botName}
                       </span>
                       {isEliminated && (
-                        <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold uppercase text-red-300">
-                          <Skull className="h-3 w-3" />
+                        <span className="inline-flex items-center gap-1 font-mono text-xs font-bold uppercase text-red-300">
+                          <Skull className="h-3.5 w-3.5" />
                           KO
                         </span>
                       )}
                     </div>
-                    <div className="text-[11px] text-emerald-100/80 truncate">
+                    <div className="text-xs text-emerald-100/80 truncate mt-0.5">
                       {bp.archetype}
                       <span className="mx-1 text-emerald-300/40" aria-hidden="true">·</span>
                       <span
@@ -883,7 +883,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                   </div>
 
                   <div className="text-right shrink-0">
-                    <div className="font-mono text-base font-bold tabular-nums flex items-baseline justify-end gap-1">
+                    <div className="font-mono text-lg font-bold tabular-nums flex items-baseline justify-end gap-1">
                       <span className={isEliminated ? 'text-red-300' : 'text-white'}>
                         {botStats ? botStats.life : '—'} HP
                       </span>
@@ -946,7 +946,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                 {/* Bot Battlefield Cards: Commander + Real Archetype Creature Card Tiles */}
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="flex items-start gap-2 overflow-x-auto pb-1 min-h-[104px]"
+                  className="relative z-10 flex items-start gap-2.5 overflow-x-auto pb-1 min-h-[126px]"
                 >
                   {bp.commanderName && (
                     <BoardCardTile
@@ -960,7 +960,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                   )}
 
                   {botCreatures === 0 ? (
-                    <div className="flex-1 rounded-lg border border-dashed border-[#247059] px-3 py-5 text-center text-[11px] text-emerald-200/70">
+                    <div className="flex-1 rounded-lg border border-dashed border-[#247059] px-3 py-6 text-center text-xs text-emerald-200/75">
                       No creatures on board
                     </div>
                   ) : (
@@ -980,7 +980,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                         );
                       })}
                       {extraCreatureCount > 0 && (
-                        <div className="shrink-0 self-center rounded-lg border border-[#287D64] bg-[#0F4C3A] px-2.5 py-2 font-mono text-[11px] font-bold text-emerald-100">
+                        <div className="shrink-0 self-center rounded-lg border border-[#287D64] bg-[#0F4C3A] px-3 py-2 font-mono text-xs font-bold text-emerald-100">
                           +{extraCreatureCount}
                         </div>
                       )}
@@ -989,14 +989,14 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                 </div>
 
                 {/* Bot Turn Play Description */}
-                <div className="space-y-1 text-xs border-t border-[#1A624D] pt-2">
+                <div className="relative z-10 space-y-1 text-xs border-t border-[#1A624D] pt-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-1.5">
                     <span className="font-semibold text-white">
                       Round {activeRound.roundNumber} Play
                     </span>
                     {!isEliminated && bp.targetParticipant && (
                       <span
-                        className={`font-mono text-[10px] font-bold ${
+                        className={`font-mono text-[11px] font-bold ${
                           targetLabel.toLowerCase() === 'you'
                             ? 'text-red-300'
                             : 'text-amber-300'
@@ -1006,10 +1006,10 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] leading-relaxed text-emerald-100/85 line-clamp-2">
+                  <p className="text-xs leading-relaxed text-emerald-100/90 line-clamp-2">
                     {bp.action}
                   </p>
-                  <div className="text-[10px] text-emerald-200/70 truncate">
+                  <div className="text-[11px] text-emerald-200/75 truncate">
                     Threat: {bp.boardThreat}
                   </div>
                 </div>
@@ -1092,7 +1092,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
         {/* Bottom Zone: Your Playmat */}
         <div
           onClick={() => setTurnFocus(turnFocus === 'you' ? 'all' : 'you')}
-          className={`rounded-xl border bg-white p-4 space-y-4 transition-opacity duration-150 cursor-pointer shadow-sm ${
+          className={`relative z-10 rounded-xl border bg-white p-4 sm:p-5 space-y-4 transition-opacity duration-150 cursor-pointer shadow-sm ${
             youStats?.eliminatedBy
               ? 'border-red-400 bg-red-50/30'
               : turnFocus === 'you'
@@ -1101,12 +1101,12 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
           } ${turnFocus !== 'all' && turnFocus !== 'you' ? 'opacity-70' : 'opacity-100'}`}
         >
           {/* Your Seat Header */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 pb-3.5">
             <div className="flex flex-wrap items-center gap-2.5">
               <Shield className="h-4 w-4 text-sky-700 shrink-0" />
               <div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-bold text-zinc-900">
+                  <span className="text-sm sm:text-base font-bold text-zinc-900">
                     Your Board · {deckName || 'Your Deck'}
                   </span>
                   <span className="font-mono text-xs text-zinc-500">
@@ -1121,7 +1121,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
 
             <div className="flex flex-wrap items-center gap-3 font-mono text-xs tabular-nums">
               <div className="text-right">
-                <div className="text-base font-bold text-sky-700 flex items-baseline gap-1.5">
+                <div className="text-lg font-bold text-sky-700 flex items-baseline gap-1.5">
                   <span>{youStats ? youStats.life : result.startingLife} HP</span>
                   {youStats && youStats.lifeDelta !== 0 && (
                     <span
@@ -1133,7 +1133,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                     </span>
                   )}
                 </div>
-                <div className="text-[10px] text-zinc-500">
+                <div className="text-[11px] text-zinc-500">
                   {youStats
                     ? `${youStats.poisonCounters}/10 PSN${
                         usesCommanderDamage21 ? ` · ${youStats.maxCommanderDamage}/21 CMDR` : ''
@@ -1141,7 +1141,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                     : ''}
                 </div>
               </div>
-              <div className="border-l border-zinc-200 pl-3 text-[11px] text-zinc-600 space-y-0.5">
+              <div className="border-l border-zinc-200 pl-3 text-xs text-zinc-600 space-y-0.5">
                 <div>
                   Lands <strong className="text-zinc-900">{activeRound.landsInPlay}</strong>
                   <span className="mx-1.5 text-zinc-300">·</span>
@@ -1159,14 +1159,14 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
           {/* Your Battlefield Zones: Command Zone + Lands + Creatures/Permanents */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="grid grid-cols-1 gap-3 lg:grid-cols-[auto_1fr_1fr]"
+            className="grid grid-cols-1 gap-3.5 lg:grid-cols-[auto_1fr_1fr]"
           >
             {/* Command Zone & Cast Spells */}
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 space-y-2 min-w-[140px]">
-              <div className="text-[11px] font-semibold text-zinc-700">
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 space-y-2.5 min-w-[160px]">
+              <div className="text-xs font-bold text-zinc-700">
                 Command Zone &amp; Stack
               </div>
-              <div className="flex flex-wrap items-start gap-2">
+              <div className="flex flex-wrap items-start gap-2.5">
                 {commanderNames.length > 0 ? (
                   commanderNames.map((cmd) => (
                     <BoardCardTile
@@ -1180,7 +1180,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                     />
                   ))
                 ) : (
-                  <div className="text-[11px] text-zinc-500 py-2">
+                  <div className="text-xs text-zinc-500 py-2">
                     No Commander (Mainboard deck)
                   </div>
                 )}
@@ -1200,19 +1200,19 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
             </div>
 
             {/* Lands Row */}
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 space-y-2 min-w-0">
-              <div className="flex items-center justify-between gap-2 text-[11px]">
-                <span className="font-semibold text-zinc-700">
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 space-y-2.5 min-w-0">
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="font-bold text-zinc-700">
                   Lands in Play ({playerBoardState.lands.length})
                 </span>
-                <span className="font-mono text-sky-700 tabular-nums">
+                <span className="font-mono text-sky-700 font-semibold tabular-nums">
                   {activeRound.manaAvailable} Mana Ready
                 </span>
               </div>
               {playerBoardState.lands.length === 0 ? (
                 <div className="text-xs text-zinc-500 py-3">No lands in play yet.</div>
               ) : (
-                <div className="flex items-start gap-2 overflow-x-auto pb-1">
+                <div className="flex items-start gap-2.5 overflow-x-auto pb-1">
                   {playerBoardState.lands.map((land, lIdx) => (
                     <BoardCardTile
                       key={`${land.name}-${lIdx}`}
@@ -1239,12 +1239,12 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
             </div>
 
             {/* Creatures & Nonland Permanents Row */}
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 space-y-2 min-w-0">
-              <div className="flex items-center justify-between gap-2 text-[11px]">
-                <span className="font-semibold text-zinc-700">
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 space-y-2.5 min-w-0">
+              <div className="flex items-center justify-between gap-2 text-xs">
+                <span className="font-bold text-zinc-700">
                   Creatures &amp; Permanents ({playerBoardState.permanents.length})
                 </span>
-                <span className="font-mono text-zinc-500 tabular-nums">
+                <span className="font-mono text-zinc-600 tabular-nums">
                   {activeRound.playerStats?.creaturesOnBoard ?? 0} Creatures
                 </span>
               </div>
@@ -1253,7 +1253,7 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
                   No nonland permanents on battlefield yet.
                 </div>
               ) : (
-                <div className="flex items-start gap-2 overflow-x-auto pb-1">
+                <div className="flex items-start gap-2.5 overflow-x-auto pb-1">
                   {playerBoardState.permanents.map((perm, pIdx) => (
                     <BoardCardTile
                       key={`${perm.name}-${pIdx}`}
@@ -1283,13 +1283,13 @@ export const PlaytestVisualBoard: React.FC<PlaytestVisualBoardProps> = ({
           {/* Your Hand Tray */}
           <div
             onClick={(e) => e.stopPropagation()}
-            className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 space-y-2"
+            className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 space-y-2.5"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
-              <span className="font-semibold text-zinc-700">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="font-bold text-zinc-700">
                 Your Hand — Round {activeRound.roundNumber} ({handCards.length} cards)
               </span>
-              <span className="text-zinc-500">
+              <span className="text-zinc-600">
                 Drew:{' '}
                 <button
                   type="button"

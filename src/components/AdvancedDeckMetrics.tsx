@@ -593,7 +593,7 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
               / median {computed.medianCmc.toFixed(1)}
             </span>
           </div>
-          <div className="mt-1 font-mono text-[11px] tabular-nums text-zinc-500">
+          <div className="mt-1 font-mono text-xs tabular-nums text-zinc-500">
             With lands {metrics.averageCmcWithLands.toFixed(2)} · Target ≤ {computed.formatTargetCmc.toFixed(2)}
           </div>
         </div>
@@ -603,7 +603,7 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
           <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-zinc-900">
             {computed.totalSpellManaWeight} MV
           </div>
-          <div className="mt-1 font-mono text-[11px] tabular-nums text-zinc-500">
+          <div className="mt-1 font-mono text-xs tabular-nums text-zinc-500">
             Combined cost of all {computed.totalSpells} spells
           </div>
         </div>
@@ -618,7 +618,7 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
               ({computed.earlySpellsCount} spells)
             </span>
           </div>
-          <div className="mt-1 font-mono text-[11px] tabular-nums text-zinc-500">
+          <div className="mt-1 font-mono text-xs tabular-nums text-zinc-500">
             Mid (3–4): {computed.midSpellsCount} · Late (5+): {computed.lateSpellsCount}
           </div>
         </div>
@@ -628,7 +628,7 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
           <div className="mt-1 font-display text-lg font-bold text-zinc-900 truncate">
             {computed.identityName}
           </div>
-          <div className="mt-1 font-mono text-[11px] tabular-nums text-zinc-500">
+          <div className="mt-1 font-mono text-xs tabular-nums text-zinc-500">
             {computed.totalPips} colored mana symbols
             {computed.identityColors.length > 0
               ? ` · ${computed.identityColors.join('/')}`
@@ -652,11 +652,11 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
                 </p>
               </div>
 
-              <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
+              <div className="inline-flex items-center gap-1 rounded-xl bg-zinc-100 p-1.5">
                 <button
                   type="button"
                   onClick={() => setCurveMode('stacked')}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`min-h-[36px] px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     curveMode === 'stacked'
                       ? 'bg-white text-zinc-900 shadow-sm'
                       : 'text-zinc-600 hover:text-zinc-900'
@@ -667,7 +667,7 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
                 <button
                   type="button"
                   onClick={() => setCurveMode('compare')}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`min-h-[36px] px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     curveMode === 'compare'
                       ? 'bg-white text-zinc-900 shadow-sm'
                       : 'text-zinc-600 hover:text-zinc-900'
@@ -865,11 +865,11 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
                 </p>
               </div>
 
-              <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
+              <div className="inline-flex items-center gap-1 rounded-xl bg-zinc-100 p-1.5">
                 <button
                   type="button"
                   onClick={() => setIdentityMode('cards')}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`min-h-[36px] px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     identityMode === 'cards'
                       ? 'bg-white text-zinc-900 shadow-sm'
                       : 'text-zinc-600 hover:text-zinc-900'
@@ -880,7 +880,7 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
                 <button
                   type="button"
                   onClick={() => setIdentityMode('pips')}
-                  className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                  className={`min-h-[36px] px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                     identityMode === 'pips'
                       ? 'bg-white text-zinc-900 shadow-sm'
                       : 'text-zinc-600 hover:text-zinc-900'
@@ -923,7 +923,7 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
                     <span className="font-mono text-xl font-bold tabular-nums text-zinc-900">
                       {activeIdentityTotal}
                     </span>
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                    <span className="text-xs font-medium text-zinc-500">
                       {identityMode === 'cards' ? 'Spells' : 'Pips'}
                     </span>
                   </div>
@@ -948,7 +948,7 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
                       </div>
                       <div className="flex items-baseline gap-2 font-mono tabular-nums shrink-0">
                         <span className="font-semibold text-zinc-900">{slice.value}</span>
-                        <span className="w-9 text-right text-[11px] text-zinc-500">
+                        <span className="w-9 text-right text-xs text-zinc-500">
                           {slice.pct}%
                         </span>
                       </div>
@@ -959,7 +959,7 @@ export const AdvancedDeckMetrics: React.FC<AdvancedDeckMetricsProps> = ({
             )}
           </div>
 
-          <div className="mt-4 border-t border-zinc-100 pt-3 flex items-center justify-between text-[11px] text-zinc-500">
+          <div className="mt-4 border-t border-zinc-100 pt-3 flex items-center justify-between text-xs text-zinc-500">
             <span>Detected Profile</span>
             <span className="font-mono font-semibold text-zinc-800">
               {computed.identityName}

@@ -202,7 +202,7 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Close Turn Summary modal"
-            className="rounded-lg border border-zinc-200 bg-white p-1.5 text-zinc-500 hover:text-zinc-900 cursor-pointer"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-500 hover:text-zinc-900 cursor-pointer shrink-0"
           >
             <X className="h-4 w-4" />
           </button>
@@ -213,57 +213,57 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
           {/* Key Match Totals */}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-500">
-                <Mountain className="h-3.5 w-3.5 text-emerald-700 shrink-0" />
+              <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+                <Mountain className="h-4 w-4 text-emerald-700 shrink-0" />
                 <span>Lands Played</span>
               </div>
               <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-zinc-900">
                 {summary.totalLandsPlayed}
               </div>
-              <div className="text-[11px] text-zinc-500 font-mono tabular-nums">
+              <div className="text-xs text-zinc-500 font-mono tabular-nums">
                 Peak {summary.maxLandsInPlay} in play
               </div>
             </div>
 
             <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-500">
-                <Sparkles className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+              <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+                <Sparkles className="h-4 w-4 text-sky-700 shrink-0" />
                 <span>Spells Cast</span>
               </div>
               <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-sky-700">
                 {summary.spellsCastCount}
               </div>
-              <div className="text-[11px] text-zinc-500">
+              <div className="text-xs text-zinc-500">
                 Nonland spells resolved
               </div>
             </div>
 
             <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-500">
-                <Swords className="h-3.5 w-3.5 text-amber-700 shrink-0" />
+              <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
+                <Swords className="h-4 w-4 text-amber-700 shrink-0" />
                 <span>Combat Damage</span>
               </div>
               <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-zinc-900">
                 {summary.totalDamageDealt}
               </div>
-              <div className="text-[11px] text-zinc-500">
+              <div className="text-xs text-zinc-500">
                 Dealt across {result.totalRounds} rounds
               </div>
             </div>
 
             <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5">
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-500">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-500">
                 {summary.boardWipesCount > 0 ? (
-                  <Flame className="h-3.5 w-3.5 text-red-700 shrink-0" />
+                  <Flame className="h-4 w-4 text-red-700 shrink-0" />
                 ) : (
-                  <Skull className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+                  <Skull className="h-4 w-4 text-zinc-600 shrink-0" />
                 )}
                 <span>Table Disrupted</span>
               </div>
               <div className="mt-1 font-mono text-2xl font-bold tabular-nums text-zinc-900">
                 {summary.boardWipesCount} / {summary.eliminationsCount}
               </div>
-              <div className="text-[11px] text-zinc-500">
+              <div className="text-xs text-zinc-500">
                 Wipes / Bot KOs
               </div>
             </div>
@@ -339,7 +339,7 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
                       )}
                     </div>
                     {ev.botEvents.length > 0 && (
-                      <div className="text-[11px] text-zinc-500">
+                      <div className="text-xs text-zinc-500">
                         {ev.botEvents.join(' · ')}
                       </div>
                     )}
@@ -351,7 +351,7 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
                       onSelectRound(ev.idx);
                       onClose();
                     }}
-                    className="self-start sm:self-center rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-medium text-zinc-700 hover:border-sky-500 hover:text-sky-700 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[34px] items-center self-start sm:self-center rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:border-sky-500 hover:text-sky-700 cursor-pointer whitespace-nowrap shrink-0"
                   >
                     Inspect R{ev.roundNumber}
                   </button>
@@ -362,14 +362,14 @@ export const TurnSummaryModal: React.FC<TurnSummaryModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-3.5">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-4">
           <span className="text-xs text-zinc-500">
             Click any card name to inspect oracle rules, or jump into any round.
           </span>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-800 cursor-pointer"
+            className="min-h-[40px] rounded-lg bg-sky-700 px-5 py-2 text-xs sm:text-sm font-semibold text-white hover:bg-sky-800 cursor-pointer"
           >
             Continue to Match Details
           </button>

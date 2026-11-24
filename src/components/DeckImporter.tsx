@@ -326,40 +326,40 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
   };
 
   return (
-    <section className="mx-auto max-w-[1360px] px-6 py-8 space-y-5">
+    <section className="mx-auto max-w-[1440px] px-5 sm:px-8 py-8 space-y-6">
       {accountStatusNotice && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-sky-300 bg-sky-50 px-4 py-2.5 text-xs text-sky-900">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-sky-300 bg-sky-50 px-4 py-3 text-xs sm:text-sm text-sky-900">
           <span>{accountStatusNotice}</span>
           <button
             type="button"
             onClick={onDismissAccountNotice}
             aria-label="Dismiss account notice"
-            className="rounded p-1 text-sky-800 hover:bg-white cursor-pointer shrink-0"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-sky-800 hover:bg-white cursor-pointer shrink-0"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
           </button>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_360px] lg:items-start">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_400px] lg:items-start">
         {/* Main Input Card */}
-        <div className="rounded-xl border border-zinc-200 bg-white p-6">
+        <div className="rounded-xl border border-zinc-200 bg-white p-6 sm:p-7">
           <div className="border-b border-zinc-100 pb-5">
-            <h1 className="font-display text-2xl font-bold tracking-tight text-zinc-900">
+            <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900">
               Deck Import
             </h1>
-            <p className="mt-1 text-sm text-zinc-600">
+            <p className="mt-1.5 text-sm sm:text-base text-zinc-600">
               Import a Magic: The Gathering deck from any platform to see exact cuts, additions, replacements, and missing lands.
             </p>
           </div>
 
           {/* Source Switcher Tabs */}
           <div className="mt-5 flex flex-wrap items-center justify-between gap-4">
-            <div className="inline-flex items-center gap-1 rounded-lg bg-zinc-100 p-1">
+            <div className="inline-flex flex-wrap items-center gap-1 rounded-xl bg-zinc-100 p-1.5">
               <button
                 type="button"
                 onClick={() => setActiveTab('paste')}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`inline-flex min-h-[40px] items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   activeTab === 'paste'
                     ? 'bg-white text-zinc-900 shadow-sm'
                     : 'text-zinc-600 hover:text-zinc-900'
@@ -370,30 +370,30 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('url')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`inline-flex min-h-[40px] items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   activeTab === 'url'
                     ? 'bg-white text-zinc-900 shadow-sm'
                     : 'text-zinc-600 hover:text-zinc-900'
                 }`}
               >
-                <Link2 className="h-3.5 w-3.5" />
+                <Link2 className="h-4 w-4" />
                 Import from URL
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('file')}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                className={`inline-flex min-h-[40px] items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   activeTab === 'file'
                     ? 'bg-white text-zinc-900 shadow-sm'
                     : 'text-zinc-600 hover:text-zinc-900'
                 }`}
               >
-                <Upload className="h-3.5 w-3.5" />
+                <Upload className="h-4 w-4" />
                 Upload File
               </button>
             </div>
 
-            <div className="text-xs text-zinc-500">
+            <div className="text-xs font-medium text-zinc-500">
               <span>Arena</span>
               <span className="mx-1.5" aria-hidden="true">·</span>
               <span>Moxfield</span>
@@ -421,29 +421,29 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                 onAnalyzeLocalFallback &&
                 /credit|quota|rate limit|api key/i.test(error) && (
                   <div className="pt-1">
-                    <button
-                      type="button"
-                      onClick={onAnalyzeLocalFallback}
-                      className="inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-50 cursor-pointer"
-                    >
-                      Run Local Scryfall Analysis (No AI)
-                    </button>
-                  </div>
-                )}
-            </div>
-          )}
+                      <button
+                        type="button"
+                        onClick={onAnalyzeLocalFallback}
+                        className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-zinc-900 hover:bg-zinc-50 cursor-pointer"
+                      >
+                        Run Local Scryfall Analysis (No AI)
+                      </button>
+                    </div>
+                  )}
+              </div>
+            )}
 
           {/* Tab Content */}
           {activeTab === 'url' && (
             <form onSubmit={handleUrlImport} className="mt-5 space-y-4">
               <div>
-                <label htmlFor="deck-url-input" className="block text-sm font-medium text-zinc-800">
+                <label htmlFor="deck-url-input" className="block text-sm font-semibold text-zinc-800">
                   Public Deck URL
                 </label>
-                <p className="mt-0.5 text-xs text-zinc-500">
+                <p className="mt-1 text-xs sm:text-sm text-zinc-500">
                   Supports Archidekt, Moxfield, MTGGoldfish, Scryfall, Deckstats, TappedOut, CubeCobra, MTGTop8, Pastebin, GitHub Gist, and raw text links.
                 </p>
-                <div className="mt-2 flex flex-col gap-2.5 sm:flex-row sm:items-stretch">
+                <div className="mt-2.5 flex flex-col gap-2.5 sm:flex-row sm:items-stretch">
                   <div className="flex flex-1 items-stretch gap-2 min-w-0">
                     <input
                       ref={urlInputRef}
@@ -454,22 +454,22 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                       value={urlInput}
                       onChange={(e) => setUrlInput(e.target.value)}
                       placeholder="https://archidekt.com/decks/... or mtggoldfish.com/deck/..."
-                      className="flex-1 min-w-0 rounded-lg border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
+                      className="flex-1 min-h-[42px] min-w-0 rounded-lg border border-zinc-300 bg-white px-3.5 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
                     />
                     <button
                       type="button"
                       onClick={() => void handlePasteField('url')}
                       title="Paste deck URL from clipboard"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+                      className="inline-flex min-h-[42px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
                     >
                       {pastedTarget === 'url' ? (
                         <>
-                          <Check className="h-3.5 w-3.5 text-emerald-700" />
+                          <Check className="h-4 w-4 text-emerald-700" />
                           <span>Pasted</span>
                         </>
                       ) : (
                         <>
-                          <ClipboardPaste className="h-3.5 w-3.5 text-sky-700" />
+                          <ClipboardPaste className="h-4 w-4 text-sky-700" />
                           <span>Paste</span>
                         </>
                       )}
@@ -479,16 +479,16 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                       disabled={!urlInput.trim()}
                       onClick={() => void handleCopyField('url', urlInput)}
                       title="Copy deck URL to clipboard"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                      className="inline-flex min-h-[42px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                     >
                       {copiedTarget === 'url' ? (
                         <>
-                          <Check className="h-3.5 w-3.5 text-emerald-700" />
+                          <Check className="h-4 w-4 text-emerald-700" />
                           <span>Copied</span>
                         </>
                       ) : (
                         <>
-                          <Copy className="h-3.5 w-3.5 text-sky-700" />
+                          <Copy className="h-4 w-4 text-sky-700" />
                           <span>Copy</span>
                         </>
                       )}
@@ -499,16 +499,16 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                         onClick={() => setUrlInput('')}
                         title="Clear URL input"
                         aria-label="Clear URL input"
-                        className="inline-flex items-center justify-center rounded-lg border border-zinc-300 bg-white px-2.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 cursor-pointer shrink-0"
+                        className="inline-flex min-h-[42px] w-[42px] items-center justify-center rounded-lg border border-zinc-300 bg-white text-zinc-500 hover:text-zinc-900 hover:bg-zinc-50 cursor-pointer shrink-0"
                       >
-                        <X className="h-3.5 w-3.5" />
+                        <X className="h-4 w-4" />
                       </button>
                     )}
                   </div>
                   <button
                     type="submit"
                     disabled={urlLoading}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-60 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[42px] items-center justify-center gap-2 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60 cursor-pointer whitespace-nowrap shrink-0"
                   >
                     {urlLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                     {urlLoading ? 'Fetching Deck...' : 'Fetch Decklist'}
@@ -533,13 +533,13 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-50/70 px-6 py-12 text-center hover:border-sky-500 hover:bg-sky-50/30 transition-colors cursor-pointer"
+                className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-50/70 px-6 py-14 text-center hover:border-sky-500 hover:bg-sky-50/30 transition-colors cursor-pointer"
               >
-                <FileUp className="h-8 w-8 text-zinc-400" />
-                <span className="mt-3 text-sm font-medium text-zinc-900">
+                <FileUp className="h-9 w-9 text-zinc-400" />
+                <span className="mt-3 text-base font-semibold text-zinc-900">
                   Choose a deck file to import
                 </span>
-                <span className="mt-1 text-xs text-zinc-500">
+                <span className="mt-1.5 text-xs sm:text-sm text-zinc-500">
                   Supports .txt (Arena/Moxfield), .csv/.tsv (ManaBox/Deckbox/TCGplayer), .json, .cod (Cockatrice), .dek (MTGO), .mwdeck, and .dec
                 </span>
               </button>
@@ -547,10 +547,10 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
           )}
 
           {activeTab === 'paste' && (
-            <div className="mt-5 space-y-4">
+            <div className="mt-5 space-y-5">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                 <div>
-                  <label htmlFor="deck-name" className="block text-xs font-medium text-zinc-700">
+                  <label htmlFor="deck-name" className="block text-xs sm:text-sm font-semibold text-zinc-700">
                     Deck Name (Optional)
                   </label>
                   <input
@@ -559,19 +559,19 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                     value={deckName}
                     onChange={(e) => onDeckNameChange(e.target.value)}
                     placeholder="e.g. Wilhelt Zombies"
-                    className="mt-1.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
+                    className="mt-1.5 min-h-[42px] w-full rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="deck-format" className="block text-xs font-medium text-zinc-700">
+                  <label htmlFor="deck-format" className="block text-xs sm:text-sm font-semibold text-zinc-700">
                     Format
                   </label>
                   <select
                     id="deck-format"
                     value={format}
                     onChange={(e) => onFormatChange(e.target.value as DeckFormat)}
-                    className="mt-1.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
+                    className="mt-1.5 min-h-[42px] w-full rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm text-zinc-900 focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
                   >
                     <option value="auto">Auto-Detect (60 / 100 / 40)</option>
                     <option value="commander">Commander / EDH (100)</option>
@@ -587,14 +587,14 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                 </div>
 
                 <div>
-                  <label htmlFor="deck-goal" className="block text-xs font-medium text-zinc-700">
+                  <label htmlFor="deck-goal" className="block text-xs sm:text-sm font-semibold text-zinc-700">
                     Target Bracket (Official 1–5)
                   </label>
                   <select
                     id="deck-goal"
                     value={goal}
                     onChange={(e) => onGoalChange(e.target.value as DeckGoal)}
-                    className="mt-1.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
+                    className="mt-1.5 min-h-[42px] w-full rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-sm text-zinc-900 focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-600/20"
                   >
                     <option value="bracket-1">Bracket 1: Exhibition</option>
                     <option value="bracket-2">Bracket 2: Core (Precon Level)</option>
@@ -619,12 +619,12 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
               </div>
 
               <div>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label htmlFor="decklist-textarea" className="text-xs font-medium text-zinc-700">
+                <div className="flex flex-wrap items-center justify-between gap-2.5">
+                  <label htmlFor="decklist-textarea" className="text-xs sm:text-sm font-semibold text-zinc-700">
                     Decklist Text
                   </label>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs tabular-nums text-zinc-500">
+                    <span className="font-mono text-xs sm:text-sm tabular-nums text-zinc-500">
                       {lineCount} lines ·{' '}
                       <span
                         className={
@@ -648,16 +648,16 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                       type="button"
                       onClick={() => void handlePasteField('text')}
                       title="Paste decklist text from clipboard"
-                      className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap"
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap"
                     >
                       {pastedTarget === 'text' ? (
                         <>
-                          <Check className="h-3 w-3 text-emerald-700" />
+                          <Check className="h-3.5 w-3.5 text-emerald-700" />
                           <span>Pasted</span>
                         </>
                       ) : (
                         <>
-                          <ClipboardPaste className="h-3 w-3 text-sky-700" />
+                          <ClipboardPaste className="h-3.5 w-3.5 text-sky-700" />
                           <span>Paste</span>
                         </>
                       )}
@@ -667,16 +667,16 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                       disabled={!deckText.trim()}
                       onClick={() => void handleCopyField('text', deckText)}
                       title="Copy decklist text to clipboard"
-                      className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-40 cursor-pointer whitespace-nowrap"
+                      className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-40 cursor-pointer whitespace-nowrap"
                     >
                       {copiedTarget === 'text' ? (
                         <>
-                          <Check className="h-3 w-3 text-emerald-700" />
+                          <Check className="h-3.5 w-3.5 text-emerald-700" />
                           <span>Copied</span>
                         </>
                       ) : (
                         <>
-                          <Copy className="h-3 w-3 text-sky-700" />
+                          <Copy className="h-3.5 w-3.5 text-sky-700" />
                           <span>Copy</span>
                         </>
                       )}
@@ -690,21 +690,21 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                   value={deckText}
                   onChange={(e) => onDeckTextChange(e.target.value)}
                   placeholder={`Paste your decklist in any format, for example:\n\nCommander\n1 Wilhelt, the Rotcleaver\n\nDeck\n1 Sol Ring (CMM) 410\n1x Arcane Signet\n4 Lightning Bolt\n18 Island`}
-                  className="mt-1.5 w-full rounded-lg border border-zinc-300 bg-zinc-50/40 p-3.5 font-mono text-xs leading-relaxed text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-600/20"
+                  className="mt-2 w-full rounded-lg border border-zinc-300 bg-zinc-50/40 p-4 font-mono text-xs sm:text-sm leading-relaxed text-zinc-900 placeholder:text-zinc-400 focus:border-sky-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-600/20"
                 />
 
                 {livePreview.parsed.cards.length > 0 && (
-                  <div className="mt-3 flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3.5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <div className="mt-3 flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
                       <span className="inline-flex items-center gap-1.5 font-semibold text-zinc-900">
-                        <Crown className="h-3.5 w-3.5 text-sky-600" />
+                        <Crown className="h-4 w-4 text-sky-600" />
                         Recognized Commander:
                       </span>
                       {livePreview.commanders.length > 0 ? (
                         livePreview.commanders.map((cmd) => (
                           <span
                             key={cmd.name}
-                            className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2 py-0.5 font-semibold text-sky-900"
+                            className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2.5 py-0.5 font-semibold text-sky-900"
                           >
                             {cmd.name}
                           </span>
@@ -718,10 +718,10 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       <label
                         htmlFor="commander-override-select"
-                        className="text-xs font-medium text-zinc-600 whitespace-nowrap"
+                        className="text-xs sm:text-sm font-semibold text-zinc-700 whitespace-nowrap"
                       >
                         Set Commander:
                       </label>
@@ -740,7 +740,7 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                             onDeckNameChange(`${chosen} Commander`);
                           }
                         }}
-                        className="max-w-[220px] rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs text-zinc-900 focus:border-sky-600 focus:outline-none"
+                        className="min-h-[38px] max-w-[240px] rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm text-zinc-900 focus:border-sky-600 focus:outline-none"
                       >
                         <option value="">
                           {livePreview.commanders.length > 0
@@ -758,7 +758,7 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -768,19 +768,19 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                     setImportError(null);
                   }}
                   disabled={!deckText}
-                  className="text-sm font-medium text-zinc-600 hover:text-zinc-900 disabled:opacity-40 cursor-pointer"
+                  className="inline-flex min-h-[42px] items-center rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 disabled:opacity-40 cursor-pointer whitespace-nowrap"
                 >
                   Clear input
                 </button>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2.5">
                   {onQuickPlaytest && (
                     <button
                       type="button"
                       onClick={() => onQuickPlaytest()}
                       disabled={isAnalyzing}
                       title="Jump straight to Bot Playtest without waiting for full deck analysis (uses your pasted decklist or a ready Commander pod deck if blank)"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+                      className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
                     >
                       <Bot className="h-4 w-4 text-sky-700 shrink-0" />
                       <span>Play vs Bots (Skip Analysis)</span>
@@ -793,7 +793,7 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                       onClick={() => onQuickMultiplayer()}
                       disabled={isAnalyzing}
                       title="Open the 1–4 player LAN & Self-Hosted Online Multiplayer Lobby right away without analyzing a deck first"
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-sky-600 bg-sky-50 px-3.5 py-2.5 text-xs font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
+                      className="inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-sky-600 bg-sky-50 px-4 py-2.5 text-xs sm:text-sm font-semibold text-sky-900 hover:bg-sky-100 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0 transition-colors"
                     >
                       <Users className="h-4 w-4 text-sky-700 shrink-0" />
                       <span>Multiplayer Lobby (LAN / Online)</span>
@@ -804,7 +804,7 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                     type="button"
                     onClick={onAnalyze}
                     disabled={isAnalyzing || !deckText.trim()}
-                    className="inline-flex items-center gap-2 rounded-lg bg-sky-700 px-6 py-2.5 text-sm font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-sky-700 px-6 py-2.5 text-sm sm:text-base font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0 shadow-sm"
                   >
                     {isAnalyzing ? (
                       <>
@@ -826,11 +826,11 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
 
         {/* Right Column: Quick Sample Decks & Supported Sources */}
         <aside className="space-y-6">
-          <div className="rounded-xl border border-zinc-200 bg-white p-5">
-            <h2 className="font-display text-base font-semibold text-zinc-900">
+          <div className="rounded-xl border border-zinc-200 bg-white p-5 sm:p-6">
+            <h2 className="font-display text-lg font-semibold text-zinc-900">
               Try a Sample Deck
             </h2>
-            <p className="mt-1 text-xs text-zinc-500">
+            <p className="mt-1 text-xs sm:text-sm text-zinc-500">
               Load a real deck to analyze mana &amp; curve, or jump straight into Bot Playtest &amp; Multiplayer with zero wait.
             </p>
 
@@ -838,7 +838,7 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
               {SAMPLE_DECKS.map((sample) => (
                 <div
                   key={sample.id}
-                  className="py-3 first:pt-1 last:pb-1 space-y-2"
+                  className="py-3.5 first:pt-1 last:pb-1 space-y-2.5"
                 >
                   <button
                     type="button"
@@ -851,12 +851,12 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                       setImportError(null);
                       setActiveTab('paste');
                     }}
-                    className="block w-full text-left hover:bg-zinc-50 -mx-2 px-2 py-1 rounded-lg transition-colors cursor-pointer"
+                    className="block w-full text-left hover:bg-zinc-50 -mx-2 px-2 py-1.5 rounded-lg transition-colors cursor-pointer"
                   >
                     <div className="text-sm font-semibold text-zinc-900">{sample.title}</div>
                     <div className="mt-0.5 text-xs text-zinc-600">{sample.subtitle}</div>
                   </button>
-                  <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -868,7 +868,7 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                         setImportError(null);
                         setActiveTab('paste');
                       }}
-                      className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-sky-700 hover:bg-zinc-100 cursor-pointer"
+                      className="inline-flex min-h-[36px] items-center rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-sky-700 hover:bg-zinc-100 cursor-pointer whitespace-nowrap"
                     >
                       Load into Editor
                     </button>
@@ -883,9 +883,9 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                             goal: sample.goal,
                           })
                         }
-                        className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer"
+                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap"
                       >
-                        <Bot className="h-3 w-3 text-sky-700" />
+                        <Bot className="h-3.5 w-3.5 text-sky-700" />
                         <span>Instant Playtest</span>
                       </button>
                     )}
@@ -900,9 +900,9 @@ export const DeckImporter: React.FC<DeckImporterProps> = ({
                             goal: sample.goal,
                           })
                         }
-                        className="inline-flex items-center gap-1 rounded-md border border-sky-300 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-900 hover:bg-sky-100 cursor-pointer"
+                        className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-900 hover:bg-sky-100 cursor-pointer whitespace-nowrap"
                       >
-                        <Users className="h-3 w-3 text-sky-700" />
+                        <Users className="h-3.5 w-3.5 text-sky-700" />
                         <span>Multiplayer</span>
                       </button>
                     )}

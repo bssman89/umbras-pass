@@ -47,6 +47,7 @@ import {
   startReleaseAssetDownload,
 } from './server/updater.ts';
 import { registerMultiplayerRoutes } from './server/multiplayerServer.ts';
+import { applyMultiplayerCors, requireLocalhostOnly } from './server/networkSecurity.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -132,14 +133,41 @@ function sendGeminiRouteError(
 
 async function startServer() {
   const app = express();
+  app.disable('x-powered-by');
   const httpServer = createServer(app);
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+  });
   app.use(express.json({ limit: '2mb' }));
 
-  app.get('/api/health', (_req, res) => {
+  app.options('/api/health', (req, res) => {
+    applyMultiplayerCors(req, res);
+  });
+
+  app.get('/api/health', (req, res) => {
+    if (applyMultiplayerCors(req, res)) return;
     res.json({ ok: true });
   });
 
   registerMultiplayerRoutes(app);
+
+  // Strict localhost-only firewall on all private host data, local AI, updater, and Gemini routes
+  app.use(
+    [
+      '/api/updates',
+      '/api/desktop',
+      '/api/cards',
+      '/api/import-url',
+      '/api/parse',
+      '/api/analyze',
+      '/api/playtest',
+      '/api/live-bot',
+    ],
+    requireLocalhostOnly
+  );
 
   app.get('/api/updates/check', async (req, res) => {
     try {

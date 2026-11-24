@@ -1,7 +1,18 @@
 import crypto from 'node:crypto';
+import http from 'node:http';
 import net from 'node:net';
 import os from 'node:os';
 import type express from 'express';
+import {
+  applyMultiplayerCors,
+  getClientSocketIp,
+  isLoopbackHostCaller,
+  isPrivateOrLanCaller,
+  isPrivateOrReservedIpv4,
+  isSafeCardOrPlaymatImageUrl,
+  requireLocalhostOnly,
+  sanitizeRemoteMessage,
+} from './networkSecurity.ts';
 import type {
   MultiplayerActionLogEntry,
   MultiplayerBotSeatConfig,
@@ -80,8 +91,18 @@ interface InternalMultiplayerRoom {
   tabletopCustomImageUrl?: string;
 }
 
+interface OneTimeSseTicket {
+  roomCode: string;
+  seatIndex: number | null;
+  isHost: boolean;
+  expiresAt: number;
+}
+
 const roomsByCode = new Map<string, InternalMultiplayerRoom>();
 const failedJoinAttemptsByKey = new Map<string, { count: number; resetAt: number }>();
+const lookupAttemptsByIp = new Map<string, { count: number; resetAt: number }>();
+const sseTicketsById = new Map<string, OneTimeSseTicket>();
+let cachedPublicIpv4: { ip: string; fetchedAt: number } | null = null;
 
 const PRESET_BOT_DECKS: Record<
   string,
@@ -361,6 +382,20 @@ function verifyPasscodeConstantTime(passcode: string, saltHex: string, expectedH
   }
 }
 
+function checkAndIncrementLookupRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = lookupAttemptsByIp.get(ip);
+  if (!entry || now > entry.resetAt) {
+    lookupAttemptsByIp.set(ip, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  if (entry.count >= 20) {
+    return false;
+  }
+  entry.count += 1;
+  return true;
+}
+
 function checkAndIncrementRateLimit(key: string): boolean {
   const now = Date.now();
   const entry = failedJoinAttemptsByKey.get(key);
@@ -384,10 +419,98 @@ function extractBearerToken(req: express.Request): string {
   if (typeof authHeader === 'string' && authHeader.startsWith('Bearer ')) {
     return authHeader.slice(7).trim();
   }
-  if (typeof req.query.token === 'string' && req.query.token.trim()) {
-    return req.query.token.trim();
-  }
   return '';
+}
+
+function issueOneTimeSseTicket(
+  roomCode: string,
+  seatIndex: number | null,
+  isHost: boolean
+): string {
+  const now = Date.now();
+  for (const [id, item] of sseTicketsById.entries()) {
+    if (now > item.expiresAt) {
+      sseTicketsById.delete(id);
+    }
+  }
+  const ticket = crypto.randomBytes(24).toString('hex');
+  sseTicketsById.set(ticket, {
+    roomCode,
+    seatIndex,
+    isHost,
+    expiresAt: now + 30_000,
+  });
+  return ticket;
+}
+
+function consumeOneTimeSseTicket(
+  ticket: string,
+  expectedRoomCode: string
+): { seatIndex: number | null; isHost: boolean } | null {
+  const clean = ticket.trim();
+  if (!clean) return null;
+  const entry = sseTicketsById.get(clean);
+  if (!entry) return null;
+  sseTicketsById.delete(clean);
+  if (Date.now() > entry.expiresAt || entry.roomCode !== expectedRoomCode) {
+    return null;
+  }
+  return { seatIndex: entry.seatIndex, isHost: entry.isHost };
+}
+
+function sanitizeIncomingDeckSummary(
+  deckSummary: MultiplayerDeckSummary | undefined,
+  fallbackName: string,
+  fallbackFormat: string
+): MultiplayerDeckSummary {
+  if (!deckSummary || !Array.isArray(deckSummary.cards)) {
+    return {
+      deckName: fallbackName.slice(0, 48),
+      format: fallbackFormat,
+      cardCount: 60,
+      commanders: [],
+      cards: [],
+    };
+  }
+
+  const sanitizedCards = deckSummary.cards.slice(0, 130).map((c) => ({
+    name: String(c?.name || 'Card').slice(0, 80),
+    quantity: Math.max(1, Math.min(99, Number(c?.quantity) || 1)),
+    isCommander: Boolean(c?.isCommander),
+    typeLine: typeof c?.typeLine === 'string' ? c.typeLine.slice(0, 80) : undefined,
+    manaCost: typeof c?.manaCost === 'string' ? c.manaCost.slice(0, 32) : undefined,
+    cmc: typeof c?.cmc === 'number' && Number.isFinite(c.cmc) ? Math.max(0, c.cmc) : undefined,
+    oracleText: typeof c?.oracleText === 'string' ? c.oracleText.slice(0, 600) : undefined,
+    imageUri: isSafeCardOrPlaymatImageUrl(c?.imageUri) ? c.imageUri.slice(0, 600_000) : undefined,
+    power: typeof c?.power === 'string' ? c.power.slice(0, 8) : undefined,
+    toughness: typeof c?.toughness === 'string' ? c.toughness.slice(0, 8) : undefined,
+    displayTitle: typeof c?.displayTitle === 'string' ? c.displayTitle.slice(0, 64) : undefined,
+    isProxy: Boolean(c?.isProxy),
+    proxyBadgeLabel:
+      c?.proxyBadgeLabel === 'PROXY' ||
+      c?.proxyBadgeLabel === 'ALT ART' ||
+      c?.proxyBadgeLabel === 'CUSTOM' ||
+      c?.proxyBadgeLabel === 'TOKEN'
+        ? c.proxyBadgeLabel
+        : undefined,
+    frameStyle:
+      c?.frameStyle === 'standard' ||
+      c?.frameStyle === 'full-art' ||
+      c?.frameStyle === 'retro' ||
+      c?.frameStyle === 'gold-foil'
+        ? c.frameStyle
+        : undefined,
+  }));
+
+  return {
+    deckName: String(deckSummary.deckName || fallbackName).slice(0, 48),
+    format: String(deckSummary.format || fallbackFormat).slice(0, 32),
+    cardCount: Math.max(0, Math.min(300, Number(deckSummary.cardCount) || sanitizedCards.length)),
+    commanders: Array.isArray(deckSummary.commanders)
+      ? deckSummary.commanders.slice(0, 4).map((n) => String(n).slice(0, 80))
+      : [],
+    cards: sanitizedCards,
+  };
 }
 
 function resolveCallerRole(
@@ -403,15 +526,6 @@ function resolveCallerRole(
   for (const [seatIdx, seatTok] of room.seatTokensByIndex.entries()) {
     if (seatTok === token) {
       return { isHost: seatIdx === 0, seatIndex: seatIdx, requestId: null };
-    }
-  }
-  for (const reqItem of room.pendingJoinRequests) {
-    if (reqItem.requestToken === token || reqItem.seatToken === token) {
-      return {
-        isHost: false,
-        seatIndex: typeof reqItem.assignedSeatIndex === 'number' ? reqItem.assignedSeatIndex : null,
-        requestId: reqItem.requestId,
-      };
     }
   }
   return { isHost: false, seatIndex: null, requestId: null };
@@ -1224,7 +1338,10 @@ function advanceToNextSeatTurn(tabletop: InternalTabletopState): void {
   }
 }
 
-function initializeTabletopMatch(room: InternalMultiplayerRoom): InternalTabletopState {
+function initializeTabletopMatch(
+  room: InternalMultiplayerRoom,
+  options?: { firstSeatIndex?: number; diceSummary?: string }
+): InternalTabletopState {
   const isCommanderOrMulti =
     room.maxSeats > 2 ||
     room.format.toLowerCase().includes('commander') ||
@@ -1281,27 +1398,53 @@ function initializeTabletopMatch(room: InternalMultiplayerRoom): InternalTableto
     };
   });
 
+  const requestedFirst = Number(options?.firstSeatIndex);
+  const safeFirstSeat =
+    Number.isInteger(requestedFirst) &&
+    requestedFirst >= 0 &&
+    requestedFirst < seatStates.length
+      ? requestedFirst
+      : 0;
+  const starterSeat = seatStates[safeFirstSeat] || seatStates[0];
+  const diceSummary =
+    typeof options?.diceSummary === 'string' && options.diceSummary.trim()
+      ? options.diceSummary.trim().slice(0, 240)
+      : '';
+
+  const actionLog: InternalTabletopState['actionLog'] = [
+    {
+      id: `act_init_${Date.now()}`,
+      turnNumber: 1,
+      phase: 'main1',
+      seatIndex: safeFirstSeat,
+      seatName: starterSeat?.playerName || 'Host',
+      message: `Multiplayer match started (${room.maxSeats} seats · ${startingLife} starting life). ${starterSeat?.playerName || 'Seat 1'} goes first! Opening 7-card hands dealt.`,
+      timestamp: new Date().toISOString(),
+    },
+  ];
+  if (diceSummary) {
+    actionLog.unshift({
+      id: `act_d20_${Date.now()}`,
+      turnNumber: 1,
+      phase: 'main1',
+      seatIndex: safeFirstSeat,
+      seatName: starterSeat?.playerName || 'Host',
+      message: diceSummary,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
   const tabletop: InternalTabletopState = {
     matchId: `match_${Date.now().toString(36)}`,
     turnNumber: 1,
-    activeSeatIndex: 0,
-    prioritySeatIndex: 0,
+    activeSeatIndex: safeFirstSeat,
+    prioritySeatIndex: safeFirstSeat,
     phase: 'main1',
     startingLife,
     seats: seatStates,
     stack: [],
     resolvedHistory: [],
-    actionLog: [
-      {
-        id: `act_init_${Date.now()}`,
-        turnNumber: 1,
-        phase: 'main1',
-        seatIndex: 0,
-        seatName: seatStates[0]?.playerName || 'Host',
-        message: `Multiplayer match started (${room.maxSeats} seats · ${startingLife} starting life). Opening 7-card hands dealt.`,
-        timestamp: new Date().toISOString(),
-      },
-    ],
+    actionLog,
     winnerSeatIndex: null,
     winReason: null,
   };
@@ -1309,9 +1452,31 @@ function initializeTabletopMatch(room: InternalMultiplayerRoom): InternalTableto
   return tabletop;
 }
 
+function scoreLanInterfacePriority(name: string, address: string): number {
+  const lowerName = name.toLowerCase();
+  const isVirtual =
+    lowerName.includes('vethernet') ||
+    lowerName.includes('hyper-v') ||
+    lowerName.includes('wsl') ||
+    lowerName.includes('docker') ||
+    lowerName.includes('vmware') ||
+    lowerName.includes('virtualbox') ||
+    lowerName.includes('tailscale') ||
+    lowerName.includes('zerotier') ||
+    lowerName.includes('nord') ||
+    lowerName.includes('tun') ||
+    lowerName.includes('tap');
+
+  if (isVirtual) return 100;
+  if (address.startsWith('192.168.')) return 1;
+  if (address.startsWith('10.')) return 2;
+  if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(address)) return 3;
+  return 20;
+}
+
 function enumerateLanInterfaces(port: number): NetworkLanInterface[] {
   const nets = os.networkInterfaces();
-  const discovered: NetworkLanInterface[] = [];
+  const discovered: Array<NetworkLanInterface & { priority: number }> = [];
 
   for (const [name, entries] of Object.entries(nets)) {
     if (!entries) continue;
@@ -1323,12 +1488,57 @@ function enumerateLanInterfaces(port: number): NetworkLanInterface[] {
           address: netInfo.address,
           family: 'IPv4',
           lanUrl: `http://${netInfo.address}:${port}`,
+          priority: scoreLanInterfacePriority(name, netInfo.address),
         });
       }
     }
   }
 
-  return discovered;
+  discovered.sort((a, b) => a.priority - b.priority);
+  return discovered.map(({ priority: _p, ...iface }) => iface);
+}
+
+async function fetchPublicIpv4Address(forceRefresh = false): Promise<string | null> {
+  const now = Date.now();
+  if (!forceRefresh && cachedPublicIpv4 && now - cachedPublicIpv4.fetchedAt < 5 * 60_000) {
+    return cachedPublicIpv4.ip;
+  }
+
+  const endpoints = [
+    { url: 'https://api.ipify.org?format=json', json: true },
+    { url: 'https://ipv4.icanhazip.com', json: false },
+  ];
+
+  for (const ep of endpoints) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3500);
+    try {
+      const res = await fetch(ep.url, {
+        signal: controller.signal,
+        headers: { Accept: ep.json ? 'application/json' : 'text/plain' },
+      });
+      if (!res.ok) continue;
+
+      let candidate = '';
+      if (ep.json) {
+        const data = (await res.json()) as { ip?: unknown };
+        candidate = typeof data?.ip === 'string' ? data.ip.trim() : '';
+      } else {
+        candidate = (await res.text()).trim();
+      }
+
+      if (net.isIPv4(candidate) && !isPrivateOrReservedIpv4(candidate)) {
+        cachedPublicIpv4 = { ip: candidate, fetchedAt: now };
+        return candidate;
+      }
+    } catch {
+      // Try fallback provider
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  return cachedPublicIpv4?.ip || null;
 }
 
 function probeTcpEndpoint(host: string, port: number, timeoutMs = 1600): Promise<boolean> {
@@ -1356,6 +1566,31 @@ function probeTcpEndpoint(host: string, port: number, timeoutMs = 1600): Promise
   });
 }
 
+function probeHttpHealthEndpoint(
+  host: string,
+  port: number,
+  timeoutMs = 2000
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const req = http.get(`http://${host}:${port}/api/health`, (res) => {
+      let body = '';
+      res.on('data', (chunk) => {
+        body += String(chunk);
+        if (body.length > 512) body = body.slice(0, 512);
+      });
+      res.on('end', () => {
+        resolve(res.statusCode === 200 && body.includes('"ok":true'));
+      });
+    });
+    req.on('error', () => resolve(false));
+    req.setTimeout(timeoutMs, () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.end();
+  });
+}
+
 function isDisallowedProbeHost(hostInput: string): boolean {
   const cleaned = hostInput.trim().toLowerCase();
   if (!cleaned) return true;
@@ -1378,8 +1613,14 @@ function isDisallowedProbeHost(hostInput: string): boolean {
 export function registerMultiplayerRoutes(app: express.Express): void {
   const getServerPort = (): number => Number(process.env.PORT || 3000);
 
-  // 1. Network & Port-Forwarding Diagnostics
-  app.get('/api/multiplayer/network-info', async (_req, res) => {
+  // Scoped CORS for authenticated guest join/state/SSE endpoints only (never wildcard on auth routes, never on localhost-only routes)
+  app.use('/api/multiplayer/rooms', (req, res, next) => {
+    if (applyMultiplayerCors(req, res)) return;
+    next();
+  });
+
+  // 1. Network & Port-Forwarding Diagnostics (Localhost Host Only — never leak adapter names or LAN subnets remotely)
+  app.get('/api/multiplayer/network-info', requireLocalhostOnly, async (_req, res) => {
     try {
       const port = getServerPort();
       const lanInterfaces = enumerateLanInterfaces(port);
@@ -1389,12 +1630,16 @@ export function registerMultiplayerRoutes(app: express.Express): void {
       const lanReachable = lanInterfaces[0]
         ? await probeTcpEndpoint(lanInterfaces[0].address, port, 1200)
         : loopbackReachable;
+      const publicIpv4 = cachedPublicIpv4?.ip || null;
+      const publicHostUrl = publicIpv4 ? `http://${publicIpv4}:${port}` : null;
 
       const report: NetworkDiagnosticsReport = {
         listeningPort: port,
         hostBindAddress: process.env.HOST || '0.0.0.0',
         lanInterfaces,
         primaryLanUrl,
+        publicIpv4,
+        publicHostUrl,
         loopbackReachable,
         lanReachable,
         firewallCommands: {
@@ -1404,24 +1649,24 @@ export function registerMultiplayerRoutes(app: express.Express): void {
         routerGuideSteps: [
           {
             step: 1,
-            title: 'Verify Local LAN Binding (0.0.0.0)',
-            detail: `Umbra's Pass listens on TCP port ${port} across all local interfaces. Friends on the same Wi-Fi/Ethernet LAN can connect directly using your LAN URL (${primaryLanUrl}).`,
+            title: 'Verify Local Binding (0.0.0.0)',
+            detail: `Umbra's Pass automatically listens on TCP port ${port} across all interfaces. Same-Wi-Fi LAN players can join via ${primaryLanUrl}.`,
           },
           {
             step: 2,
             title: 'Allow Inbound TCP Port in Windows Firewall',
-            detail: `If LAN or online friends time out, allow inbound TCP port ${port} in Windows Defender Firewall using the PowerShell command provided.`,
+            detail: `Run the Windows Firewall rule command so incoming LAN and port-forwarded traffic reaches TCP port ${port}.`,
           },
           {
             step: 3,
-            title: 'Configure Router Port Forwarding (Self-Hosted Online)',
-            detail: `For friends outside your home network, open your router gateway (typically 192.168.1.1 or 192.168.0.1) -> Port Forwarding, and forward External TCP Port ${port} to Internal IP ${lanInterfaces[0]?.address || 'your PC LAN IP'} on Internal Port ${port}.`,
+            title: 'Configure Router Port Forwarding (Public IPv4)',
+            detail: `Open your router admin page (e.g. 192.168.1.1) -> Port Forwarding, and forward External TCP Port ${port} to Internal IP ${lanInterfaces[0]?.address || 'your PC LAN IP'} on Internal Port ${port}.`,
           },
           {
             step: 4,
-            title: 'Share Your Room Code & Session Passcode',
+            title: 'Share Public Invite + Enforce Approval',
             detail:
-              'Every join request requires your 6-character Room Code, your scrypt-hashed Session Passcode, and explicit Host Lobby Approval before entering a seat.',
+              'Detect your Public IPv4, share your ?join= link or Portable Room Code + Session Passcode, and approve each friend in the Lobby Gate.',
           },
         ],
       };
@@ -1429,16 +1674,41 @@ export function registerMultiplayerRoutes(app: express.Express): void {
       res.json(report);
     } catch (err) {
       res.status(500).json({
-        error:
-          err instanceof Error
-            ? err.message
-            : 'Failed to inspect local network interfaces.',
+        error: sanitizeRemoteMessage(
+          err instanceof Error ? err.message : '',
+          'Failed to inspect local network interfaces.'
+        ),
       });
     }
   });
 
-  // 2. Port Reachability Self-Test (LAN or External Public IP / Hostname on server port)
-  app.post('/api/multiplayer/port-check', async (req, res) => {
+  // 1b. Explicit Public IPv4 Detection (Localhost Host Only)
+  app.get('/api/multiplayer/host-public-ip', requireLocalhostOnly, async (req, res) => {
+    try {
+      const force = req.query.force === '1' || req.query.force === 'true';
+      const port = getServerPort();
+      const publicIpv4 = await fetchPublicIpv4Address(force);
+      if (!publicIpv4) {
+        res.status(502).json({
+          error:
+            'Could not detect public IPv4 automatically. Enter your WAN IPv4 or DDNS hostname manually.',
+        });
+        return;
+      }
+      res.json({
+        publicIpv4,
+        publicHostUrl: `http://${publicIpv4}:${port}`,
+        listeningPort: port,
+      });
+    } catch {
+      res.status(502).json({
+        error: 'Unable to look up public IPv4 address.',
+      });
+    }
+  });
+
+  // 2. Port Reachability Self-Test (Localhost Host Only)
+  app.post('/api/multiplayer/port-check', requireLocalhostOnly, async (req, res) => {
     try {
       const port = getServerPort();
       const { externalHost } = (req.body || {}) as { externalHost?: string };
@@ -1449,7 +1719,9 @@ export function registerMultiplayerRoutes(app: express.Express): void {
         : loopbackReachable;
 
       let externalPortReachable: boolean | null = null;
-      let externalCheckDetail = 'Enter your public IP or DDNS hostname to verify external port forwarding.';
+      let externalHttpHealthOk: boolean | null = null;
+      let externalCheckDetail =
+        'Detect or enter your public IPv4 or DDNS hostname to verify external port forwarding.';
 
       if (typeof externalHost === 'string' && externalHost.trim()) {
         let parsedHost = externalHost.trim();
@@ -1457,6 +1729,8 @@ export function registerMultiplayerRoutes(app: express.Express): void {
           if (parsedHost.startsWith('http://') || parsedHost.startsWith('https://')) {
             const urlObj = new URL(parsedHost);
             parsedHost = urlObj.hostname;
+          } else if (parsedHost.includes(':')) {
+            parsedHost = parsedHost.split(':')[0].trim();
           }
         } catch {
           // Keep raw host string
@@ -1469,10 +1743,20 @@ export function registerMultiplayerRoutes(app: express.Express): void {
           return;
         }
 
-        externalPortReachable = await probeTcpEndpoint(parsedHost, port, 2200);
-        externalCheckDetail = externalPortReachable
-          ? `TCP port ${port} on ${parsedHost} accepted connections!`
-          : `Could not reach ${parsedHost}:${port}. Check router port forwarding and Windows Firewall rules (or Hairpin NAT support on your router).`;
+        externalPortReachable = await probeTcpEndpoint(parsedHost, port, 2400);
+        if (externalPortReachable) {
+          externalHttpHealthOk = await probeHttpHealthEndpoint(parsedHost, port, 2200);
+        } else {
+          externalHttpHealthOk = false;
+        }
+
+        if (externalPortReachable && externalHttpHealthOk) {
+          externalCheckDetail = `Verified: TCP port ${port} and HTTP multiplayer endpoint on http://${parsedHost}:${port} are reachable!`;
+        } else if (externalPortReachable) {
+          externalCheckDetail = `TCP port ${port} connected on ${parsedHost}, but the health endpoint timed out. Check if another application is using port ${port}.`;
+        } else {
+          externalCheckDetail = `Self-probe to ${parsedHost}:${port} timed out. Check router port forwarding (TCP ${port} -> ${lanInterfaces[0]?.address || 'Host IP'}:${port}) and Windows Firewall — or note that some home routers block Hairpin NAT self-tests even when outside friends can connect cleanly.`;
+        }
       }
 
       res.json({
@@ -1481,34 +1765,88 @@ export function registerMultiplayerRoutes(app: express.Express): void {
         lanReachable,
         externalHostInput: externalHost?.trim() || '',
         externalPortReachable,
+        externalHttpHealthOk,
         externalCheckDetail,
       });
     } catch (err) {
       res.status(500).json({
-        error: err instanceof Error ? err.message : 'Port check failed.',
+        error: sanitizeRemoteMessage(
+          err instanceof Error ? err.message : '',
+          'Port check failed.'
+        ),
       });
     }
   });
 
-  // 3. List Active Rooms on This Host (Public metadata only — passcode and approval still required)
-  app.get('/api/multiplayer/lan-rooms', (_req, res) => {
-    const publicRooms = Array.from(roomsByCode.values()).map((room) => ({
-      roomCode: room.roomCode,
-      roomName: room.roomName,
-      connectionMode: room.connectionMode,
-      format: room.format,
-      maxSeats: room.maxSeats,
-      occupiedSeats: room.seats
-        .slice(0, room.maxSeats)
-        .filter((s) => s.kind !== 'open').length,
-      status: room.status,
-      createdAt: room.createdAt,
-    }));
-    res.json({ rooms: publicRooms });
+  // 3. List Active LAN Rooms (Hidden from remote/WAN callers and never lists Self-Hosted Online rooms)
+  app.options('/api/multiplayer/lan-rooms', (req, res) => {
+    applyMultiplayerCors(req, res);
   });
 
-  // 4. Host Creates a New Multiplayer Room
-  app.post('/api/multiplayer/rooms', (req, res) => {
+  app.get('/api/multiplayer/lan-rooms', (req, res) => {
+    if (applyMultiplayerCors(req, res)) return;
+    if (!isPrivateOrLanCaller(req)) {
+      res.status(403).json({
+        error:
+          'Active room directory is hidden for remote public connections. Enter your Room Code and Session Passcode directly.',
+      });
+      return;
+    }
+
+    const isHostLoopback = isLoopbackHostCaller(req);
+    const visibleRooms = Array.from(roomsByCode.values())
+      .filter((room) => isHostLoopback || room.connectionMode === 'lan')
+      .map((room) => ({
+        roomCode: room.roomCode,
+        roomName: room.roomName,
+        connectionMode: room.connectionMode,
+        format: room.format,
+        maxSeats: room.maxSeats,
+        occupiedSeats: room.seats
+          .slice(0, room.maxSeats)
+          .filter((s) => s.kind !== 'open').length,
+        status: room.status,
+        createdAt: room.createdAt,
+      }));
+    res.json({ rooms: visibleRooms });
+  });
+
+  // 3b. Direct Room Code Lookup (Rate-limited, minimal non-PII existence verification without leaking OS paths/names)
+  app.get('/api/multiplayer/rooms/:roomCode/lookup', (req, res) => {
+    const clientIp = getClientSocketIp(req);
+    if (!checkAndIncrementLookupRateLimit(clientIp)) {
+      res.status(429).json({
+        error: 'Too many room lookup attempts. Please wait a moment before trying again.',
+      });
+      return;
+    }
+
+    const rawCode = String(req.params.roomCode || '').trim().toUpperCase();
+    const seatSuffixMatch = rawCode.match(/^(UP-[A-Z0-9]{4})-S([1-4])$/);
+    const code = seatSuffixMatch ? seatSuffixMatch[1] : rawCode;
+
+    if (!/^UP-[A-Z0-9]{4}$/.test(code)) {
+      res.status(404).json({ error: 'Room was not found on this host.' });
+      return;
+    }
+
+    const room = roomsByCode.get(code);
+    if (!room) {
+      res.status(404).json({ error: 'Room was not found on this host.' });
+      return;
+    }
+
+    res.json({
+      exists: true,
+      roomCode: room.roomCode,
+      format: room.format,
+      connectionMode: room.connectionMode,
+      requireHostApproval: room.requireHostApproval,
+    });
+  });
+
+  // 4. Host Creates a New Multiplayer Room (Localhost Host Only)
+  app.post('/api/multiplayer/rooms', requireLocalhostOnly, (req, res) => {
     try {
       const {
         roomName,
@@ -1544,6 +1882,9 @@ export function registerMultiplayerRoutes(app: express.Express): void {
         return;
       }
 
+      const cleanMode: MultiplayerConnectionMode =
+        connectionMode === 'online' ? 'online' : 'lan';
+      const enforcedApproval = cleanMode === 'online' ? true : requireHostApproval !== false;
       const validMaxSeats: 1 | 2 | 3 | 4 =
         maxSeats === 1 || maxSeats === 2 || maxSeats === 3 || maxSeats === 4 ? maxSeats : 4;
       const roomCode = generateRoomCode();
@@ -1562,6 +1903,9 @@ export function registerMultiplayerRoutes(app: express.Express): void {
         format || 'commander',
         validMaxSeats
       );
+      const safeHostDeck = hostDeck
+        ? sanitizeIncomingDeckSummary(hostDeck, `${hostName || 'Host'}'s Deck`, format || 'commander')
+        : null;
 
       const seats: MultiplayerSeat[] = [0, 1, 2, 3].map((idx) => {
         const seatInviteCode = `${roomCode}-S${idx + 1}`;
@@ -1575,7 +1919,7 @@ export function registerMultiplayerRoutes(app: express.Express): void {
             connected: true,
             ready: true,
             lastSeenAt: new Date().toISOString(),
-            deckSummary: hostDeck || null,
+            deckSummary: safeHostDeck,
             botConfig: null,
             lifeTotal: defaultStartingLife,
           };
@@ -1635,10 +1979,10 @@ export function registerMultiplayerRoutes(app: express.Express): void {
             ? roomName.trim()
             : `${hostName || 'Host'}'s Tabletop Pod`
           ).slice(0, 48),
-        connectionMode: connectionMode === 'online' ? 'online' : 'lan',
-        format: (format || 'commander').trim(),
+        connectionMode: cleanMode,
+        format: (format || 'commander').trim().slice(0, 32),
         maxSeats: validMaxSeats,
-        requireHostApproval: requireHostApproval !== false,
+        requireHostApproval: enforcedApproval,
         status: 'lobby',
         createdAt: new Date().toISOString(),
         passcodeSalt: salt,
@@ -1653,7 +1997,7 @@ export function registerMultiplayerRoutes(app: express.Express): void {
             id: `msg_init_${Date.now()}`,
             seatIndex: 0,
             senderName: 'System',
-            text: `Room ${roomCode} created (${connectionMode === 'online' ? 'Self-Hosted Online' : 'Offline LAN'} · ${validMaxSeats} ${validMaxSeats === 1 ? 'seat' : 'seats'}). Passcode & Host Approval active.`,
+            text: `Room ${roomCode} created (${cleanMode === 'online' ? 'Self-Hosted Online' : 'Offline LAN'} · ${validMaxSeats} ${validMaxSeats === 1 ? 'seat' : 'seats'}). Passcode & Host Approval active.`,
             isSystem: true,
             timestamp: new Date().toISOString(),
           },
@@ -1671,7 +2015,10 @@ export function registerMultiplayerRoutes(app: express.Express): void {
       });
     } catch (err) {
       res.status(500).json({
-        error: err instanceof Error ? err.message : 'Failed to create multiplayer room.',
+        error: sanitizeRemoteMessage(
+          err instanceof Error ? err.message : '',
+          'Failed to create multiplayer room.'
+        ),
       });
     }
   });
@@ -1685,7 +2032,7 @@ export function registerMultiplayerRoutes(app: express.Express): void {
       ? Math.max(1, Math.min(3, Number(seatSuffixMatch[2]) - 1))
       : undefined;
     const room = roomsByCode.get(code);
-    const rateKey = `${req.ip || 'client'}:${code}`;
+    const rateKey = `${getClientSocketIp(req)}:${code}`;
 
     if (!checkAndIncrementRateLimit(rateKey)) {
       res.status(429).json({
@@ -1720,21 +2067,11 @@ export function registerMultiplayerRoutes(app: express.Express): void {
     const requestId = `req_${Date.now().toString(36)}_${crypto.randomBytes(3).toString('hex')}`;
     const requestToken = crypto.randomBytes(32).toString('hex');
 
-    const safeDeck: MultiplayerDeckSummary = deckSummary && Array.isArray(deckSummary.cards)
-      ? {
-          deckName: (deckSummary.deckName || `${cleanName}'s Deck`).slice(0, 48),
-          format: deckSummary.format || room.format,
-          cardCount: Number(deckSummary.cardCount) || deckSummary.cards.length,
-          commanders: Array.isArray(deckSummary.commanders) ? deckSummary.commanders : [],
-          cards: deckSummary.cards.slice(0, 130),
-        }
-      : {
-          deckName: `${cleanName}'s Deck`,
-          format: room.format,
-          cardCount: 60,
-          commanders: [],
-          cards: [],
-        };
+    const safeDeck: MultiplayerDeckSummary = sanitizeIncomingDeckSummary(
+      deckSummary,
+      `${cleanName}'s Deck`,
+      room.format
+    );
 
     const joinReq: InternalJoinRequest = {
       requestId,
@@ -1826,9 +2163,11 @@ export function registerMultiplayerRoutes(app: express.Express): void {
     }
 
     const token = extractBearerToken(req);
-    const matched = room.pendingJoinRequests.find(
-      (r) => r.requestToken === token || r.seatToken === token
-    );
+    const matched = token
+      ? room.pendingJoinRequests.find(
+          (r) => r.requestToken === token || (r.seatToken && r.seatToken === token)
+        )
+      : undefined;
     if (!matched) {
       res.status(403).json({ error: 'Join request token not recognized.' });
       return;
@@ -1983,6 +2322,21 @@ export function registerMultiplayerRoutes(app: express.Express): void {
     }
 
     room.seatTokensByIndex.delete(seatIndex);
+    for (const [subId, sub] of room.sseSubscribers.entries()) {
+      if (sub.seatIndex === seatIndex) {
+        try {
+          sub.res.end();
+        } catch {
+          // Ignore already-closed stream
+        }
+        room.sseSubscribers.delete(subId);
+      }
+    }
+    for (const pending of room.pendingJoinRequests) {
+      if (pending.assignedSeatIndex === seatIndex) {
+        delete pending.seatToken;
+      }
+    }
     const seatInviteCode = `${room.roomCode}-S${seatIndex + 1}`;
     const preservedLifeTotal =
       typeof room.seats[seatIndex]?.lifeTotal === 'number'
@@ -2074,7 +2428,8 @@ export function registerMultiplayerRoutes(app: express.Express): void {
     }
 
     if (typeof requireHostApproval === 'boolean') {
-      room.requireHostApproval = requireHostApproval;
+      room.requireHostApproval =
+        room.connectionMode === 'online' ? true : requireHostApproval;
     }
 
     if (typeof roomName === 'string' && roomName.trim()) {
@@ -2089,12 +2444,7 @@ export function registerMultiplayerRoutes(app: express.Express): void {
     }
     if (typeof tabletopCustomImageUrl === 'string') {
       const trimmedUrl = tabletopCustomImageUrl.trim();
-      if (
-        !trimmedUrl ||
-        trimmedUrl.startsWith('https://') ||
-        trimmedUrl.startsWith('http://') ||
-        trimmedUrl.startsWith('data:image/')
-      ) {
+      if (!trimmedUrl || isSafeCardOrPlaymatImageUrl(trimmedUrl)) {
         room.tabletopCustomImageUrl = trimmedUrl.slice(0, 600_000);
       }
     }
@@ -2166,23 +2516,16 @@ export function registerMultiplayerRoutes(app: express.Express): void {
       }
       if (typeof playmatCustomImageUrl === 'string') {
         const trimmedUrl = playmatCustomImageUrl.trim();
-        if (
-          !trimmedUrl ||
-          trimmedUrl.startsWith('https://') ||
-          trimmedUrl.startsWith('http://') ||
-          trimmedUrl.startsWith('data:image/')
-        ) {
+        if (!trimmedUrl || isSafeCardOrPlaymatImageUrl(trimmedUrl)) {
           seat.playmatCustomImageUrl = trimmedUrl.slice(0, 600_000);
         }
       }
       if (deckSummary && Array.isArray(deckSummary.cards)) {
-        seat.deckSummary = {
-          deckName: (deckSummary.deckName || seat.playerName).slice(0, 48),
-          format: deckSummary.format || room.format,
-          cardCount: Number(deckSummary.cardCount) || deckSummary.cards.length,
-          commanders: Array.isArray(deckSummary.commanders) ? deckSummary.commanders : [],
-          cards: deckSummary.cards.slice(0, 130),
-        };
+        seat.deckSummary = sanitizeIncomingDeckSummary(
+          deckSummary,
+          seat.playerName,
+          room.format
+        );
       }
       seat.lastSeenAt = new Date().toISOString();
       seat.connected = true;
@@ -2295,13 +2638,28 @@ export function registerMultiplayerRoutes(app: express.Express): void {
       return;
     }
 
-    room.tabletop = initializeTabletopMatch(room);
+    const body = (req.body || {}) as {
+      firstSeatIndex?: number;
+      diceSummary?: string;
+    };
+    const diceSummary =
+      typeof body.diceSummary === 'string' ? body.diceSummary.trim().slice(0, 240) : '';
+
+    room.tabletop = initializeTabletopMatch(room, {
+      firstSeatIndex:
+        typeof body.firstSeatIndex === 'number' ? body.firstSeatIndex : undefined,
+      diceSummary: diceSummary || undefined,
+    });
     room.status = 'playing';
+    const firstSeatName =
+      room.tabletop.seats[room.tabletop.activeSeatIndex]?.playerName || 'Seat 1';
     room.chatMessages.push({
       id: `msg_start_${Date.now()}`,
       seatIndex: 0,
       senderName: 'System',
-      text: `Match launched! Libraries shuffled and 7-card opening hands dealt to all ${room.maxSeats} seats.`,
+      text: `${
+        diceSummary ? `${diceSummary} · ` : ''
+      }Match launched! ${firstSeatName} goes first — libraries shuffled and 7-card opening hands dealt to all ${room.maxSeats} seats.`,
       isSystem: true,
       timestamp: new Date().toISOString(),
     });
@@ -2338,8 +2696,8 @@ export function registerMultiplayerRoutes(app: express.Express): void {
     });
   });
 
-  // 12. Real-Time Server-Sent Events (SSE) Stream for Synchronized Room & Tabletop Updates
-  app.get('/api/multiplayer/rooms/:roomCode/events', (req, res) => {
+  // 11b. Issue One-Time Short-Lived SSE Ticket (Avoids placing permanent session tokens in URL query logs)
+  app.post('/api/multiplayer/rooms/:roomCode/sse-ticket', (req, res) => {
     const code = String(req.params.roomCode || '').trim().toUpperCase();
     const room = roomsByCode.get(code);
     if (!room) {
@@ -2349,6 +2707,29 @@ export function registerMultiplayerRoutes(app: express.Express): void {
 
     const token = extractBearerToken(req);
     const caller = resolveCallerRole(room, token);
+    if (caller.seatIndex === null && !caller.isHost) {
+      res.status(403).json({ error: 'Unauthorized event stream ticket request.' });
+      return;
+    }
+
+    const ticket = issueOneTimeSseTicket(room.roomCode, caller.seatIndex, caller.isHost);
+    res.json({ ticket, expiresInSeconds: 30 });
+  });
+
+  // 12. Real-Time Server-Sent Events (SSE) Stream for Synchronized Room & Tabletop Updates
+  app.get('/api/multiplayer/rooms/:roomCode/events', (req, res) => {
+    const code = String(req.params.roomCode || '').trim().toUpperCase();
+    const room = roomsByCode.get(code);
+    if (!room) {
+      res.status(404).json({ error: 'Room not found.' });
+      return;
+    }
+
+    const rawTicket = typeof req.query.ticket === 'string' ? req.query.ticket.trim() : '';
+    const ticketCaller = rawTicket ? consumeOneTimeSseTicket(rawTicket, code) : null;
+    const headerToken = extractBearerToken(req);
+    const caller = ticketCaller || resolveCallerRole(room, headerToken);
+
     if (caller.seatIndex === null && !caller.isHost) {
       res.status(403).json({ error: 'Unauthorized event stream.' });
       return;
@@ -2859,13 +3240,9 @@ export function registerMultiplayerRoutes(app: express.Express): void {
           const cleanName = tok.name.trim().slice(0, 48) || 'Token';
           const qty = Math.max(1, Math.min(10, Number(tok.quantity) || 1));
           const isCreature = tok.kind === 'creature';
-          const safeImg =
-            typeof tok.imageUri === 'string' &&
-            (tok.imageUri.startsWith('https://') ||
-              tok.imageUri.startsWith('http://') ||
-              tok.imageUri.startsWith('data:image/'))
-              ? tok.imageUri.slice(0, 600_000)
-              : undefined;
+          const safeImg = isSafeCardOrPlaymatImageUrl(tok.imageUri)
+            ? tok.imageUri.slice(0, 600_000)
+            : undefined;
           const kwList = Array.isArray(tok.keywords)
             ? tok.keywords.map((k) => String(k).trim()).filter(Boolean)
             : [];
@@ -2933,13 +3310,9 @@ export function registerMultiplayerRoutes(app: express.Express): void {
         const prx = action.card;
         if (prx && typeof prx.name === 'string' && prx.name.trim()) {
           const cleanName = prx.name.trim().slice(0, 64);
-          const safeImg =
-            typeof prx.imageUri === 'string' &&
-            (prx.imageUri.startsWith('https://') ||
-              prx.imageUri.startsWith('http://') ||
-              prx.imageUri.startsWith('data:image/'))
-              ? prx.imageUri.slice(0, 600_000)
-              : undefined;
+          const safeImg = isSafeCardOrPlaymatImageUrl(prx.imageUri)
+            ? prx.imageUri.slice(0, 600_000)
+            : undefined;
           const isCreature = (prx.typeLine || '').toLowerCase().includes('creature');
           const hasHaste = (prx.oracleText || '').toLowerCase().includes('haste');
 
@@ -2994,13 +3367,9 @@ export function registerMultiplayerRoutes(app: express.Express): void {
       case 'update-card-art': {
         const targetNorm = (action.cardName || '').trim().toLowerCase();
         if (targetNorm) {
-          const safeImg =
-            typeof action.imageUri === 'string' &&
-            (action.imageUri.startsWith('https://') ||
-              action.imageUri.startsWith('http://') ||
-              action.imageUri.startsWith('data:image/'))
-              ? action.imageUri.slice(0, 600_000)
-              : undefined;
+          const safeImg = isSafeCardOrPlaymatImageUrl(action.imageUri)
+            ? action.imageUri.slice(0, 600_000)
+            : undefined;
 
           const updateZones: MultiplayerCardInstance[][] = [
             seatState.hand,

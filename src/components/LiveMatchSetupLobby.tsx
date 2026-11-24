@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bell,
   BookmarkPlus,
@@ -50,6 +50,12 @@ import {
   summarizeCustomBotDeck,
 } from '../utils/customBotDecks';
 import type { InterruptWindowMode } from './InterruptResponseBanner';
+import {
+  D20RollOffStage,
+  computeD20RollOff,
+  type D20RollOffResult,
+  type D20SeatDescriptor,
+} from './D20RollAnimation';
 
 export type FirstPlayerSelection = 'player' | 'random' | 'bot-0' | 'bot-1' | 'bot-2';
 
@@ -135,6 +141,7 @@ interface LiveMatchSetupLobbyProps {
   onChangeLiveAiTurnReasoning?: (enabled: boolean) => void;
   findMeta?: (name: string) => CardMetadata | null;
   resolvingCustomMeta?: boolean;
+  soundEnabled?: boolean;
 }
 
 type BotDeckSourceTab = 'archetype' | 'preset' | 'custom';
@@ -181,6 +188,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
   onChangeLiveAiTurnReasoning,
   findMeta,
   resolvingCustomMeta = false,
+  soundEnabled = false,
 }) => {
   const targetBotCount = mode === '1v1' ? 1 : mode === '1v2' ? 2 : 3;
 
@@ -222,13 +230,34 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
     Record<string, { tone: 'ok' | 'err'; text: string }>
   >({});
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const [previewRollResult, setPreviewRollResult] = useState<{
-    winnerSeatIdx: number;
-    summary: string;
-  } | null>(null);
+  const [previewRollResult, setPreviewRollResult] = useState<D20RollOffResult | null>(null);
+  const [rollNonce, setRollNonce] = useState<number>(0);
+  const [isRollSettled, setIsRollSettled] = useState<boolean>(false);
+  const [launchRollModalOpen, setLaunchRollModalOpen] = useState<boolean>(false);
+  const autoLaunchTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (autoLaunchTimerRef.current) {
+        window.clearTimeout(autoLaunchTimerRef.current);
+      }
+    };
+  }, []);
 
   const seatNames = useMemo(
     () => ['You', ...activeBots.map((b) => b.name || 'Bot')],
+    [activeBots]
+  );
+
+  const seatDescriptors: D20SeatDescriptor[] = useMemo(
+    () => [
+      { seatIdx: 0, name: 'You', roleLabel: 'Seat 1' },
+      ...activeBots.map((b, i) => ({
+        seatIdx: i + 1,
+        name: b.name || `Bot ${i + 1}`,
+        roleLabel: `Seat ${i + 2} · AI Bot`,
+      })),
+    ],
     [activeBots]
   );
 
@@ -346,32 +375,24 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
     onUpdateOpponents(activeBots.map((bot) => ({ ...bot, intelligence: level })));
   };
 
-  const rollForFirstSeat = (): { winnerSeatIdx: number; summary: string } => {
-    const rolls = seatNames.map((name, idx) => ({
-      idx,
-      name,
-      roll: Math.floor(Math.random() * 20) + 1,
-    }));
-    // Tie-break deterministically by re-rolling tied leaders
-    let maxRoll = Math.max(...rolls.map((r) => r.roll));
-    let leaders = rolls.filter((r) => r.roll === maxRoll);
-    while (leaders.length > 1) {
-      leaders.forEach((l) => {
-        l.roll = Math.floor(Math.random() * 20) + 1;
-      });
-      maxRoll = Math.max(...leaders.map((l) => l.roll));
-      leaders = leaders.filter((l) => l.roll === maxRoll);
+  const rollForFirstSeat = (): D20RollOffResult => {
+    return computeD20RollOff(seatDescriptors);
+  };
+
+  const triggerAnimatedD20Roll = () => {
+    if (autoLaunchTimerRef.current) {
+      window.clearTimeout(autoLaunchTimerRef.current);
+      autoLaunchTimerRef.current = null;
     }
-    const winner = leaders[0];
-    const summary = `d20 Roll: ${rolls
-      .map((r) => `${r.name} (${r.roll})`)
-      .join(' · ')} — ${winner.name} goes first!`;
-    return { winnerSeatIdx: winner.idx, summary };
+    const rolled = rollForFirstSeat();
+    setPreviewRollResult(rolled);
+    setIsRollSettled(false);
+    setRollNonce((n) => n + 1);
+    return rolled;
   };
 
   const handleRollPreview = () => {
-    const rolled = rollForFirstSeat();
-    setPreviewRollResult(rolled);
+    triggerAnimatedD20Roll();
   };
 
   const resolvedPreviewStartIdx: number | null = useMemo(() => {
@@ -379,12 +400,14 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
     if (effectiveFirstChoice === 'bot-0') return 1;
     if (effectiveFirstChoice === 'bot-1') return 2;
     if (effectiveFirstChoice === 'bot-2') return 3;
-    return previewRollResult ? previewRollResult.winnerSeatIdx : null;
-  }, [effectiveFirstChoice, previewRollResult]);
+    return previewRollResult && isRollSettled ? previewRollResult.winnerSeatIdx : null;
+  }, [effectiveFirstChoice, previewRollResult, isRollSettled]);
 
   const turnOrderPreview = useMemo(() => {
     if (resolvedPreviewStartIdx === null) {
-      return 'Random d20 roll on game start';
+      return previewRollResult && !isRollSettled
+        ? 'Rolling d20s to determine turn order...'
+        : 'Animated d20 roll on game start';
     }
     const total = seatNames.length;
     const ordered: string[] = [];
@@ -392,12 +415,18 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
       ordered.push(seatNames[(resolvedPreviewStartIdx + offset) % total]);
     }
     return ordered.join(' → ');
-  }, [resolvedPreviewStartIdx, seatNames]);
+  }, [resolvedPreviewStartIdx, seatNames, previewRollResult, isRollSettled]);
 
   const handleLaunch = () => {
     if (effectiveFirstChoice === 'random') {
-      const rolled = previewRollResult || rollForFirstSeat();
-      onStartLiveGame(rolled.winnerSeatIdx, rolled.summary);
+      if (previewRollResult && isRollSettled) {
+        onStartLiveGame(previewRollResult.winnerSeatIdx, previewRollResult.summary);
+        return;
+      }
+      if (!previewRollResult) {
+        triggerAnimatedD20Roll();
+      }
+      setLaunchRollModalOpen(true);
       return;
     }
     const seatIdx =
@@ -429,21 +458,21 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Sliders className="h-4 w-4 text-sky-700 shrink-0" />
-            <h3 className="text-base font-bold text-zinc-950">
-              Live Game Setup — Configure Table, Bots &amp; Turn Order
+            <h3 className="text-base sm:text-lg font-bold text-zinc-950">
+              Match Setup — Rules, Turn Order &amp; Bot Decks
             </h3>
           </div>
-          <p className="text-xs text-zinc-600">
-            Choose pod size, starting life, who goes first, and each bot&rsquo;s intelligence level, aggression, and deck before shuffling opening hands.
+          <p className="text-xs sm:text-sm text-zinc-600">
+            Configure pod size, starting life, turn order, and each opponent&apos;s skill, playstyle, or custom decklist before shuffling.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           {hasGameInProgress && onResumeLiveGame && (
             <button
               type="button"
               onClick={onResumeLiveGame}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[42px] items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-zinc-800 hover:bg-zinc-50 cursor-pointer whitespace-nowrap shrink-0"
             >
               Resume Active Game
             </button>
@@ -451,30 +480,30 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
           <button
             type="button"
             onClick={handleLaunch}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-sky-700 px-4 py-2 text-xs font-bold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
+            className="inline-flex min-h-[42px] items-center gap-2 rounded-lg bg-sky-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
           >
-            <Play className="h-3.5 w-3.5 fill-current" />
+            <Play className="h-4 w-4 fill-current" />
             Start Live Game
           </button>
         </div>
       </div>
 
-      {/* Active AI Logic & Learning Backbone Strip */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200/80 bg-sky-50/50 px-3.5 py-2.5 text-xs">
+      {/* Active AI Engine Summary */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-zinc-200 bg-zinc-50/70 px-3.5 py-2.5 text-xs">
         <div className="flex flex-wrap items-center gap-2 min-w-0">
           <Cpu className="h-4 w-4 text-sky-700 shrink-0" />
-          <span className="font-semibold text-zinc-900">
-            Active AI Backbone:
+          <span className="font-semibold text-zinc-800">
+            Active AI Engine:
           </span>
           <span className="font-mono font-bold text-sky-800">
             {activeAiModelLabel}
           </span>
           <span className="text-zinc-500">
             {effectiveAiEngine === 'local-gguf'
-              ? '— Powers live turn strategy, MTG mechanics & persistent bot learning (configured in Settings → AI Engine).'
+              ? '— Local GGUF reasoning & bot learning active.'
               : effectiveAiEngine === 'cloud-gemini'
-              ? '— Powers live turn strategy, MTG mechanics & persistent bot learning via Cloud Gemini.'
-              : '— Instant built-in MTG rules AI (select a Qwen or custom .gguf model in Settings → AI Engine to enable LLM reasoning).'}
+              ? '— Cloud Gemini reasoning & bot learning active.'
+              : '— Built-in deterministic MTG rules engine.'}
           </span>
         </div>
 
@@ -492,12 +521,16 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
       </div>
 
       {/* Section 1: Table Format, Starting Life, Turn Order & Priority Rules */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 border-b border-zinc-100 pb-6">
+      <div className="space-y-4 border-b border-zinc-100 pb-6">
+        <h4 className="text-sm font-bold text-zinc-900">
+          01. Match Rules &amp; Turn Order
+        </h4>
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {/* Left: Table Mode, Starting Life & Rules */}
         <div className="space-y-4">
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-800">
-              <Users className="h-3.5 w-3.5 text-sky-700" />
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-zinc-800">
+              <Users className="h-4 w-4 text-sky-700" />
               <span>Table Size &amp; Mode</span>
             </div>
             <div className="inline-flex flex-wrap items-center gap-1 rounded-lg bg-zinc-100 p-1">
@@ -513,9 +546,10 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                   type="button"
                   onClick={() => {
                     setPreviewRollResult(null);
+                    setIsRollSettled(false);
                     onChangeMode(opt.id);
                   }}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                  className={`min-h-[38px] rounded-md px-3.5 py-1.5 text-xs sm:text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                     mode === opt.id
                       ? 'bg-white text-sky-800 shadow-sm'
                       : 'text-zinc-600 hover:text-zinc-900'
@@ -528,21 +562,21 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
           </div>
 
           <div className="flex flex-wrap items-end gap-4">
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-800">
-                <Shield className="h-3.5 w-3.5 text-sky-700" />
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-zinc-800">
+                <Shield className="h-4 w-4 text-sky-700" />
                 <span>Starting Life</span>
                 <span className="font-normal text-zinc-500">
                   (Default {defaultStartingLife})
                 </span>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-2">
                 {[20, 25, 30, 40].map((lifeVal) => (
                   <button
                     key={lifeVal}
                     type="button"
                     onClick={() => onChangeStartingLife(lifeVal)}
-                    className={`rounded-md border px-2.5 py-1.5 font-mono text-xs font-semibold tabular-nums cursor-pointer whitespace-nowrap shrink-0 ${
+                    className={`min-h-[38px] rounded-lg border px-3.5 py-1.5 font-mono text-xs sm:text-sm font-semibold tabular-nums cursor-pointer whitespace-nowrap shrink-0 ${
                       startingLife === lifeVal
                         ? 'border-sky-600 bg-sky-50 text-sky-900'
                         : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
@@ -563,12 +597,12 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                     }
                   }}
                   aria-label="Custom starting life total"
-                  className="w-16 rounded-md border border-zinc-300 bg-white px-2 py-1.5 font-mono text-xs font-semibold tabular-nums text-zinc-900 focus:border-sky-600 focus:outline-none"
+                  className="min-h-[38px] w-20 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 font-mono text-sm font-semibold tabular-nums text-zinc-900 focus:border-sky-600 focus:outline-none"
                 />
               </div>
             </div>
 
-            <label className="inline-flex items-center gap-2 pb-1.5 text-xs font-medium text-zinc-700 cursor-pointer select-none">
+            <label className="inline-flex min-h-[38px] items-center gap-2 pb-1 text-xs sm:text-sm font-medium text-zinc-700 cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={freeFirstMulligan}
@@ -587,7 +621,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
               playerDeckCardCount
             );
             return (
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 px-3 py-2 text-[11px] text-zinc-700 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 px-3.5 py-2.5 text-xs text-zinc-700 flex flex-wrap items-center gap-x-3 gap-y-1">
                 <span className="font-semibold text-zinc-900">
                   WotC {formatLabel} Rules ({mode}):
                 </span>
@@ -627,20 +661,20 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
 
         {/* Right: Turn Order (Who Goes First) + Interrupt Timer & Pace */}
         <div className="space-y-4">
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-zinc-800">
-                <Dices className="h-3.5 w-3.5 text-sky-700" />
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-zinc-800">
+                <Dices className="h-4 w-4 text-sky-700" />
                 <span>Who Goes First</span>
               </div>
               {effectiveFirstChoice === 'random' && (
                 <button
                   type="button"
                   onClick={handleRollPreview}
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-sky-700 hover:text-sky-900 cursor-pointer whitespace-nowrap shrink-0"
+                  className="inline-flex min-h-[34px] items-center gap-1.5 rounded-lg border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <Dices className="h-3.5 w-3.5" />
-                  Roll d20 Preview
+                  <Dices className="h-4 w-4" />
+                  {previewRollResult ? 'Re-roll d20' : 'Roll d20'}
                 </button>
               )}
             </div>
@@ -650,9 +684,10 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                 type="button"
                 onClick={() => {
                   setPreviewRollResult(null);
+                  setIsRollSettled(false);
                   onChangeFirstPlayerChoice('player');
                 }}
-                className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                className={`min-h-[38px] rounded-md px-3 py-1.5 text-xs sm:text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   effectiveFirstChoice === 'player'
                     ? 'bg-white text-sky-800 shadow-sm'
                     : 'text-zinc-600 hover:text-zinc-900'
@@ -668,9 +703,10 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                     type="button"
                     onClick={() => {
                       setPreviewRollResult(null);
+                      setIsRollSettled(false);
                       onChangeFirstPlayerChoice(choiceKey);
                     }}
-                    className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    className={`min-h-[38px] rounded-md px-3 py-1.5 text-xs sm:text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                       effectiveFirstChoice === choiceKey
                         ? 'bg-white text-sky-800 shadow-sm'
                         : 'text-zinc-600 hover:text-zinc-900'
@@ -683,10 +719,10 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setPreviewRollResult(null);
                   onChangeFirstPlayerChoice('random');
+                  triggerAnimatedD20Roll();
                 }}
-                className={`rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                className={`min-h-[38px] rounded-md px-3 py-1.5 text-xs sm:text-sm font-semibold transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                   effectiveFirstChoice === 'random'
                     ? 'bg-white text-sky-800 shadow-sm'
                     : 'text-zinc-600 hover:text-zinc-900'
@@ -696,21 +732,28 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
               </button>
             </div>
 
-            <div className="text-[11px] text-zinc-600">
+            <div className="text-xs text-zinc-600">
               <span className="font-semibold text-zinc-800">Turn Order:</span>{' '}
               {turnOrderPreview}
-              {previewRollResult && (
-                <div className="mt-0.5 font-mono text-[11px] text-sky-800">
-                  {previewRollResult.summary}
-                </div>
-              )}
             </div>
+
+            {effectiveFirstChoice === 'random' && previewRollResult && (
+              <D20RollOffStage
+                rollResult={previewRollResult}
+                rollNonce={rollNonce}
+                soundEnabled={soundEnabled}
+                compact
+                title="d20 Roll-Off — Who Goes First"
+                onReroll={handleRollPreview}
+                onSettled={() => setIsRollSettled(true)}
+              />
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-4">
-            <label className="space-y-1 text-xs">
-              <span className="flex items-center gap-1 font-semibold text-zinc-800">
-                <Bell className="h-3.5 w-3.5 text-sky-700" />
+            <label className="space-y-1.5 text-xs sm:text-sm">
+              <span className="flex items-center gap-1.5 font-semibold text-zinc-800">
+                <Bell className="h-4 w-4 text-sky-700" />
                 Interrupt / Response Window
               </span>
               <select
@@ -718,7 +761,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                 onChange={(e) =>
                   onChangeInterruptWindowMode(e.target.value as InterruptWindowMode)
                 }
-                className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-800 focus:border-sky-600 focus:outline-none"
+                className="min-h-[40px] rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs sm:text-sm font-medium text-zinc-800 focus:border-sky-600 focus:outline-none"
               >
                 <option value="12s">12s Auto-Pass Window (Default)</option>
                 <option value="8s">8s Fast Response Window</option>
@@ -728,9 +771,9 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
               </select>
             </label>
 
-            <label className="space-y-1 text-xs">
-              <span className="flex items-center gap-1 font-semibold text-zinc-800">
-                <FastForward className="h-3.5 w-3.5 text-sky-700" />
+            <label className="space-y-1.5 text-xs sm:text-sm">
+              <span className="flex items-center gap-1.5 font-semibold text-zinc-800">
+                <FastForward className="h-4 w-4 text-sky-700" />
                 Bot Turn Pace
               </span>
               <select
@@ -738,7 +781,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                 onChange={(e) =>
                   onChangeBotTurnPace(e.target.value as 'normal' | 'step' | 'fast')
                 }
-                className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-800 focus:border-sky-600 focus:outline-none"
+                className="min-h-[40px] rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs sm:text-sm font-medium text-zinc-800 focus:border-sky-600 focus:outline-none"
               >
                 <option value="normal">Normal Pace</option>
                 <option value="step">Step-by-Step (Manual Next Bot)</option>
@@ -746,6 +789,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
               </select>
             </label>
           </div>
+        </div>
         </div>
       </div>
 
@@ -755,19 +799,19 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
           <div className="flex items-center gap-2">
             <Bot className="h-4 w-4 text-sky-700 shrink-0" />
             <h4 className="text-sm font-bold text-zinc-900">
-              AI Bot Opponents ({activeBots.length})
+              02. AI Opponent Roster ({activeBots.length})
             </h4>
           </div>
 
           {activeBots.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1.5 text-xs">
-              <span className="text-zinc-500 font-medium">Set All AI Level:</span>
+            <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm">
+              <span className="text-zinc-600 font-medium">Set All AI Level:</span>
               {BOT_INTELLIGENCE_OPTIONS.map((opt) => (
                 <button
                   key={opt.id}
                   type="button"
                   onClick={() => applyIntelligenceToAll(opt.id)}
-                  className="rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] font-semibold text-zinc-700 hover:border-sky-400 hover:text-sky-800 cursor-pointer whitespace-nowrap shrink-0"
+                  className="min-h-[36px] rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:border-sky-400 hover:text-sky-800 cursor-pointer whitespace-nowrap shrink-0"
                 >
                   {opt.shortLabel}
                 </button>
@@ -807,12 +851,12 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
             return (
               <div
                 key={bot.id}
-                className="rounded-xl border border-zinc-300 bg-zinc-50/70 p-4 space-y-4 flex flex-col justify-between"
+                className="rounded-xl border border-zinc-300 bg-zinc-50/70 p-4 sm:p-5 space-y-4 flex flex-col justify-between"
               >
-                <div className="space-y-3.5">
+                <div className="space-y-4">
                   {/* Seat Header & Name Input */}
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono text-xs font-bold text-sky-700 whitespace-nowrap shrink-0">
+                  <div className="flex items-center justify-between gap-2.5">
+                    <span className="font-mono text-xs sm:text-sm font-bold text-sky-700 whitespace-nowrap shrink-0">
                       Seat {idx + 2}
                     </span>
                     <input
@@ -820,15 +864,15 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                       value={bot.name}
                       onChange={(e) => updateBot(idx, { name: e.target.value })}
                       aria-label={`Seat ${idx + 2} bot name`}
-                      className="flex-1 min-w-0 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-900 focus:border-sky-600 focus:outline-none"
+                      className="min-h-[38px] flex-1 min-w-0 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-900 focus:border-sky-600 focus:outline-none"
                     />
                   </div>
 
                   {/* Intelligence Level */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="inline-flex items-center gap-1 font-semibold text-zinc-800">
-                        <Brain className="h-3.5 w-3.5 text-sky-700" />
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-zinc-800">
+                        <Brain className="h-4 w-4 text-sky-700" />
                         Intelligence Level
                       </span>
                       <span className={`font-semibold ${intelMeta.textColorClass}`}>
@@ -843,7 +887,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                             key={opt.id}
                             type="button"
                             onClick={() => updateBot(idx, { intelligence: opt.id })}
-                            className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap truncate ${
+                            className={`min-h-[34px] rounded-md px-2 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap truncate ${
                               selected
                                 ? 'bg-white text-zinc-900 shadow-sm'
                                 : 'text-zinc-700 hover:text-zinc-900'
@@ -854,16 +898,16 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                         );
                       })}
                     </div>
-                    <p className="text-[11px] text-zinc-600 leading-snug">
+                    <p className="text-xs text-zinc-600 leading-snug">
                       {intelMeta.description}
                     </p>
                   </div>
 
                   {/* Aggression / Indignance */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="inline-flex items-center gap-1 font-semibold text-zinc-800">
-                        <Flame className="h-3.5 w-3.5 text-amber-600" />
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-zinc-800">
+                        <Flame className="h-4 w-4 text-amber-600" />
                         Playstyle / Indignance
                       </span>
                       <span className={`font-semibold ${indignanceMeta.textColorClass}`}>
@@ -878,7 +922,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                             key={opt.id}
                             type="button"
                             onClick={() => updateBot(idx, { indignance: opt.id })}
-                            className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap truncate ${
+                            className={`min-h-[34px] rounded-md px-2 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap truncate ${
                               selected
                                 ? 'bg-white text-zinc-900 shadow-sm'
                                 : 'text-zinc-700 hover:text-zinc-900'
@@ -892,13 +936,13 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                   </div>
 
                   {/* Bot Deck Selection */}
-                  <div className="space-y-2 border-t border-zinc-200/80 pt-3">
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="inline-flex items-center gap-1 font-semibold text-zinc-800">
-                        <Swords className="h-3.5 w-3.5 text-sky-700" />
+                  <div className="space-y-2.5 border-t border-zinc-200/80 pt-3.5">
+                    <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-zinc-800">
+                        <Swords className="h-4 w-4 text-sky-700" />
                         Bot Deck
                       </span>
-                      <span className="text-[11px] text-zinc-600 font-mono tabular-nums truncate max-w-[175px]">
+                      <span className="text-xs text-zinc-600 font-mono tabular-nums truncate max-w-[190px]">
                         {activeDeckTab === 'archetype'
                           ? 'Built-in Archetype'
                           : isMirrorDeck
@@ -949,7 +993,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                               }
                             }
                           }}
-                          className={`rounded-md px-2 py-1 text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap truncate ${
+                          className={`min-h-[34px] rounded-md px-2 py-1.5 text-xs font-semibold transition-colors cursor-pointer whitespace-nowrap truncate ${
                             activeDeckTab === tab.id
                               ? 'bg-white text-sky-800 shadow-sm'
                               : 'text-zinc-600 hover:text-zinc-900'
@@ -975,7 +1019,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                           })
                         }
                         aria-label={`${bot.name} deck archetype`}
-                        className="w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-2 text-xs font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
+                        className="min-h-[40px] w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs sm:text-sm font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
                       >
                         {LIVE_BOT_ARCHETYPES.map((arch) => (
                           <option key={arch} value={arch}>
@@ -986,7 +1030,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                     )}
 
                     {activeDeckTab === 'preset' && (
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         <select
                           value={
                             isMirrorDeck
@@ -1013,7 +1057,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                             }
                           }}
                           aria-label={`${bot.name} preset deck`}
-                          className="w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-2 text-xs font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
+                          className="min-h-[40px] w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs sm:text-sm font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
                         >
                           {playerDeckSerializedText.trim() && (
                             <option value="__mirror__">
@@ -1026,7 +1070,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                             </option>
                           ))}
                         </select>
-                        <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-500">
+                        <div className="flex items-center justify-between gap-2 text-xs text-zinc-500">
                           <span className="truncate">
                             {isMirrorDeck
                               ? 'This bot will pilot an exact copy of your active deck.'
@@ -1050,9 +1094,9 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                     )}
 
                     {activeDeckTab === 'custom' && (
-                      <div className="space-y-2 rounded-lg border border-zinc-300 bg-white p-2.5">
+                      <div className="space-y-2.5 rounded-lg border border-zinc-300 bg-white p-3">
                         {/* Saved Custom Decks Bar */}
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                           <select
                             value={matchedSavedDeck?.id || ''}
                             onChange={(e) => {
@@ -1066,7 +1110,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                               setBotNotice(bot.id, 'ok', `Loaded "${picked.name}"`);
                             }}
                             aria-label={`${bot.name} saved custom deck`}
-                            className="flex-1 min-w-0 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
+                            className="min-h-[38px] flex-1 min-w-0 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
                           >
                             <option value="">
                               {savedCustomDecks.length > 0
@@ -1089,15 +1133,15 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                                 setSavedCustomDecks(next);
                                 setBotNotice(bot.id, 'ok', `Removed "${matchedSavedDeck.name}" from saved list`);
                               }}
-                              className="rounded-md border border-zinc-200 bg-zinc-50 p-1 text-zinc-500 hover:border-red-300 hover:text-red-700 cursor-pointer shrink-0"
+                              className="inline-flex min-h-[38px] min-w-[38px] items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 p-1.5 text-zinc-500 hover:border-red-300 hover:text-red-700 cursor-pointer shrink-0"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Trash2 className="h-4 w-4" />
                             </button>
                           )}
                         </div>
 
                         {/* Custom Deck Name + Save Button */}
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-2">
                           <input
                             type="text"
                             value={bot.customDeckName || ''}
@@ -1108,7 +1152,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                               customSummary.suggestedName || 'Custom deck name (e.g. Kinnan cEDH)'
                             }
                             aria-label={`${bot.name} custom deck name`}
-                            className="flex-1 min-w-0 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-zinc-900 placeholder:text-zinc-500 focus:border-sky-600 focus:outline-none"
+                            className="min-h-[38px] flex-1 min-w-0 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-zinc-900 placeholder:text-zinc-500 focus:border-sky-600 focus:outline-none"
                           />
                           <button
                             type="button"
@@ -1132,15 +1176,15 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                               setBotNotice(bot.id, 'ok', `Saved "${nameToSave}"`);
                             }}
                             title="Save this custom decklist for future Live Games"
-                            className="inline-flex items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] font-semibold text-sky-800 hover:bg-sky-100 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
+                            className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-800 hover:bg-sky-100 disabled:opacity-40 cursor-pointer whitespace-nowrap shrink-0"
                           >
-                            <BookmarkPlus className="h-3 w-3" />
+                            <BookmarkPlus className="h-3.5 w-3.5" />
                             Save
                           </button>
                         </div>
 
                         {/* Quick Action Strip: URL Import, File Upload, Paste, Copy, Copy Mine */}
-                        <div className="flex flex-wrap items-center gap-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <button
                             type="button"
                             onClick={() =>
@@ -1149,21 +1193,21 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                                 [bot.id]: !prev[bot.id],
                               }))
                             }
-                            className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-semibold cursor-pointer ${
+                            className={`inline-flex min-h-[32px] items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-semibold cursor-pointer ${
                               isUrlOpen
                                 ? 'border-sky-300 bg-sky-50 text-sky-800'
                                 : 'border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
                             }`}
                           >
-                            <Link2 className="h-3 w-3 text-sky-700" />
+                            <Link2 className="h-3.5 w-3.5 text-sky-700" />
                             URL
                           </button>
                           <button
                             type="button"
                             onClick={() => fileInputRefs.current[bot.id]?.click()}
-                            className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                            className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
                           >
-                            <FileUp className="h-3 w-3 text-sky-700" />
+                            <FileUp className="h-3.5 w-3.5 text-sky-700" />
                             File
                           </button>
                           <input
@@ -1206,9 +1250,9 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                               });
                               setBotNotice(bot.id, 'ok', `Pasted ${summary.totalQty} cards`);
                             }}
-                            className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                            className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
                           >
-                            <ClipboardPaste className="h-3 w-3 text-sky-700" />
+                            <ClipboardPaste className="h-3.5 w-3.5 text-sky-700" />
                             Paste
                           </button>
                           {parsedCustomCount > 0 && (
@@ -1222,9 +1266,9 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                                   ok ? 'Copied bot decklist' : 'Copy failed'
                                 );
                               }}
-                              className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                              className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
                             >
-                              <Copy className="h-3 w-3 text-zinc-600" />
+                              <Copy className="h-3.5 w-3.5 text-zinc-600" />
                               Copy
                             </button>
                           )}
@@ -1239,7 +1283,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                                 });
                                 setBotNotice(bot.id, 'ok', `Loaded "${playerDeckName}"`);
                               }}
-                              className="inline-flex items-center gap-1 rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer"
+                              className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-800 hover:bg-sky-100 cursor-pointer"
                             >
                               Copy Mine
                             </button>
@@ -1248,7 +1292,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                             <button
                               type="button"
                               onClick={() => applyCustomDeckToAllBots(bot)}
-                              className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                              className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 cursor-pointer"
                             >
                               All Bots
                             </button>
@@ -1265,9 +1309,9 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                                     LIVE_BOT_ARCHETYPES[0],
                                 })
                               }
-                              className="inline-flex items-center gap-1 rounded border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-500 hover:text-zinc-900 cursor-pointer"
+                              className="inline-flex min-h-[32px] items-center gap-1 rounded-md border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-500 hover:text-zinc-900 cursor-pointer"
                             >
-                              <RotateCcw className="h-3 w-3" />
+                              <RotateCcw className="h-3.5 w-3.5" />
                               Clear
                             </button>
                           )}
@@ -1275,7 +1319,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
 
                         {/* Inline URL Import Input */}
                         {isUrlOpen && (
-                          <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-2">
                             <input
                               type="url"
                               value={urlInputByBotId[bot.id] || ''}
@@ -1292,16 +1336,16 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                                 }
                               }}
                               placeholder="https://moxfield.com/decks/... or archidekt.com/..."
-                              className="flex-1 min-w-0 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-[11px] text-zinc-900 placeholder:text-zinc-500 focus:border-sky-600 focus:outline-none"
+                              className="min-h-[38px] flex-1 min-w-0 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs sm:text-sm text-zinc-900 placeholder:text-zinc-500 focus:border-sky-600 focus:outline-none"
                             />
                             <button
                               type="button"
                               disabled={isUrlLoading}
                               onClick={() => void handleImportBotUrl(idx, bot.id)}
-                              className="inline-flex items-center gap-1 rounded-md bg-sky-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
+                              className="inline-flex min-h-[38px] items-center gap-1.5 rounded-lg bg-sky-700 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-sky-800 disabled:opacity-50 cursor-pointer whitespace-nowrap shrink-0"
                             >
                               {isUrlLoading ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
                               ) : (
                                 'Import'
                               )}
@@ -1311,11 +1355,11 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
 
                         {botNotice && (
                           <div
-                            className={`flex items-center gap-1 text-[10px] font-medium ${
+                            className={`flex items-center gap-1.5 text-xs font-medium ${
                               botNotice.tone === 'ok' ? 'text-emerald-700' : 'text-red-700'
                             }`}
                           >
-                            {botNotice.tone === 'ok' && <Check className="h-3 w-3 shrink-0" />}
+                            {botNotice.tone === 'ok' && <Check className="h-3.5 w-3.5 shrink-0" />}
                             <span>{botNotice.text}</span>
                           </div>
                         )}
@@ -1334,11 +1378,11 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                             });
                           }}
                           placeholder={`Paste Arena / Moxfield / Archidekt list...\n1 Sol Ring\n1 Counterspell\n...`}
-                          className="w-full rounded-lg border border-zinc-300 bg-white p-2.5 font-mono text-[11px] leading-relaxed text-zinc-900 placeholder:text-zinc-500 focus:border-sky-600 focus:outline-none resize-y"
+                          className="w-full rounded-lg border border-zinc-300 bg-white p-2.5 font-mono text-xs leading-relaxed text-zinc-900 placeholder:text-zinc-500 focus:border-sky-600 focus:outline-none resize-y"
                         />
 
                         {/* Parsed Summary & Commander Selector */}
-                        <div className="space-y-1.5 text-[11px]">
+                        <div className="space-y-2 text-xs">
                           <div className="flex flex-wrap items-center justify-between gap-1 text-zinc-600">
                             <span className="font-mono tabular-nums font-medium">
                               {parsedCustomCount > 0
@@ -1346,22 +1390,22 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                                 : 'Empty list falls back to archetype deck'}
                             </span>
                             {resolvingCustomMeta && parsedCustomCount > 0 ? (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-medium text-sky-700">
-                                <Loader2 className="h-3 w-3 animate-spin" />
+                              <span className="inline-flex items-center gap-1 text-xs font-medium text-sky-700">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                 Syncing stats...
                               </span>
                             ) : customSummary.commanders.length > 0 ? (
-                              <span className="font-semibold text-sky-800 truncate max-w-[190px]">
+                              <span className="font-semibold text-sky-800 truncate max-w-[210px]">
                                 Cmdr: {customSummary.commanders.join(' & ')}
                               </span>
                             ) : null}
                           </div>
 
                           {customSummary.candidates.length > 0 && (
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-2">
                               <label
                                 htmlFor={`live-bot-cmd-${bot.id}`}
-                                className="text-[10px] font-semibold text-zinc-700 whitespace-nowrap"
+                                className="text-xs font-semibold text-zinc-700 whitespace-nowrap"
                               >
                                 Bot Cmdr:
                               </label>
@@ -1386,7 +1430,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
                                     ),
                                   });
                                 }}
-                                className="w-full rounded-md border border-zinc-300 bg-white px-2 py-1 text-[11px] font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
+                                className="min-h-[36px] w-full rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs sm:text-sm font-medium text-zinc-900 focus:border-sky-600 focus:outline-none"
                               >
                                 <option value="">
                                   {customSummary.commanders.length > 0
@@ -1414,7 +1458,7 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
 
       {/* Footer Launch Strip */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-t border-zinc-200 pt-4">
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-zinc-600">
+        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs sm:text-sm text-zinc-600">
           <span className="font-semibold text-zinc-900">Your Deck: {playerDeckName}</span>
           <span aria-hidden="true">·</span>
           <span>{playerDeckVersionLabel}</span>
@@ -1433,12 +1477,47 @@ export const LiveMatchSetupLobby: React.FC<LiveMatchSetupLobbyProps> = ({
         <button
           type="button"
           onClick={handleLaunch}
-          className="inline-flex items-center gap-2 rounded-lg bg-sky-700 px-5 py-2.5 text-sm font-bold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
+          className="inline-flex min-h-[44px] items-center gap-2 rounded-lg bg-sky-700 px-6 py-2.5 text-sm font-bold text-white hover:bg-sky-800 cursor-pointer whitespace-nowrap shrink-0"
         >
           <Play className="h-4 w-4 fill-current" />
           Start Live Game ({mode} · {startingLife} Life)
         </button>
       </div>
+
+      {/* Animated d20 Launch Roll-Off Modal (shown when launching with unrolled Random d20) */}
+      {launchRollModalOpen && previewRollResult && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Rolling d20 to see who goes first"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/75 p-4 backdrop-blur-sm"
+        >
+          <div className="w-full max-w-2xl rounded-2xl border border-sky-400/50 bg-white p-5 shadow-2xl space-y-4">
+            <D20RollOffStage
+              rollResult={previewRollResult}
+              rollNonce={rollNonce}
+              soundEnabled={soundEnabled}
+              title="Rolling d20 to See Who Goes First..."
+              autoLaunchCountdownLabel="Start Match Now"
+              onSkipAndProceed={() => {
+                if (autoLaunchTimerRef.current) {
+                  window.clearTimeout(autoLaunchTimerRef.current);
+                  autoLaunchTimerRef.current = null;
+                }
+                setLaunchRollModalOpen(false);
+                onStartLiveGame(previewRollResult.winnerSeatIdx, previewRollResult.summary);
+              }}
+              onSettled={(settled) => {
+                setIsRollSettled(true);
+                autoLaunchTimerRef.current = window.setTimeout(() => {
+                  setLaunchRollModalOpen(false);
+                  onStartLiveGame(settled.winnerSeatIdx, settled.summary);
+                }, 700);
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
